@@ -1,0 +1,11 @@
+# cargo audit reads all of Cargo.lock, for every platform. These advisories are
+# for crates that the Windows app does not build (`cargo tree -i <crate> --target all`).
+[advisories]
+ignore = [
+    # rsa: only in the lock file through the unused MySQL driver of sqlx. Not built.
+    "RUSTSEC-2023-0071",
+    # proc-macro-error: unmaintained. Comes with gtk 0.18, which Tauri uses on Linux only.
+    "RUSTSEC-2024-0370",
+    # glib: unsound iterator. Comes with gtk 0.18, which Tauri uses on Linux only.
+    "RUSTSEC-2024-0429",
+]
