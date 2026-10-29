@@ -18,7 +18,7 @@
       },
       "digest": "sha256:ee665637121887cf3befff38abbb1be4ee117c7db867d97a67e29049ecd7e15f",
       "mature_ok": false,
-      "description": "Google's 2026 small model. Natural writing that stays in its role.",
+      "description": "Google's 2026 model. Natural writing that stays in its role.",
       "tested": "2026-10-29",
       "tuning": {
         "context": 8192,

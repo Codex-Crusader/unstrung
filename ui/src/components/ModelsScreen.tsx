@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   downloadModel,
   modelsPage,
@@ -29,19 +29,20 @@ function gib(bytes: number): string {
   return (bytes / 1024 ** 3).toFixed(1);
 }
 
-function DownloadLine({ download }: { download: Download }) {
+/** `name` is the model name to show, or the tag for a model outside the catalog. */
+function DownloadLine({ download, name }: { download: Download; name: string }) {
   const s = strings.models;
   const text = {
     downloading: s.downloading(
-      download.model,
+      name,
       gb(download.completed),
       gb(download.total),
       download.bytes_per_second > 0 ? (download.bytes_per_second / 1_000_000).toFixed(1) : "",
     ),
-    checking: s.checking(download.model),
-    done: s.done(download.model),
-    stopped: s.stopped(download.model),
-    failed: s.failed(download.model),
+    checking: s.checking(name),
+    done: s.done(name),
+    stopped: s.stopped(name),
+    failed: s.failed(name),
   }[download.state];
   const active = download.state === "downloading" || download.state === "checking";
   return (
@@ -114,6 +115,308 @@ function AutoNumber({
   );
 }
 
+/** What the view can ask the screen to do. */
+export interface ModelActions {
+  download: (model: string) => void;
+  use: (model: string) => void;
+  remove: (model: string) => void;
+  recheck: () => void;
+}
+
+const TIERS = ["basic", "standard", "high"] as const;
+
+function bySize(a: ModelView, b: ModelView): number {
+  return a.size_bytes - b.size_bytes;
+}
+
+/** The facts line under a model name. */
+function Facts({ m }: { m: ModelView }) {
+  const s = strings.models;
+  // Only a warning when the model is too big. The group heading says what fits.
+  const facts = [m.size_bytes > 0 ? s.size(gb(m.size_bytes)) : ""];
+  if (m.in_catalog && !m.fits) facts.push(s.tooBig);
+  if (m.in_catalog) facts.push(s.styleFollowing.get(m.style_following) ?? "");
+  return (
+    <span className="model-facts">
+      {facts.filter(Boolean).join(" · ")}
+      {m.license_name && (
+        <span title={m.license_url}>
+          {" "}
+          · {s.license}: {m.license_name}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** One model with its one main action. */
+function ModelRow({
+  m,
+  page,
+  download,
+  confirm,
+  setConfirm,
+  act,
+}: {
+  m: ModelView;
+  page: ModelsPage;
+  download: Download | null;
+  confirm: string | null;
+  setConfirm: (id: string | null) => void;
+  act: ModelActions;
+}) {
+  const s = strings.models;
+  const busy = download !== null && (download.state === "downloading" || download.state === "checking");
+  const mine = download?.model === m.id;
+  let main;
+  if (busy && mine) {
+    main = <span className="muted">{s.downloadingShort}</span>;
+  } else if (!m.installed) {
+    const resumable = mine && (download.state === "stopped" || download.state === "failed");
+    main = (
+      <button
+        type="button"
+        className="button"
+        disabled={busy}
+        onClick={() => {
+          act.download(m.id);
+        }}
+      >
+        {resumable ? s.resume : s.download}
+      </button>
+    );
+  } else if (m.is_default) {
+    main = <span className="badge badge-strong">{s.inUse}</span>;
+  } else {
+    main = (
+      <button
+        type="button"
+        className="button button-quiet"
+        onClick={() => {
+          act.use(m.id);
+        }}
+      >
+        {s.useForNew}
+      </button>
+    );
+  }
+  const removable = m.installed && !m.is_default && !page.shared_folder;
+  return (
+    <li className={m.is_default ? "model-row model-default" : "model-row"}>
+      <div className="model-info">
+        <span className="model-name">
+          {m.name}
+          {m.recommended && <span className="badge">{s.recommended}</span>}
+          {m.installed && !m.is_default && <span className="badge badge-quiet">{s.installed}</span>}
+          {m.changed_upstream && <span className="badge badge-quiet">{s.changedUpstream}</span>}
+        </span>
+        {m.in_catalog ? (
+          m.description && <span className="card-tagline">{m.description}</span>
+        ) : (
+          <span className="card-tagline">{s.ownNotTested}</span>
+        )}
+        <Facts m={m} />
+      </div>
+      <div className="model-actions">
+        {confirm === m.id ? (
+          <span className="confirm">
+            {s.confirmRemove(m.name)}
+            <button
+              type="button"
+              className="link-button danger"
+              onClick={() => {
+                setConfirm(null);
+                act.remove(m.id);
+              }}
+            >
+              {s.yesRemove}
+            </button>
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => {
+                setConfirm(null);
+              }}
+            >
+              {s.cancel}
+            </button>
+          </span>
+        ) : (
+          <>
+            {main}
+            {removable && (
+              <button
+                type="button"
+                className="link-button danger"
+                onClick={() => {
+                  setConfirm(m.id);
+                }}
+              >
+                {s.remove}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** The Models screen without state, so it can render from fixed data. */
+export function ModelsView({
+  page,
+  download,
+  act,
+  notice,
+  ownForm,
+  advancedForm,
+}: {
+  notice: ReactNode;
+  page: ModelsPage;
+  download: Download | null;
+  act: ModelActions;
+  ownForm: ReactNode;
+  advancedForm: ReactNode;
+}) {
+  const s = strings.models;
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const hw = page.hardware;
+  const catalog = page.models.filter((m) => m.in_catalog);
+  const own = page.models.filter((m) => !m.in_catalog).sort(bySize);
+  const installed = page.models.filter((m) => m.installed);
+  const pick = catalog.find((m) => m.recommended);
+  const busy = download !== null && (download.state === "downloading" || download.state === "checking");
+  const row = (m: ModelView) => (
+    <ModelRow key={m.id} m={m} page={page} download={download} confirm={confirm} setConfirm={setConfirm} act={act} />
+  );
+
+  return (
+    <section className="page models">
+      <h1>{s.title}</h1>
+      <p className="muted">{s.intro}</p>
+      {notice}
+
+      <div className="pc-panel">
+        <p className="pc-line">
+          <strong>{s.yourPc}:</strong>{" "}
+          {[
+            hw.gpu && hw.tier !== "basic" ? s.gpu(hw.gpu.name, gib(hw.gpu.vram_bytes)) : s.noGpu,
+            s.ram(gib(hw.ram_bytes)),
+            hw.disk_free_bytes > 0 ? s.disk(gb(hw.disk_free_bytes)) : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        <p className="pc-line">
+          <strong>{s.canRun.get(hw.tier)}</strong>{" "}
+          <button type="button" className="link-button" onClick={act.recheck}>
+            {s.checkAgain}
+          </button>
+        </p>
+        {hw.below_minimum && <p className="field-hint warn">{s.belowMinimum}</p>}
+        {page.hardware_changed && <p className="field-hint">{s.hardwareChanged}</p>}
+      </div>
+
+      {download && (
+        <DownloadLine
+          download={download}
+          name={page.models.find((m) => m.id === download.model)?.name ?? download.model}
+        />
+      )}
+
+      {pick &&
+        (pick.installed && pick.is_default ? (
+          <p className="recommended-ok">{s.recommendedInUse(pick.name)}</p>
+        ) : (
+          <div className="recommended-card">
+            <h2>{s.recommendedTitle}</h2>
+            <p className="model-name">{pick.name}</p>
+            <p className="card-tagline">{pick.description}</p>
+            <Facts m={pick} />
+            <div className="model-actions">
+              {pick.installed ? (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    act.use(pick.id);
+                  }}
+                >
+                  {s.useForNew}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-big"
+                  disabled={busy}
+                  onClick={() => {
+                    act.download(pick.id);
+                  }}
+                >
+                  {busy && download.model === pick.id ? s.downloadingShort : `${s.download} (${gb(pick.size_bytes)} GB)`}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+
+      <div className="models-section">
+        <h2>{s.inUseTitle}</h2>
+        {installed.length === 0 ? (
+          <p className="muted">{s.noModelYet}</p>
+        ) : (
+          <label className="field in-use">
+            <select
+              value={page.default_model}
+              onChange={(e) => {
+                act.use(e.target.value);
+              }}
+            >
+              {installed.every((m) => m.id !== page.default_model) && (
+                <option value={page.default_model}>{page.default_model}</option>
+              )}
+              {installed.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">{s.inUseHint}</span>
+          </label>
+        )}
+      </div>
+
+      <div className="models-section">
+        <h2>{s.allTitle}</h2>
+        {TIERS.map((tier) => {
+          const group = catalog.filter((m) => (m.min_tier ?? "basic") === tier).sort(bySize);
+          if (group.length === 0) return null;
+          return (
+            <div key={tier} className="model-group">
+              <h3>{s.group.get(tier)}</h3>
+              <ul className="model-list">{group.map(row)}</ul>
+            </div>
+          );
+        })}
+        {page.shared_folder && <p className="muted">{s.sharedFolder}</p>}
+      </div>
+
+      <div className="models-section">
+        <h2>{s.ownTitle}</h2>
+        <p className="muted">{s.ownIntro}</p>
+        {own.length > 0 ? <ul className="model-list">{own.map(row)}</ul> : <p className="muted">{s.ownNone}</p>}
+        {ownForm}
+      </div>
+
+      <details className="more advanced">
+        <summary>{s.advanced}</summary>
+        <p className="muted">{s.advancedIntro}</p>
+        {advancedForm}
+      </details>
+    </section>
+  );
+}
+
 /** `engine` is the engine state and model. The list reloads when it changes,
  * because the engine finds the installed models only after it starts. */
 export function ModelsScreen({ engine }: { engine: string }) {
@@ -121,7 +424,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
   const [page, setPage] = useState<ModelsPage | null>(null);
   const [download, setDownload] = useState<Download | null>(null);
   const [error, setError] = useState<UiError | null>(null);
-  const [confirm, setConfirm] = useState<string | null>(null);
+  const [ownError, setOwnError] = useState<UiError | null>(null);
   const [advanced, setAdvancedDraft] = useState<Advanced | null>(null);
   const [saved, setSaved] = useState(false);
   const [byName, setByName] = useState("");
@@ -194,266 +497,167 @@ export function ModelsScreen({ engine }: { engine: string }) {
   }
 
   const busy = download !== null && (download.state === "downloading" || download.state === "checking");
-  const hw = page.hardware;
-  const start = (model: string) => {
-    setError(null);
-    downloadModel(model).catch(fail);
+  const act: ModelActions = {
+    download: (model) => {
+      setError(null);
+      downloadModel(model).catch(fail);
+    },
+    use: (model) => {
+      setError(null);
+      setDefaultModel(model).then(show).catch(fail);
+    },
+    remove: (model) => {
+      setError(null);
+      removeModel(model).then(show).catch(fail);
+    },
+    recheck: () => {
+      recheckHardware().then(show).catch(fail);
+    },
   };
 
-  const actions = (m: ModelView) => {
-    if (busy && download.model === m.id) return null;
-    if (!m.installed) {
-      const resumable = download?.model === m.id && (download.state === "stopped" || download.state === "failed");
-      return (
-        <button
-          type="button"
-          className="button"
-          disabled={busy}
-          onClick={() => {
-            start(m.id);
+  const ownForm = (
+    <form
+      className="by-name"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const name = byName.trim();
+        if (!name) return;
+        setOwnError(null);
+        downloadModel(name)
+          .then(() => {
+            setByName("");
+          })
+          .catch((err: unknown) => {
+            setOwnError(toUiError(err));
+          });
+      }}
+    >
+      <label className="field">
+        <span className="field-label">{s.byName}</span>
+        <input
+          value={byName}
+          placeholder="llama3.1:8b"
+          spellCheck={false}
+          onChange={(e) => {
+            setByName(e.target.value);
+          }}
+        />
+        <span className="field-hint">{s.byNameHint}</span>
+        {ownError && (
+          <span className="field-hint warn" role="alert">
+            {ownError.message} {ownError.detail}
+          </span>
+        )}
+      </label>
+      <button type="submit" className="button" disabled={busy || !byName.trim()}>
+        {s.add}
+      </button>
+    </form>
+  );
+
+  const advancedForm = advanced && (
+    <form
+      className="advanced-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        setSaved(false);
+        setAdvanced(advanced)
+          .then((p) => {
+            show(p);
+            setSaved(true);
+          })
+          .catch(fail);
+      }}
+    >
+      <label className="field advanced-row">
+        <span className="field-label">{s.context}</span>
+        <select
+          value={advanced.context ?? ""}
+          onChange={(e) => {
+            setAdvancedDraft({ ...advanced, context: e.target.value ? Number(e.target.value) : null });
           }}
         >
-          {resumable ? s.resume : s.download}
-        </button>
-      );
-    }
-    if (confirm === m.id) {
-      return (
-        <span className="confirm">
-          {s.confirmRemove(m.name)}
-          <button
-            type="button"
-            className="link-button danger"
-            onClick={() => {
-              setConfirm(null);
-              removeModel(m.id).then(show).catch(fail);
-            }}
-          >
-            {s.yesRemove}
-          </button>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => {
-              setConfirm(null);
-            }}
-          >
-            {s.cancel}
-          </button>
-        </span>
-      );
-    }
-    return (
-      <>
-        {!m.is_default && (
-          <button
-            type="button"
-            className="button button-quiet"
-            onClick={() => {
-              setError(null);
-              setDefaultModel(m.id).then(show).catch(fail);
-            }}
-          >
-            {s.useDefault}
-          </button>
-        )}
-        {!m.is_default && !page.shared_folder && (
-          <button
-            type="button"
-            className="link-button danger"
-            onClick={() => {
-              setConfirm(m.id);
-            }}
-          >
-            {s.remove}
-          </button>
-        )}
-      </>
-    );
-  };
-
-  return (
-    <section className="page models">
-      <h1>{s.title}</h1>
-      <p className="muted">{s.intro}</p>
-      {error && (
-        <p className="chat-error" role="alert">
-          {error.message} {error.detail}
-        </p>
-      )}
-
-      <div className="pc-panel">
-        <h2>{s.yourPc}</h2>
-        <ul className="pc-facts">
-          <li>{hw.gpu && hw.tier !== "basic" ? s.gpu(hw.gpu.name, gib(hw.gpu.vram_bytes)) : s.noGpu}</li>
-          <li>{s.ram(gib(hw.ram_bytes))}</li>
-          {hw.disk_free_bytes > 0 && <li>{s.disk(gb(hw.disk_free_bytes))}</li>}
-          <li>
-            {s.tier}: <strong>{s.tierName.get(hw.tier)}</strong>
-          </li>
-        </ul>
-        {hw.below_minimum && <p className="field-hint warn">{s.belowMinimum}</p>}
-        {page.hardware_changed && <p className="field-hint">{s.hardwareChanged}</p>}
-        <button
-          type="button"
-          className="link-button"
-          onClick={() => {
-            recheckHardware().then(show).catch(fail);
+          <option value="">{s.automatic}</option>
+          {CONTEXTS.map((c) => (
+            <option key={c} value={c}>
+              {s.tokens(c)}
+            </option>
+          ))}
+        </select>
+        <span className="field-hint">{s.contextHint}</span>
+      </label>
+      <label className="field advanced-row">
+        <span className="field-label">{s.think}</span>
+        <select
+          value={advanced.think === null ? "" : advanced.think ? "on" : "off"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setAdvancedDraft({ ...advanced, think: v === "" ? null : v === "on" });
           }}
         >
-          {s.checkAgain}
+          <option value="">{s.automatic}</option>
+          <option value="on">{s.on}</option>
+          <option value="off">{s.off}</option>
+        </select>
+        <span className="field-hint">{s.thinkHint}</span>
+      </label>
+      <AutoNumber
+        label={s.temperature}
+        value={advanced.temperature}
+        step={0.05}
+        min={0}
+        max={2}
+        fallback={0.8}
+        onChange={(v) => {
+          setAdvancedDraft({ ...advanced, temperature: v });
+        }}
+      />
+      <AutoNumber
+        label={s.minP}
+        value={advanced.min_p}
+        step={0.01}
+        min={0}
+        max={0.5}
+        fallback={0.05}
+        onChange={(v) => {
+          setAdvancedDraft({ ...advanced, min_p: v });
+        }}
+      />
+      <AutoNumber
+        label={s.repeatPenalty}
+        value={advanced.repeat_penalty}
+        step={0.01}
+        min={1}
+        max={1.5}
+        fallback={1.08}
+        onChange={(v) => {
+          setAdvancedDraft({ ...advanced, repeat_penalty: v });
+        }}
+      />
+      <div className="form-actions">
+        {saved && <span className="muted">{s.saved}</span>}
+        <span className="spacer" />
+        <button type="submit" className="button">
+          {s.save}
         </button>
       </div>
+    </form>
+  );
 
-      {download && <DownloadLine download={download} />}
-
-      <ul className="model-list">
-        {page.models.map((m) => (
-          <li key={m.id} className={m.is_default ? "model-row model-default" : "model-row"}>
-            <div className="model-info">
-              <span className="model-name">
-                {m.name}
-                {m.recommended && <span className="badge">{s.recommended}</span>}
-                {m.is_default && <span className="badge badge-strong">{s.isDefault}</span>}
-                {!m.in_catalog && <span className="badge badge-quiet">{s.notTested}</span>}
-                {!m.fits && <span className="badge badge-warn">{s.tooBig}</span>}
-                {m.changed_upstream && <span className="badge badge-quiet">{s.changedUpstream}</span>}
-              </span>
-              {m.description && <span className="card-tagline">{m.description}</span>}
-              <span className="model-facts">
-                {s.size(gb(m.size_bytes))}
-                {m.installed && ` · ${s.installed}`}
-                {m.in_catalog && ` · ${s.styleFollowing.get(m.style_following) ?? ""}`}
-                {m.can_think && ` · ${s.canThink}`}
-                {m.license_name && (
-                  <span title={m.license_url}>
-                    {" "}
-                    · {s.license}: {m.license_name}
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="model-actions">{actions(m)}</div>
-          </li>
-        ))}
-      </ul>
-      {page.shared_folder && <p className="muted">{s.sharedFolder}</p>}
-
-      <details className="more advanced">
-        <summary>{s.advanced}</summary>
-        <p className="muted">{s.advancedIntro}</p>
-        {advanced && (
-          <form
-            className="advanced-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setError(null);
-              setSaved(false);
-              setAdvanced(advanced)
-                .then((p) => {
-                  show(p);
-                  setSaved(true);
-                })
-                .catch(fail);
-            }}
-          >
-            <label className="field advanced-row">
-              <span className="field-label">{s.context}</span>
-              <select
-                value={advanced.context ?? ""}
-                onChange={(e) => {
-                  setAdvancedDraft({ ...advanced, context: e.target.value ? Number(e.target.value) : null });
-                }}
-              >
-                <option value="">{s.automatic}</option>
-                {CONTEXTS.map((c) => (
-                  <option key={c} value={c}>
-                    {s.tokens(c)}
-                  </option>
-                ))}
-              </select>
-              <span className="field-hint">{s.contextHint}</span>
-            </label>
-            <label className="field advanced-row">
-              <span className="field-label">{s.think}</span>
-              <select
-                value={advanced.think === null ? "" : advanced.think ? "on" : "off"}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setAdvancedDraft({ ...advanced, think: v === "" ? null : v === "on" });
-                }}
-              >
-                <option value="">{s.automatic}</option>
-                <option value="on">{s.on}</option>
-                <option value="off">{s.off}</option>
-              </select>
-              <span className="field-hint">{s.thinkHint}</span>
-            </label>
-            <AutoNumber
-              label={s.temperature}
-              value={advanced.temperature}
-              step={0.05}
-              min={0}
-              max={2}
-              fallback={0.8}
-              onChange={(v) => {
-                setAdvancedDraft({ ...advanced, temperature: v });
-              }}
-            />
-            <AutoNumber
-              label={s.minP}
-              value={advanced.min_p}
-              step={0.01}
-              min={0}
-              max={0.5}
-              fallback={0.05}
-              onChange={(v) => {
-                setAdvancedDraft({ ...advanced, min_p: v });
-              }}
-            />
-            <AutoNumber
-              label={s.repeatPenalty}
-              value={advanced.repeat_penalty}
-              step={0.01}
-              min={1}
-              max={1.5}
-              fallback={1.08}
-              onChange={(v) => {
-                setAdvancedDraft({ ...advanced, repeat_penalty: v });
-              }}
-            />
-            <div className="form-actions">
-              {saved && <span className="muted">{s.saved}</span>}
-              <span className="spacer" />
-              <button type="submit" className="button">
-                {s.save}
-              </button>
-            </div>
-          </form>
-        )}
-        <form
-          className="by-name"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (byName.trim()) start(byName.trim());
-          }}
-        >
-          <label className="field">
-            <span className="field-label">{s.byName}</span>
-            <input
-              value={byName}
-              placeholder="llama3.1:8b"
-              onChange={(e) => {
-                setByName(e.target.value);
-              }}
-            />
-            <span className="field-hint">{s.byNameHint}</span>
-          </label>
-          <button type="submit" className="button button-quiet" disabled={busy || !byName.trim()}>
-            {s.add}
-          </button>
-        </form>
-      </details>
-    </section>
+  const notice = error && (
+    <p className="chat-error" role="alert">
+      {error.message} {error.detail}
+    </p>
+  );
+  return (
+    <ModelsView
+      page={page}
+      download={download}
+      act={act}
+      notice={notice}
+      ownForm={ownForm}
+      advancedForm={advancedForm}
+    />
   );
 }

@@ -1303,9 +1303,63 @@ body > iframe {
   font-size: 16px;
 }
 
-.pc-facts {
-  margin: 0 0 6px;
-  padding-left: 18px;
+.pc-line {
+  margin: 0 0 4px;
+}
+
+.recommended-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 16px 0;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.recommended-card .model-name {
+  margin: 0;
+  font-size: 18px;
+}
+
+.recommended-card .card-tagline {
+  margin: 0;
+}
+
+.recommended-card .model-actions {
+  margin-top: 8px;
+}
+
+.button-big {
+  padding: 10px 22px;
+  font-size: 16px;
+}
+
+.recommended-ok {
+  margin: 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.models-section {
+  margin: 24px 0;
+}
+
+.model-group h3 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.model-group .model-list {
+  margin: 0;
+}
+
+.in-use select {
+  max-width: 360px;
 }
 
 .download-line {
