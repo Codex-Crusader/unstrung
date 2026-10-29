@@ -1,5 +1,13 @@
-import { useEffect, useState } from "react";
-import { listCharacters, restoreStarters, toUiError, type Character, type UiError } from "../api";
+import { useEffect, useRef, useState } from "react";
+import {
+  importCard,
+  listCharacters,
+  restoreStarters,
+  toUiError,
+  type Character,
+  type ImportDraft,
+  type UiError,
+} from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 
@@ -7,11 +15,31 @@ export function HomeScreen({
   onOpen,
   onCreate,
   onEdit,
+  onImport,
 }: {
   onOpen: (character: Character) => void;
   onCreate: () => void;
   onEdit: (character: Character) => void;
+  onImport: (draft: ImportDraft) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const importFile = (file: File) => {
+    setImportError(null);
+    setImporting(true);
+    file
+      .arrayBuffer()
+      .then((buffer) => importCard(new Uint8Array(buffer)))
+      .then(onImport)
+      .catch((e: unknown) => {
+        setImportError(toUiError(e).message);
+      })
+      .finally(() => {
+        setImporting(false);
+      });
+  };
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [error, setError] = useState<UiError | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -81,6 +109,33 @@ export function HomeScreen({
         ))}
       </ul>
       {characters?.length === 0 && <p className="muted">{strings.home.empty}</p>}
+      <div className="home-import">
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={importing}
+          onClick={() => fileRef.current?.click()}
+        >
+          {importing ? strings.home.importing : strings.home.import}
+        </button>
+        <span className="field-hint">{strings.home.importHint}</span>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".png,.json,image/png,application/json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) importFile(file);
+          }}
+        />
+      </div>
+      {importError && (
+        <p className="chat-error" role="alert">
+          {importError}
+        </p>
+      )}
       <p className="home-foot">
         <button type="button" className="link-button" onClick={restore}>
           {strings.home.restore}

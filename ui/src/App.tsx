@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStatus, listPersonas, onStatus, selfTestMode, type EngineStatus, type Persona } from "./api";
+import {
+  getStatus,
+  listPersonas,
+  onStatus,
+  selfTestMode,
+  type EngineStatus,
+  type ImportDraft,
+  type Persona,
+} from "./api";
 import { ChatScreen } from "./components/ChatScreen";
 import { CreatorScreen } from "./components/CreatorScreen";
 import { HomeScreen } from "./components/HomeScreen";
@@ -11,7 +19,7 @@ import { strings } from "./strings";
 export type Screen =
   | { name: "home" }
   | { name: "chat"; characterId: number }
-  | { name: "creator"; characterId: number | null }
+  | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number }
   | { name: "personas" };
 
 /** Closes open message menus on a click outside them, or on Escape. */
@@ -114,6 +122,9 @@ export function App() {
               onEdit={(c) => {
                 setScreen({ name: "creator", characterId: c.id });
               }}
+              onImport={(draft) => {
+                setScreen({ name: "creator", characterId: null, draft, draftKey: Date.now() });
+              }}
             />
           )}
           {screen.name === "chat" && (
@@ -127,8 +138,9 @@ export function App() {
           )}
           {screen.name === "creator" && (
             <CreatorScreen
-              key={screen.characterId ?? "new"}
+              key={screen.characterId ?? `new-${String(screen.draftKey ?? 0)}`}
               characterId={screen.characterId}
+              draft={screen.draft ?? null}
               ready={ready}
               onSaved={(c) => {
                 setScreen({ name: "chat", characterId: c.id });

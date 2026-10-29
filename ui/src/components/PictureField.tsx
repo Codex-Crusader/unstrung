@@ -19,14 +19,24 @@ export function PictureField({
   owner,
   value,
   onChange,
+  initial,
+  onStaged,
 }: {
   kind: "character" | "persona";
   /** The saved record, to show its current picture. */
   owner: Owner | null;
   value: AvatarChange;
   onChange: (change: AvatarChange) => void;
+  /** A picture that is already staged, for example from an imported card. */
+  initial?: Staged | null;
+  /** Reports the staged picture, so the creator can show the crop in its preview. */
+  onStaged?: (staged: Staged | null) => void;
 }) {
-  const [staged, setStaged] = useState<Staged | null>(null);
+  const [staged, setStagedState] = useState<Staged | null>(initial ?? null);
+  const setStaged = (next: Staged | null) => {
+    setStagedState(next);
+    onStaged?.(next);
+  };
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const drag = useRef<{ startX: number; startY: number; crop: Crop } | null>(null);

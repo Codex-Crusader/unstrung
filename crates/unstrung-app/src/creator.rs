@@ -7,6 +7,7 @@ use tauri::State;
 use tauri::ipc::{Channel, InvokeBody, Request};
 use unstrung_core::Error;
 use unstrung_core::avatar::{self, AvatarChange, Staged};
+use unstrung_core::card::{self, ImportExtras, ImportNote};
 use unstrung_core::chat::{Progress, clean_input};
 use unstrung_core::db::{Character, CharacterFields, Message, Persona, PersonaFields};
 use unstrung_core::{library, starters};
@@ -25,6 +26,7 @@ pub async fn save_character(
     character_id: Option<i64>,
     fields: CharacterFields,
     avatar: AvatarChange,
+    extras: Option<ImportExtras>,
 ) -> CmdResult<Character> {
     Ok(library::save_character(
         state.chats.db(),
@@ -32,6 +34,7 @@ pub async fn save_character(
         character_id,
         &fields,
         &avatar,
+        extras.as_ref(),
     )
     .await?)
 }
@@ -88,6 +91,58 @@ pub async fn stage_upload(state: State<'_, AppState>, request: Request<'_>) -> C
         .await
         .map_err(|e| UiError {
             message: "The picture could not be read.".into(),
+            detail: e.to_string(),
+        })?
+        .map_err(UiError::from)
+}
+
+/// A card read for the creator. Nothing is saved until the user saves.
+#[derive(Serialize)]
+pub struct ImportDraft {
+    fields: CharacterFields,
+    extras: ImportExtras,
+    notes: Vec<ImportNote>,
+    picture: Option<Staged>,
+}
+
+/// Reads a character card file (PNG or JSON) sent as raw bytes. A PNG card is
+/// also the picture. If the picture cannot be used, the draft has a note.
+#[tauri::command]
+pub async fn import_card(
+    state: State<'_, AppState>,
+    request: Request<'_>,
+) -> CmdResult<ImportDraft> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(Error::Invalid("send the card as raw bytes".into()).into());
+    };
+    let paths = state.paths.clone();
+    let bytes = bytes.clone();
+    let blocking = tauri::async_runtime::spawn_blocking(move || {
+        let card = card::parse_card(&bytes)?;
+        let mut notes = card.notes;
+        let picture = if card.is_png {
+            match avatar::stage(&paths, &bytes) {
+                Ok(staged) => Some(staged),
+                Err(e) => {
+                    log::warn!("the card picture could not be used: {e}");
+                    notes.push(ImportNote::NoPicture);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        Ok::<_, Error>(ImportDraft {
+            fields: card.fields,
+            extras: card.extras,
+            notes,
+            picture,
+        })
+    });
+    blocking
+        .await
+        .map_err(|e| UiError {
+            message: "The card could not be read.".into(),
             detail: e.to_string(),
         })?
         .map_err(UiError::from)

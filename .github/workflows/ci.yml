@@ -40,6 +40,19 @@ jobs:
       - run: cargo test --workspace
       - run: cargo build -p unstrung-app
 
+  fuzz:
+    name: Fuzz the card parser (60 seconds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust nightly
+        run: rustup toolchain install nightly --profile minimal && rustup default nightly
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-fuzz
+      # The seeds are in fuzz/corpus/card. New inputs that the run finds stay on the runner.
+      - run: cargo fuzz run card -- -max_total_time=60 -max_len=65536
+
   cargo-deny:
     name: cargo deny (licenses, bans, advisories, sources)
     runs-on: ubuntu-latest

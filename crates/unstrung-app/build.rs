@@ -34,6 +34,7 @@ const COMMANDS: &[&str] = &[
     "delete_persona",
     "set_default_persona",
     "stage_upload",
+    "import_card",
     "suggest_anchor",
     "test_reply",
     "self_test_mode",

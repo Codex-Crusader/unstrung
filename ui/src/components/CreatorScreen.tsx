@@ -8,10 +8,15 @@ import {
   type AvatarChange,
   type Character,
   type CharacterFields,
+  type ImportDraft,
+  type ImportNote,
+  type Staged,
   type UiError,
 } from "../api";
 import { CARD_BUDGET, checkCard } from "../cardCheck";
 import { strings } from "../strings";
+import { Avatar } from "./Avatar";
+import { CropAvatar } from "./CropAvatar";
 import { PictureField } from "./PictureField";
 import { TestChat } from "./TestChat";
 
@@ -50,6 +55,32 @@ function fieldsOf(c: Character): CharacterFields {
   };
 }
 
+function noteText(note: ImportNote): string {
+  const t = strings.importNotes;
+  switch (note.kind) {
+    case "cut":
+      return t.cut(t.fieldNames.get(note.field) ?? note.field);
+    case "adult":
+      return t.adult;
+    case "no_age":
+      return t.noAge;
+    case "dropped_prompts":
+      return t.droppedPrompts;
+    case "more_greetings":
+      return t.moreGreetings(note.count);
+    case "world":
+      return t.world(note.count, note.dropped);
+    case "no_picture":
+      return t.noPicture;
+  }
+}
+
+/** A centered square that fills the shorter side. */
+function centerCrop(s: Staged) {
+  const size = Math.min(s.width, s.height);
+  return { x: Math.round((s.width - size) / 2), y: Math.round((s.height - size) / 2), size };
+}
+
 function Field({
   label,
   hint,
@@ -75,25 +106,31 @@ function Field({
 
 export function CreatorScreen({
   characterId,
+  draft,
   ready,
   onSaved,
   onDeleted,
   onCancel,
 }: {
   characterId: number | null;
+  /** An imported card that is not saved yet. */
+  draft: ImportDraft | null;
   ready: boolean;
   onSaved: (character: Character) => void;
   onDeleted: () => void;
   onCancel: () => void;
 }) {
   const [saved, setSaved] = useState<Character | null>(null);
-  const [fields, setFields] = useState<CharacterFields>(EMPTY);
-  const [avatar, setAvatar] = useState<AvatarChange>({ kind: "keep" });
+  const [fields, setFields] = useState<CharacterFields>(draft?.fields ?? EMPTY);
+  const [avatar, setAvatar] = useState<AvatarChange>(
+    draft?.picture ? { kind: "staged", token: draft.picture.token, crop: centerCrop(draft.picture) } : { kind: "keep" },
+  );
   const [error, setError] = useState<UiError | null>(null);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [staged, setStaged] = useState<Staged | null>(draft?.picture ?? null);
 
   useEffect(() => {
     if (characterId === null) return;
@@ -118,7 +155,7 @@ export function CreatorScreen({
     if (!complete || saving) return;
     setSaving(true);
     setError(null);
-    saveCharacter(saved?.id ?? null, fields, avatar)
+    saveCharacter(saved?.id ?? null, fields, avatar, saved ? null : (draft?.extras ?? null))
       .then(onSaved)
       .catch((e: unknown) => {
         setError(toUiError(e));
@@ -163,10 +200,28 @@ export function CreatorScreen({
       >
         <h1>{saved ? strings.creator.editTitle(saved.name) : strings.creator.newTitle}</h1>
 
+        {draft && draft.notes.length > 0 && (
+          <section className="notes" aria-label={strings.importNotes.title}>
+            <strong>{strings.importNotes.title}</strong>
+            <ul>
+              {draft.notes.map((note, i) => (
+                <li key={i}>{noteText(note)}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="creator-top">
           <div className="field">
             <span className="field-label">{strings.creator.picture}</span>
-            <PictureField kind="character" owner={saved} value={avatar} onChange={setAvatar} />
+            <PictureField
+              kind="character"
+              owner={saved}
+              value={avatar}
+              onChange={setAvatar}
+              initial={draft?.picture ?? null}
+              onStaged={setStaged}
+            />
           </div>
           <div className="creator-main">
             <Field label={strings.creator.name} required>
@@ -185,12 +240,29 @@ export function CreatorScreen({
                 type="number"
                 min={1}
                 max={10000}
-                value={fields.age}
+                value={fields.age === 0 ? "" : fields.age}
                 onChange={(e) => {
-                  set("age", Math.trunc(Number(e.target.value)));
+                  set("age", e.target.value === "" ? 0 : Math.trunc(Number(e.target.value)));
                 }}
               />
             </Field>
+          </div>
+          <div className="field card-preview" aria-label={strings.creator.preview}>
+            <span className="field-label">{strings.creator.preview}</span>
+            <div className="character-card">
+              {avatar.kind === "staged" && staged ? (
+                <CropAvatar staged={staged} crop={avatar.crop} label={fields.name} />
+              ) : (
+                <Avatar
+                  kind="character"
+                  owner={avatar.kind === "remove" ? null : saved}
+                  label={fields.name}
+                  size="large"
+                />
+              )}
+              <span className="card-name">{fields.name.trim() || strings.creator.previewName}</span>
+              <span className="card-tagline">{fields.tagline}</span>
+            </div>
           </div>
         </div>
 
@@ -215,7 +287,7 @@ export function CreatorScreen({
           />
         </Field>
 
-        <details className="more" open={saved !== null}>
+        <details className="more" open={saved !== null || draft !== null}>
           <summary>{strings.creator.more}</summary>
           <Field label={strings.creator.tagline} hint={strings.creator.taglineHint}>
             <input

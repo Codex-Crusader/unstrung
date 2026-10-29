@@ -89,6 +89,7 @@ fn main() {
             creator::delete_persona,
             creator::set_default_persona,
             creator::stage_upload,
+            creator::import_card,
             creator::suggest_anchor,
             creator::test_reply,
             selftest::self_test_mode,

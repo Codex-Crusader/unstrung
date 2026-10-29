@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 pub mod avatar;
+pub mod card;
 pub mod chat;
 pub mod db;
 pub mod engine;

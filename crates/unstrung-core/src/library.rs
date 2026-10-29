@@ -2,8 +2,11 @@
 //! checked here: required fields, lengths, known presets and ages.
 
 use crate::avatar::{self, AvatarChange};
+use crate::card::{
+    ImportExtras, MAX_EXTENSIONS_BYTES, MAX_WORLD_CONTENT, MAX_WORLD_ENTRIES, MAX_WORLD_KEYWORDS,
+};
 use crate::chat::{clean_line, is_bidi_control};
-use crate::db::{Character, CharacterFields, Db, Persona, PersonaFields};
+use crate::db::{Character, CharacterFields, Db, Persona, PersonaFields, WorldEntry};
 use crate::error::{Error, Result};
 use crate::paths::AppPaths;
 use crate::presets::{STYLES, TONES};
@@ -112,6 +115,41 @@ pub fn check_persona(f: &PersonaFields) -> Result<PersonaFields> {
     Ok(out)
 }
 
+/// Checks the parts of an imported card that come back from the UI on save.
+pub fn check_extras(extras: &ImportExtras) -> Result<ImportExtras> {
+    if extras.extensions_json.len() > MAX_EXTENSIONS_BYTES {
+        return Err(Error::Invalid("the card extensions are too large".into()));
+    }
+    let parsed: serde_json::Value = serde_json::from_str(&extras.extensions_json)
+        .map_err(|_| Error::Invalid("the card extensions are not valid".into()))?;
+    if !parsed.is_object() {
+        return Err(Error::Invalid("the card extensions are not valid".into()));
+    }
+    if extras.world.len() > MAX_WORLD_ENTRIES {
+        return Err(Error::Invalid(
+            "the card has too many world info entries".into(),
+        ));
+    }
+    let world = extras
+        .world
+        .iter()
+        .map(|e| {
+            Ok(WorldEntry {
+                keywords: line(&e.keywords, MAX_WORLD_KEYWORDS, "a world info keyword list")?,
+                content: required(
+                    text(&e.content, MAX_WORLD_CONTENT, "a world info entry")?,
+                    "a world info entry",
+                )?,
+                is_enabled: e.is_enabled,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(ImportExtras {
+        extensions_json: parsed.to_string(),
+        world,
+    })
+}
+
 /// Makes the new picture first, so a failed picture does not leave a half-saved record.
 fn new_picture(paths: &AppPaths, change: &AvatarChange, kind: &str) -> Result<Option<String>> {
     match change {
@@ -129,20 +167,35 @@ pub async fn save_character(
     id: Option<i64>,
     fields: &CharacterFields,
     change: &AvatarChange,
+    extras: Option<&ImportExtras>,
 ) -> Result<Character> {
     let fields = check_character(fields)?;
+    // Card extras only apply to a new character.
+    let extras = match (id, extras) {
+        (None, Some(e)) => Some(check_extras(e)?),
+        _ => None,
+    };
     let old = match id {
         Some(id) => Some(db.character(id).await?),
         None => None,
     };
     let picture = new_picture(paths, change, "character")?;
+    let mut created = None;
     let saved = async {
         let id = match id {
             Some(id) => {
                 db.update_character(id, &fields).await?;
                 id
             }
-            None => db.insert_character(&fields, None, "{}").await?,
+            None => {
+                let extensions = extras.as_ref().map_or("{}", |e| e.extensions_json.as_str());
+                let new = db.insert_character(&fields, None, extensions).await?;
+                created = Some(new);
+                if let Some(e) = &extras {
+                    db.add_world_entries(new, &e.world).await?;
+                }
+                new
+            }
         };
         if picture.is_some() || matches!(change, AvatarChange::Remove) {
             db.set_character_avatar(id, picture.as_deref()).await?;
@@ -162,6 +215,12 @@ pub async fn save_character(
         Err(e) => {
             if let Some(path) = picture {
                 avatar::remove(paths, &path);
+            }
+            // A half-made character must not stay.
+            if let Some(new) = created
+                && let Err(undo) = db.delete_character(new).await
+            {
+                log::warn!("could not remove a half-saved character: {undo}");
             }
             Err(e)
         }
@@ -303,7 +362,7 @@ mod tests {
                 size: 100,
             },
         };
-        let saved = save_character(&db, &paths, None, &fields(), &change)
+        let saved = save_character(&db, &paths, None, &fields(), &change, None)
             .await
             .unwrap();
         let first = saved.avatar_path.clone().unwrap();
@@ -319,7 +378,7 @@ mod tests {
                 size: 100,
             },
         };
-        let saved = save_character(&db, &paths, Some(saved.id), &fields(), &change)
+        let saved = save_character(&db, &paths, Some(saved.id), &fields(), &change, None)
             .await
             .unwrap();
         let second = saved.avatar_path.clone().unwrap();
@@ -343,5 +402,66 @@ mod tests {
             "and the messages"
         );
         assert!(!paths.stored(&second).unwrap().exists(), "and the picture");
+    }
+
+    #[tokio::test]
+    async fn imported_card_keeps_extras() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        paths.ensure().unwrap();
+        let db = Db::open(&paths.database()).await.unwrap();
+        let entry = WorldEntry {
+            keywords: "river".into(),
+            content: "No bottom.".into(),
+            is_enabled: true,
+        };
+        let extras = ImportExtras {
+            extensions_json: r#"{"x":1}"#.into(),
+            world: vec![entry.clone()],
+        };
+        let saved = save_character(
+            &db,
+            &paths,
+            None,
+            &fields(),
+            &AvatarChange::Keep,
+            Some(&extras),
+        )
+        .await
+        .unwrap();
+        assert_eq!(db.world_entry_count(saved.id).await.unwrap(), 1);
+
+        let bad = |change: fn(&mut ImportExtras)| {
+            let mut e = extras.clone();
+            change(&mut e);
+            check_extras(&e).is_err()
+        };
+        assert!(bad(|e| e.extensions_json = "[1]".into()));
+        assert!(bad(|e| e.extensions_json = "{".into()));
+        assert!(bad(|e| e.world[0].content = String::new()));
+        assert!(bad(
+            |e| e.world[0].content = "a".repeat(MAX_WORLD_CONTENT + 1)
+        ));
+        assert!(bad(
+            |e| e.world = vec![e.world[0].clone(); MAX_WORLD_ENTRIES + 1]
+        ));
+
+        // A failed save leaves no character behind.
+        let before = db.characters().await.unwrap().len();
+        let mut broken = fields();
+        broken.age = 0;
+        assert!(
+            save_character(
+                &db,
+                &paths,
+                None,
+                &broken,
+                &AvatarChange::Keep,
+                Some(&extras)
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(db.characters().await.unwrap().len(), before);
     }
 }

@@ -40,6 +40,7 @@
     "allow-delete-persona",
     "allow-set-default-persona",
     "allow-stage-upload",
+    "allow-import-card",
     "allow-suggest-anchor",
     "allow-test-reply",
     "allow-self-test-mode",

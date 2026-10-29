@@ -23,6 +23,9 @@ export const strings = {
     empty: "You have no characters yet.",
     loadFailed: "Your characters could not load.",
     restore: "Restore starter characters",
+    import: "Import a character card",
+    importing: "Reading the card...",
+    importHint: "A PNG or JSON card from another app (Character Card V1, V2 or V3).",
     restored: "The starter characters are back.",
   },
   picture: {
@@ -40,6 +43,8 @@ export const strings = {
     newTitle: "Create a character",
     editTitle: (name: string) => `Edit ${name}`,
     picture: "Picture",
+    preview: "Home card preview",
+    previewName: "Name",
     name: "Name",
     namePlaceholder: "For example: Captain Mara Voss",
     personality: "Personality",
@@ -84,6 +89,31 @@ export const strings = {
     ],
     testPlaceholder: "Write a test message",
     testReset: "Start again",
+  },
+  importNotes: {
+    title: "About this card",
+    cut: (field: string) => `The ${field} was too long, so its end was cut.`,
+    adult:
+      "This card is marked 18+. Adult content comes in a later version of Unstrung. After you save, the character is hidden from Home. Its chat opens once now.",
+    noAge: "The card has no age. Enter the age before you save.",
+    droppedPrompts: "The card has its own system prompt or instructions. Unstrung does not use them, so the character can act differently than in other apps.",
+    moreGreetings: (n: number) =>
+      `The card has ${String(n)} more ${n === 1 ? "greeting" : "greetings"}. Only the first one is used.`,
+    world: (n: number, dropped: number) =>
+      `The card has ${String(n)} world info ${n === 1 ? "entry. It is" : "entries. They are"} kept, and a later version uses ${n === 1 ? "it" : "them"}.` +
+      (dropped > 0 ? ` ${String(dropped)} empty or extra ${dropped === 1 ? "entry was" : "entries were"} not kept.` : ""),
+    noPicture: "The picture in the card could not be used. Choose a picture, or keep the default.",
+    fieldNames: new Map([
+      ["name", "name"],
+      ["tagline", "tagline"],
+      ["personality", "personality"],
+      ["scenario", "scenario"],
+      ["greeting", "greeting"],
+      ["example_dialogue", "example dialogue"],
+      ["voice_anchor", "voice"],
+      ["appearance_tags", "appearance tags list"],
+      ["extensions", "extra data from other apps"],
+    ]),
   },
   check: {
     traits: "Add 1 or 2 sentences about how they talk, not only a list of traits.",

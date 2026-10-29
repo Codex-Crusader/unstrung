@@ -245,8 +245,43 @@ export interface TestLine {
 }
 
 export const getCharacter = (characterId: number) => invoke<Character>("get_character", { characterId });
-export const saveCharacter = (characterId: number | null, fields: CharacterFields, avatar: AvatarChange) =>
-  invoke<Character>("save_character", { characterId, fields, avatar });
+export interface WorldEntry {
+  keywords: string;
+  content: string;
+  is_enabled: boolean;
+}
+
+/** The parts of an imported card that the creator does not show. */
+export interface ImportExtras {
+  extensions_json: string;
+  world: WorldEntry[];
+}
+
+export type ImportNote =
+  | { kind: "cut"; field: string }
+  | { kind: "adult" }
+  | { kind: "no_age" }
+  | { kind: "dropped_prompts" }
+  | { kind: "more_greetings"; count: number }
+  | { kind: "world"; count: number; dropped: number }
+  | { kind: "no_picture" };
+
+export interface ImportDraft {
+  fields: CharacterFields;
+  extras: ImportExtras;
+  notes: ImportNote[];
+  picture: Staged | null;
+}
+
+export const saveCharacter = (
+  characterId: number | null,
+  fields: CharacterFields,
+  avatar: AvatarChange,
+  extras: ImportExtras | null = null,
+) => invoke<Character>("save_character", { characterId, fields, avatar, extras });
+
+/** Sends the raw bytes of a card file (PNG or JSON). Nothing is saved yet. */
+export const importCard = (bytes: Uint8Array) => invoke<ImportDraft>("import_card", bytes);
 export const deleteCharacter = (characterId: number) => invoke<null>("delete_character", { characterId });
 export const restoreStarters = () => invoke<null>("restore_starters");
 export const savePersona = (personaId: number | null, fields: PersonaFields, avatar: AvatarChange) =>

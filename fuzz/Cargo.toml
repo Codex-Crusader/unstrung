@@ -1,0 +1,22 @@
+[package]
+name = "unstrung-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Not part of the main workspace: cargo fuzz needs a nightly toolchain.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+unstrung-core = { path = "../crates/unstrung-core" }
+
+[[bin]]
+name = "card"
+path = "fuzz_targets/card.rs"
+test = false
+doc = false
+bench = false
