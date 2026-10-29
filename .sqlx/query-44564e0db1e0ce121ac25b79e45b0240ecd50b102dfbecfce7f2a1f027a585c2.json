@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meta (key, value) VALUES (?, ?)\n             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "44564e0db1e0ce121ac25b79e45b0240ecd50b102dfbecfce7f2a1f027a585c2"
+}

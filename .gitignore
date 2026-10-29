@@ -1,0 +1,6 @@
+/target/
+/local/
+/.env
+/crates/unstrung-app/gen/
+node_modules/
+dist/

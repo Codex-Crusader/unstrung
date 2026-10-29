@@ -1,0 +1,45 @@
+# cargo-deny: licenses, known bugs, banned crates and sources.
+# Rule 5 of the project: permissive licenses only. No GPL, LGPL or AGPL.
+
+[graph]
+all-features = true
+targets = ["x86_64-pc-windows-msvc"]
+
+[advisories]
+yanked = "deny"
+
+[licenses]
+confidence-threshold = 0.93
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+]
+# MPL-2.0 is file-level copyleft. Tauri needs these crates, and we use them unchanged.
+# Each one is named, so a new MPL-2.0 dependency fails the check until someone reviews it.
+exceptions = [
+    { crate = "cssparser", allow = ["MPL-2.0"] },
+    { crate = "cssparser-macros", allow = ["MPL-2.0"] },
+    { crate = "dtoa-short", allow = ["MPL-2.0"] },
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+    { crate = "selectors", allow = ["MPL-2.0"] },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+deny = [
+    { crate = "tauri-plugin-shell", reason = "no shell access from the UI" },
+    { crate = "tauri-plugin-fs", reason = "no general file access from the UI" },
+    { crate = "tauri-plugin-http", reason = "the UI has no network access" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

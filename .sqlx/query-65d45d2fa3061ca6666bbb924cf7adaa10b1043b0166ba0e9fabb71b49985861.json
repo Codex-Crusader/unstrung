@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, character_id, title, tone, reply_style, chat_model, head_message_id\n             FROM chats WHERE id = ? AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "character_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "tone",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "reply_style",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "chat_model",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "head_message_id",
+        "ordinal": 6,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "65d45d2fa3061ca6666bbb924cf7adaa10b1043b0166ba0e9fabb71b49985861"
+}

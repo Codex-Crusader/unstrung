@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, avatar_path, tagline, personality, scenario, greeting,\n                    example_dialogue, voice_anchor, default_tone, default_reply_style,\n                    model_override, age\n             FROM characters WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "avatar_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "tagline",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "personality",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "scenario",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "greeting",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "example_dialogue",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "voice_anchor",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "default_tone",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "default_reply_style",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "model_override",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "age",
+        "ordinal": 12,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9b2dbb8b7c705dbee865e18a4bff694d4907217ccc05ac6a09c5b51dda762bdf"
+}
