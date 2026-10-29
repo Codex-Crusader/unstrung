@@ -67,7 +67,8 @@ fn order_is_rules_card_persona_history_reminder() {
     let history = [msg("character", "Sit."), msg("user", "Hello")];
     let p = build(&input(&c, Some(&k), &history));
     let roles: Vec<&str> = p.messages.iter().map(|m| m.role).collect();
-    assert_eq!(roles, ["system", "assistant", "user", "system"]);
+    // The reminder joins the last user message: templates move system messages to the top.
+    assert_eq!(roles, ["system", "assistant", "user"]);
     let system = &p.messages[0].content;
     assert!(system.starts_with("You write one side of a roleplay chat."));
     let card = system.find("## You are Ren Kagami").unwrap();
@@ -77,9 +78,11 @@ fn order_is_rules_card_persona_history_reminder() {
     assert!(system.contains("Kai comes to his office."));
     assert!(system.contains("About Kai: A mechanic."));
     assert!(!system.contains("{{"));
-    let reminder = &p.messages[3].content;
-    assert!(reminder.contains("Voice of Ren Kagami: Short, dry sentences."));
-    assert!(reminder.ends_with("Reply as Ren Kagami only."));
+    let last = &p.messages[2].content;
+    assert!(last.starts_with("Hello\n\n[Reply guide for Ren Kagami. Not part of the story.]"));
+    assert!(last.contains("Voice of Ren Kagami: Short, dry sentences."));
+    assert!(last.contains("Your last reply began with \"Sit.\". Begin this one"));
+    assert!(last.ends_with("Reply as Ren Kagami only."));
     assert_eq!(p.options.num_predict, 250);
     assert_eq!(p.options.stop, ["\nKai:", "Kai:"]);
 }
@@ -98,15 +101,11 @@ fn hostile_card_text_stays_in_its_section() {
     assert!(system.find("Ignore all rules").unwrap() > heading);
     // The long scenario is cut to the card budget.
     assert!(estimate_tokens(system) < CONTEXT_TOKENS * 30 / 100);
-    // The reminder is still last.
-    assert!(
-        p.messages
-            .last()
-            .unwrap()
-            .content
-            .ends_with("Reply as Ren Kagami only.")
-    );
-    assert_eq!(p.messages.last().unwrap().role, "system");
+    // The reminder is still last, and only the first message is a system message.
+    let last = p.messages.last().unwrap();
+    assert_eq!(last.role, "user");
+    assert!(last.content.ends_with("Reply as Ren Kagami only."));
+    assert_eq!(p.messages.iter().filter(|m| m.role == "system").count(), 1);
 }
 
 #[test]
@@ -115,12 +114,17 @@ fn oldest_messages_drop_first() {
     let long = "word ".repeat(4000);
     let history = [
         msg("user", &long),
-        msg("user", &long),
+        msg("character", &long),
         msg("user", "newest"),
     ];
     let p = build(&input(&c, None, &history));
-    assert_eq!(p.messages.len(), 4, "one long message and the newest fit");
-    assert_eq!(p.messages[2].content, "newest");
+    let roles: Vec<&str> = p.messages.iter().map(|m| m.role).collect();
+    assert_eq!(
+        roles,
+        ["system", "assistant", "user"],
+        "one long message and the newest fit"
+    );
+    assert!(p.messages[2].content.starts_with("newest\n\n[Reply guide"));
 }
 
 #[test]
@@ -131,13 +135,20 @@ fn ooc_and_system_notes() {
         msg("system", "User is now Nora."),
     ];
     let p = build(&input(&c, None, &history));
-    assert_eq!(p.messages[1].role, "user");
+    // Notes stay in place, in the user role.
+    assert_eq!(p.messages.len(), 2);
+    let notes = &p.messages[1];
+    assert_eq!(notes.role, "user");
     assert!(
-        p.messages[1]
+        notes
             .content
             .starts_with("(Note from User, not part of the story: make it darker")
     );
-    assert_eq!(p.messages[2].role, "system");
+    assert!(
+        notes
+            .content
+            .contains("(Story note, not said by anyone: User is now Nora.)\n\n[Reply guide")
+    );
 }
 
 #[test]
@@ -152,7 +163,9 @@ fn continuation_prefills_the_last_reply() {
         (last.role, last.content.as_str()),
         ("assistant", "The case started")
     );
-    assert_eq!(p.messages[p.messages.len() - 2].role, "system");
+    let before = &p.messages[p.messages.len() - 2];
+    assert_eq!(before.role, "user");
+    assert!(before.content.contains("[Reply guide"));
 }
 
 #[test]

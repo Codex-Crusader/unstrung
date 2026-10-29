@@ -174,11 +174,20 @@ impl StyleSettings {
     /// The style instruction for the end reminder.
     pub fn instruction(&self) -> String {
         let mut parts: Vec<&str> = vec![match self.length {
-            Length::VeryShort => "Reply in 1 to 2 short sentences.",
-            Length::Short => "Reply in one short paragraph.",
-            Length::Medium => "Reply in 2 to 3 paragraphs.",
-            Length::Long => "Reply in 3 to 5 paragraphs, like a page of a book.",
-            Length::VeryLong => "Reply in 5 or more paragraphs, like a full scene in a book.",
+            Length::VeryShort => "Reply in 1 to 2 short sentences, under 30 words.",
+            Length::Short => "Reply in one paragraph of 40 to 90 words.",
+            Length::Medium => {
+                "Reply in 2 to 3 paragraphs separated by blank lines, 120 to 220 words in total: \
+                 a paragraph of action and setting, then {{char}}'s words, then a closing beat."
+            }
+            Length::Long => {
+                "Reply in 3 to 5 paragraphs separated by blank lines, 250 to 400 words in total, \
+                 like a page of a book."
+            }
+            Length::VeryLong => {
+                "Reply in 5 or more paragraphs separated by blank lines, 450 to 650 words in total, \
+                 like a full scene in a book."
+            }
         }];
         parts.push(match self.talk {
             Talk::DialogueOnly => "Write only what {{char}} says, with no actions or narration.",
@@ -210,6 +219,10 @@ impl StyleSettings {
                 "Move the story forward with new events, and end with a hook or a question."
             }
         });
+        if self.length >= Length::Medium {
+            parts.push("Short sentences are fine, but write enough of them to reach this length.");
+        }
+        parts.push("This length rule is more important than the length of earlier replies.");
         parts.join(" ")
     }
 }
@@ -225,7 +238,7 @@ mod tests {
         assert!(
             texting
                 .instruction()
-                .starts_with("Reply in 1 to 2 short sentences. Write only what")
+                .starts_with("Reply in 1 to 2 short sentences, under 30 words. Write only what")
         );
         assert!(!texting.instruction().contains("asterisks"));
         assert_eq!(texting.shifted(false).length, Length::VeryShort);

@@ -10,7 +10,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 2;
+pub const PROMPT_VERSION: i64 = 3;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -32,6 +32,11 @@ You write one side of a roleplay chat.
 5. Follow the reply style and tone at the end of this prompt.
 6. Keep content non-explicit. Never write sexual content that involves anyone under 18. \
 If a scene goes there, {{char}} steers it away, in character.";
+
+/// The first line of the end reminder. The guard removes it if a reply copies it.
+pub const REMINDER_HEAD: &str = "[Reply guide for {{char}}. Not part of the story.]";
+const STORY_NOTE: &str = "Story note, not said by anyone:";
+const OPENING_WORDS: usize = 5;
 
 const OOC_NOTE: &str = "(Note from {{user}}, not part of the story: {{note}}\n\
 Follow it, and continue the story in character.)";
@@ -119,6 +124,28 @@ fn examples_too_long(examples: &str) -> bool {
     !lines.is_empty() && lines.iter().map(|l| l.len()).sum::<usize>() / lines.len() > 160
 }
 
+/// Adds a message. Two user messages in a row become one, as the engine joins them anyway.
+fn push_merged(messages: &mut Vec<ChatMessage>, role: &'static str, content: String) {
+    match messages.last_mut() {
+        Some(last) if role == "user" && last.role == "user" => {
+            last.content.push_str("\n\n");
+            last.content.push_str(&content);
+        }
+        _ => messages.push(ChatMessage { role, content }),
+    }
+}
+
+/// The first words of the character's last reply.
+fn last_opening(history: &[Message]) -> Option<String> {
+    let last = history.iter().rev().find(|m| m.role == "character")?;
+    let words: Vec<&str> = last
+        .content
+        .split_whitespace()
+        .take(OPENING_WORDS)
+        .collect();
+    (!words.is_empty()).then(|| words.join(" ").replace('"', "'"))
+}
+
 pub fn build(input: &PromptInput<'_>) -> Prompt {
     let character = input.character;
     let user_name = input.persona.map_or(NO_PERSONA_NAME, |p| p.name.as_str());
@@ -168,8 +195,10 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         + &fit(&names.fill(&card), card_budget)
         + &fit(&names.fill(&persona), persona_budget);
 
-    // 9: end reminder.
-    let mut reminder = String::new();
+    // 9: end reminder. It goes in the user role, because chat templates move
+    // every system message to the top of the prompt.
+    let mut reminder = String::from(REMINDER_HEAD);
+    reminder.push('\n');
     let anchor = character.voice_anchor.trim();
     if !anchor.is_empty() {
         reminder.push_str(&format!("Voice of {{{{char}}}}: {anchor}\n"));
@@ -178,14 +207,22 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         }
     }
     reminder.push_str(&format!(
-        "Tone: {tone_text}\nReply style: {}\nStart differently from your last reply.\n",
+        "Tone: {tone_text}\nReply style: {}\n",
         style.instruction()
     ));
+    if let Some(opening) = last_opening(input.history) {
+        reminder.push_str(&format!(
+            "Your last reply began with \"{opening}\". Begin this one in a different way.\n"
+        ));
+    }
     if let Some(extra) = input.extra_reminder {
         reminder.push_str(extra);
         reminder.push('\n');
     }
-    reminder.push_str("Reply as {{char}} only.");
+    reminder.push_str(
+        "Do not write what {{user}} says, does or feels. Stop when it is {{user}}'s turn.\n\
+         Reply as {{char}} only.",
+    );
     let reminder = names.fill(&reminder);
 
     // 7: example dialogue.
@@ -256,15 +293,12 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
                     .fill(OOC_NOTE)
                     .replace("{{note}}", message.content.trim()),
             ),
-            "system" => ("system", message.content.clone()),
+            "system" => ("user", format!("({STORY_NOTE} {})", message.content.trim())),
             _ => continue,
         };
-        messages.push(ChatMessage { role, content });
+        push_merged(&mut messages, role, content);
     }
-    messages.push(ChatMessage {
-        role: "system",
-        content: reminder,
-    });
+    push_merged(&mut messages, "user", reminder);
     // The engine continues an assistant message that comes last.
     if let Some(p) = prefill {
         messages.push(ChatMessage {

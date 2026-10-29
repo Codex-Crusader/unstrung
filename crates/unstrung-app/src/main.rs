@@ -98,8 +98,12 @@ fn main() {
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
-            let engine = handle.state::<AppState>().engine.clone();
-            tauri::async_runtime::block_on(engine.stop());
+            let state = handle.state::<AppState>();
+            tauri::async_runtime::block_on(async {
+                state.engine.stop().await;
+                // Closing the last connection writes the log into the database file.
+                state.chats.db().close().await;
+            });
             log::info!("Unstrung closed");
         }
     });

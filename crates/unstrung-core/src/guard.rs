@@ -16,6 +16,9 @@ const BREAK_PATTERNS: &[&str] = &[
     "openai",
 ];
 
+/// The start of the end reminder in the prompt.
+const GUIDE_MARK: &str = "[Reply guide";
+
 /// Special tokens that some templates leak into the text.
 const TEMPLATE_TOKENS: &[&str] = &[
     "</s>",
@@ -55,6 +58,10 @@ impl Problem {
 /// 5. collapses runs of empty lines.
 pub fn clean(text: &str, char_name: &str, user_name: &str, cut_at_cap: bool) -> String {
     let mut text = strip_template_tokens(text);
+    // A reply that copies the end reminder stops before it.
+    if let Some(at) = text.find(GUIDE_MARK) {
+        text.truncate(at);
+    }
     text = strip_name_prefix(text.trim(), char_name).to_owned();
     text = cut_at_user_line(&text, user_name);
     if cut_at_cap {
@@ -219,6 +226,7 @@ mod tests {
         assert_eq!(c("Fine.\nKai, sit down."), "Fine.\nKai, sit down.");
         assert_eq!(c("*He nods"), "*He nods*");
         assert_eq!(c("*"), "");
+        assert_eq!(c("Sit.\n\n[Reply guide for Ren. Not part"), "Sit.");
         assert_eq!(c("a\n\n\n\nb"), "a\n\nb");
         assert_eq!(clean("Sit. Then we tal", "Ren", "Kai", true), "Sit.");
         assert_eq!(clean("“Sit.” Then", "Ren", "Kai", true), "“Sit.”");
