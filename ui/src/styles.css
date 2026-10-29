@@ -186,6 +186,11 @@ body {
   color: var(--action);
 }
 
+/* Description outside quotes, in a message that puts speech in quotes. */
+.narration {
+  color: var(--action);
+}
+
 .typing {
   display: inline-flex;
   gap: 4px;
