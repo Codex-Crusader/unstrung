@@ -148,24 +148,28 @@ fn strip_name_prefix<'a>(text: &'a str, char_name: &str) -> &'a str {
     text
 }
 
-/// Cuts at the first line, after the first, that starts with the user speaking
-/// (`Kai:`) or acting (`*Kai nods`). Lines where the character only names the
-/// user (`Kai, sit down.`) stay.
+/// Removes lines where the user speaks (`Kai:`) or acts (`*Kai nods`). Such
+/// lines at the start are dropped, and the first one after a kept line cuts
+/// the reply there. If nothing is left, the reply loop makes the reply again.
+/// Lines where the character only names the user (`Kai, sit down.`) stay.
 fn cut_at_user_line(text: &str, user_name: &str) -> String {
     if user_name.trim().is_empty() {
         return text.to_owned();
     }
     let speaks = format!("{user_name}:");
     let acts = format!("*{user_name} ");
-    let mut kept = Vec::new();
-    for (i, line) in text.lines().enumerate() {
+    let mut kept: Vec<&str> = Vec::new();
+    for line in text.lines() {
         let t = line.trim_start();
-        if i > 0 && (t.starts_with(&speaks) || t.starts_with(&acts)) {
-            break;
+        if t.starts_with(&speaks) || t.starts_with(&acts) {
+            if kept.iter().any(|k| !k.trim().is_empty()) {
+                break;
+            }
+            continue;
         }
         kept.push(line);
     }
-    kept.join("\n")
+    kept.join("\n").trim().to_owned()
 }
 
 fn trim_to_sentence(text: &str) -> String {
@@ -222,6 +226,12 @@ mod tests {
         assert_eq!(c("a <|not closed"), "a <|not closed");
         assert_eq!(c("Fine.\nKai: Thanks.\nMore."), "Fine.");
         assert_eq!(c("Fine.\n*Kai nods and leaves.*"), "Fine.");
+        // A reply that opens with the user's action loses that line.
+        assert_eq!(
+            c("*Kai slides into the chair.* So?\n\n*Ren looks up.* Sit."),
+            "*Ren looks up.* Sit."
+        );
+        assert_eq!(c("Kai: Hi.\n*Kai waves.*"), "");
         // The character may name the user.
         assert_eq!(c("Fine.\nKai, sit down."), "Fine.\nKai, sit down.");
         assert_eq!(c("*He nods"), "*He nods*");

@@ -10,7 +10,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 3;
+pub const PROMPT_VERSION: i64 = 4;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -214,6 +214,11 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         reminder.push_str(&format!(
             "Your last reply began with \"{opening}\". Begin this one in a different way.\n"
         ));
+    }
+    // After a persona change, the history is full of the old name. This line
+    // names the person now, so the character does not keep the old name.
+    if input.persona.is_some() {
+        reminder.push_str("The person you talk to is named {{user}}.\n");
     }
     if let Some(extra) = input.extra_reminder {
         reminder.push_str(extra);

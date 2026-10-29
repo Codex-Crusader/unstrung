@@ -12,8 +12,11 @@
 //! --skip-injection        run only the scripted chats
 //! --label TEXT            a word for the report name
 //!
-//! It needs Ollama and the default model. It uses a new, empty data folder,
-//! so it never touches the user's data.
+//! It needs the default model. It uses a new, empty data folder, so it never
+//! touches the user's data. A release build looks for models in that empty
+//! folder, so set UNSTRUNG_DEV_OLLAMA_MODELS to a folder that has the model,
+//! for example `%USERPROFILE%\.ollama\models`. A debug build reads that
+//! folder without the variable.
 
 mod checks;
 mod report;
