@@ -57,10 +57,28 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_status,
+            commands::list_characters,
+            commands::list_personas,
+            commands::open_character,
             commands::open_chat,
+            commands::new_chat,
+            commands::list_chats,
+            commands::delete_chat,
             commands::send_message,
+            commands::edit_message,
+            commands::edit_reply,
+            commands::regenerate,
+            commands::continue_reply,
             commands::retry_reply,
             commands::stop_reply,
+            commands::rewind,
+            commands::show_branch,
+            commands::delete_message,
+            commands::undo_delete,
+            commands::branch_chat,
+            commands::set_chat_persona,
+            commands::set_chat_tone,
+            commands::set_chat_style,
             commands::restart_engine,
             selftest::self_test_mode,
             selftest::self_test_report,
@@ -104,14 +122,13 @@ async fn open_core(paths: AppPaths, self_test: bool) -> unstrung_core::Result<Ap
         // Phase 7 adds snapshots and the restore screen.
         log::error!("the database failed its quick check");
     }
-    let default_character = starters::ensure_ren(&db, &paths).await?;
+    starters::ensure(&db, &paths).await?;
     let engine = Engine::new(paths.clone());
     let chats = Arc::new(ChatService::new(db, engine.clone()));
     Ok(AppState {
         paths,
         engine,
         chats,
-        default_character,
         self_test,
     })
 }
@@ -147,17 +164,21 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
             .body(Vec::new())
             .unwrap_or_default()
     };
-    let Some(id) = path
-        .strip_prefix("/character/")
-        .and_then(|id| id.parse::<i64>().ok())
+    let state = app.state::<AppState>();
+    let Some((kind, id)) = path
+        .trim_start_matches('/')
+        .split_once('/')
+        .and_then(|(kind, id)| Some((kind, id.parse::<i64>().ok()?)))
     else {
         return not_found();
     };
-    let state = app.state::<AppState>();
-    let Ok(character) = state.chats.db().character(id).await else {
-        return not_found();
+    let db = state.chats.db();
+    let stored = match kind {
+        "character" => db.character(id).await.ok().and_then(|c| c.avatar_path),
+        "persona" => db.persona(id).await.ok().and_then(|p| p.avatar_path),
+        _ => None,
     };
-    let Some(stored) = character.avatar_path else {
+    let Some(stored) = stored else {
         return not_found();
     };
     let mime = match stored

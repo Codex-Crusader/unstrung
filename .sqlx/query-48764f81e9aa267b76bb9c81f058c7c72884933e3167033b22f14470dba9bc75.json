@@ -1,56 +1,56 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, character_id, title, tone, reply_style, chat_model, head_message_id\n             FROM chats WHERE id = ? AND deleted_at IS NULL",
+  "query": "SELECT id AS \"id!\", name, avatar_path, description, appearance_tags, age,\n                    is_default AS \"is_default: bool\"\n             FROM personas ORDER BY is_default DESC, name COLLATE NOCASE, id",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Integer"
       },
       {
-        "name": "character_id",
+        "name": "name",
         "ordinal": 1,
-        "type_info": "Integer"
+        "type_info": "Text"
       },
       {
-        "name": "title",
+        "name": "avatar_path",
         "ordinal": 2,
         "type_info": "Text"
       },
       {
-        "name": "tone",
+        "name": "description",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "reply_style",
+        "name": "appearance_tags",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "chat_model",
+        "name": "age",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Integer"
       },
       {
-        "name": "head_message_id",
+        "name": "is_default: bool",
         "ordinal": 6,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
       false,
-      false,
+      true,
       false,
       false,
       true,
-      true
+      false
     ]
   },
-  "hash": "65d45d2fa3061ca6666bbb924cf7adaa10b1043b0166ba0e9fabb71b49985861"
+  "hash": "48764f81e9aa267b76bb9c81f058c7c72884933e3167033b22f14470dba9bc75"
 }

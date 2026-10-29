@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE messages SET content = ?, raw_content = COALESCE(?, raw_content),\n                    token_count = COALESCE(?, token_count)\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "d7b0c90fb9ef46667c23e4e0d4abc9346c92e9b3c905d7b51900f7489c761b00"
+}

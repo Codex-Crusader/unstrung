@@ -13,32 +13,43 @@ export function Silhouette({ kind, label }: { kind: "character" | "persona"; lab
   );
 }
 
-export function CharacterAvatar({ id, name, hasPicture }: { id: number; name: string; hasPicture: boolean }) {
-  const [failed, setFailed] = useState(false);
-  if (!hasPicture || failed) {
+interface Owner {
+  id: number;
+  name: string;
+  avatar_path: string | null;
+}
+
+export function Avatar({
+  kind,
+  owner,
+  label,
+  size,
+}: {
+  kind: "character" | "persona";
+  owner: Owner | null;
+  label?: string;
+  size?: "large";
+}) {
+  const [failedFor, setFailedFor] = useState<string | null>(null);
+  const name = label ?? owner?.name ?? "";
+  const className = size === "large" ? "avatar avatar-large" : "avatar";
+  const path = owner?.avatar_path ?? null;
+  if (!owner || path === null || failedFor === path) {
     return (
-      <span className="avatar">
-        <Silhouette kind="character" label={name} />
+      <span className={className}>
+        <Silhouette kind={kind} label={name} />
       </span>
     );
   }
   return (
     <img
-      className="avatar"
-      src={avatarUrl(id)}
+      className={className}
+      src={avatarUrl(kind, owner.id, path)}
       alt={name}
       draggable={false}
       onError={() => {
-        setFailed(true);
+        setFailedFor(path);
       }}
     />
-  );
-}
-
-export function UserAvatar({ label }: { label: string }) {
-  return (
-    <span className="avatar">
-      <Silhouette kind="persona" label={label} />
-    </span>
   );
 }

@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT c.id AS \"id!\", c.title AS \"title!\", c.updated_at AS \"updated_at!\",\n                    COALESCE((SELECT substr(m.content, 1, 120) FROM messages m\n                              WHERE m.chat_id = c.id AND m.role = 'user' AND m.deleted_at IS NULL\n                              ORDER BY m.id LIMIT 1), '') AS \"preview!: String\",\n                    (SELECT COUNT(*) FROM messages m\n                     WHERE m.chat_id = c.id AND m.deleted_at IS NULL) AS \"message_count!: i64\"\n             FROM chats c WHERE c.character_id = ? AND c.deleted_at IS NULL\n             ORDER BY c.updated_at DESC, c.id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "title!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "preview!: String",
+        "ordinal": 3,
+        "type_info": "Null"
+      },
+      {
+        "name": "message_count!: i64",
+        "ordinal": 4,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "087b84c5fef1d80a1fd492d225469ea9673d4370a90ab7cb519fb4031e275096"
+}

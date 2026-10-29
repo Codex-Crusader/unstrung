@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chats SET deleted_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "81d1a6dbcc629606de9d938fdf4ee4ff015e17f212f82c53d04a5113585af6a9"
+}

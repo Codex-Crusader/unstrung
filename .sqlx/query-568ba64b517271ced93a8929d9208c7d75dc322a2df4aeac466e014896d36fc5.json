@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE personas SET avatar_path = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "568ba64b517271ced93a8929d9208c7d75dc322a2df4aeac466e014896d36fc5"
+}

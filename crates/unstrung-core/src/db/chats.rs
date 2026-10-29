@@ -1,0 +1,175 @@
+use super::{Character, Db, now_ms};
+use crate::error::{Error, Result};
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Chat {
+    pub id: i64,
+    pub character_id: i64,
+    pub persona_id: Option<i64>,
+    pub title: String,
+    pub tone: String,
+    pub tone_custom: String,
+    pub reply_style: String,
+    pub reply_custom: String,
+    pub chat_model: Option<String>,
+    pub head_message_id: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatSummary {
+    pub id: i64,
+    pub title: String,
+    pub preview: String,
+    pub message_count: i64,
+    pub updated_at: i64,
+}
+
+impl Db {
+    pub async fn chat(&self, id: i64) -> Result<Chat> {
+        sqlx::query_as!(
+            Chat,
+            "SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,
+                    reply_custom, chat_model, head_message_id, created_at, updated_at
+             FROM chats WHERE id = ? AND deleted_at IS NULL",
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(Error::NotFound("chat"))
+    }
+
+    /// The most recently used chat with a character.
+    pub async fn latest_chat(&self, character_id: i64) -> Result<Option<i64>> {
+        let id = sqlx::query_scalar!(
+            r#"SELECT id AS "id!" FROM chats WHERE character_id = ? AND deleted_at IS NULL
+             ORDER BY updated_at DESC, id DESC LIMIT 1"#,
+            character_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(id)
+    }
+
+    /// All chats with a character, newest first.
+    pub async fn chat_summaries(&self, character_id: i64) -> Result<Vec<ChatSummary>> {
+        let rows = sqlx::query_as!(
+            ChatSummary,
+            r#"SELECT c.id AS "id!", c.title AS "title!", c.updated_at AS "updated_at!",
+                    COALESCE((SELECT substr(m.content, 1, 120) FROM messages m
+                              WHERE m.chat_id = c.id AND m.role = 'user' AND m.deleted_at IS NULL
+                              ORDER BY m.id LIMIT 1), '') AS "preview!: String",
+                    (SELECT COUNT(*) FROM messages m
+                     WHERE m.chat_id = c.id AND m.deleted_at IS NULL) AS "message_count!: i64"
+             FROM chats c WHERE c.character_id = ? AND c.deleted_at IS NULL
+             ORDER BY c.updated_at DESC, c.id DESC"#,
+            character_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Creates a chat that starts with the character's greeting.
+    pub async fn create_chat(
+        &self,
+        character: &Character,
+        persona_id: Option<i64>,
+        title: &str,
+        with_greeting: bool,
+    ) -> Result<i64> {
+        let now = now_ms();
+        let mut tx = self.pool.begin().await?;
+        let chat_id = sqlx::query_scalar!(
+            r#"INSERT INTO chats (character_id, persona_id, title, tone, reply_style, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
+            character.id,
+            persona_id,
+            title,
+            character.default_tone,
+            character.default_reply_style,
+            now,
+            now
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if with_greeting && !character.greeting.is_empty() {
+            let greeting_id = sqlx::query_scalar!(
+                r#"INSERT INTO messages (chat_id, role, content, created_at)
+                 VALUES (?, 'character', ?, ?) RETURNING id AS "id!""#,
+                chat_id,
+                character.greeting,
+                now
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            sqlx::query!(
+                "UPDATE chats SET head_message_id = ? WHERE id = ?",
+                greeting_id,
+                chat_id
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(chat_id)
+    }
+
+    pub async fn set_chat_persona(&self, chat_id: i64, persona_id: Option<i64>) -> Result<()> {
+        sqlx::query!(
+            "UPDATE chats SET persona_id = ? WHERE id = ?",
+            persona_id,
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_chat_tone(&self, chat_id: i64, tone: &str, custom: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE chats SET tone = ?, tone_custom = ? WHERE id = ?",
+            tone,
+            custom,
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_chat_style(&self, chat_id: i64, style: &str, custom: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE chats SET reply_style = ?, reply_custom = ? WHERE id = ?",
+            style,
+            custom,
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_chat_head(&self, chat_id: i64, head: Option<i64>) -> Result<()> {
+        let now = now_ms();
+        sqlx::query!(
+            "UPDATE chats SET head_message_id = ?, updated_at = ? WHERE id = ?",
+            head,
+            now,
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn delete_chat(&self, chat_id: i64) -> Result<()> {
+        let now = now_ms();
+        sqlx::query!("UPDATE chats SET deleted_at = ? WHERE id = ?", now, chat_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+}

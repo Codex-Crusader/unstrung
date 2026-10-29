@@ -7,6 +7,5 @@ pub struct AppState {
     pub paths: AppPaths,
     pub engine: Arc<Engine>,
     pub chats: Arc<ChatService>,
-    pub default_character: i64,
     pub self_test: bool,
 }

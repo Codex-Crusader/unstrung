@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { getStatus, onStatus, selfTestMode, type EngineStatus } from "./api";
+import { getStatus, listPersonas, onStatus, selfTestMode, type EngineStatus, type Persona } from "./api";
 import { ChatScreen } from "./components/ChatScreen";
+import { HomeScreen } from "./components/HomeScreen";
 import { StatusBar } from "./components/StatusBar";
 import { runSelfTest } from "./selfTest";
+import { strings } from "./strings";
+
+export type Screen = { name: "home" } | { name: "chat"; characterId: number };
 
 export function App() {
   const [status, setStatus] = useState<EngineStatus>({ state: "starting" });
+  const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const [personas, setPersonas] = useState<Persona[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -17,7 +23,10 @@ export function App() {
       if (active) setStatus(current);
     });
     void selfTestMode().then((on) => {
-      if (on) void runSelfTest();
+      if (on)
+        void runSelfTest((characterId) => {
+          setScreen({ name: "chat", characterId });
+        });
     });
     return () => {
       active = false;
@@ -27,11 +36,48 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    void listPersonas().then(setPersonas);
+  }, [screen]);
+
+  const home = () => {
+    setScreen({ name: "home" });
+  };
+
   return (
     <div className="app">
-      <main className="app-main">
-        <ChatScreen status={status} />
-      </main>
+      <div className="app-body">
+        <nav className="sidebar" aria-label={strings.nav.main}>
+          <span className="brand">{strings.appName}</span>
+          <button
+            type="button"
+            className={screen.name === "home" ? "nav-item nav-current" : "nav-item"}
+            onClick={home}
+          >
+            {strings.nav.home}
+          </button>
+        </nav>
+        <main className="app-main">
+          {screen.name === "home" && (
+            <HomeScreen
+              onOpen={(c) => {
+                setScreen({ name: "chat", characterId: c.id });
+              }}
+              onCreate={home}
+              onEdit={home}
+            />
+          )}
+          {screen.name === "chat" && (
+            <ChatScreen
+              key={screen.characterId}
+              status={status}
+              characterId={screen.characterId}
+              personas={personas}
+              onBack={home}
+            />
+          )}
+        </main>
+      </div>
       <StatusBar status={status} />
     </div>
   );

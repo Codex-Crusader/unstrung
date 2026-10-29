@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-show-branch"
+description = "Enables the show_branch command without any pre-configured scope."
+commands.allow = ["show_branch"]
+
+[[permission]]
+identifier = "deny-show-branch"
+description = "Denies the show_branch command without any pre-configured scope."
+commands.deny = ["show_branch"]

@@ -1,20 +1,30 @@
-//! Phase 1 done-test against the real chat engine: a message streams a reply,
-//! Stop keeps the partial text, and the history stays after a reopen.
+//! Done-tests against the real chat engine.
+//!
+//! Phase 1: a message streams a reply, Stop keeps the partial text, and the
+//! history stays after a reopen. Phase 2: regenerate, versions, rewind, delete
+//! with undo, edit, continue, branch, persona switch, OOC notes and the anchor helper.
 //!
 //! Needs Ollama and the default chat model, so it is ignored by default:
 //! `cargo test -p unstrung-core --test live_chat -- --ignored --nocapture`
 
 use std::sync::Arc;
 use std::time::Duration;
-use unstrung_core::chat::ChatService;
-use unstrung_core::db::Db;
+use unstrung_core::chat::{ChatService, RegenMode};
+use unstrung_core::db::{Db, Message};
 use unstrung_core::engine::{Engine, EngineStatus};
 use unstrung_core::paths::AppPaths;
 use unstrung_core::starters;
 
+fn texts(view: &unstrung_core::chat::ChatView) -> Vec<(&str, &str)> {
+    view.messages
+        .iter()
+        .map(|m| (m.message.role.as_str(), m.message.content.as_str()))
+        .collect()
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs Ollama and the default chat model"]
-async fn stream_stop_and_reopen() {
+async fn chat_engine_done_tests() {
     let home = tempfile::tempdir().unwrap();
     let paths = AppPaths::at(home.path().to_path_buf());
     paths.ensure().unwrap();
@@ -25,15 +35,16 @@ async fn stream_stop_and_reopen() {
     assert!(matches!(status, EngineStatus::Ready { .. }), "{status:?}");
 
     let db = Db::open(&paths.database()).await.unwrap();
-    let ren = starters::ensure_ren(&db, &paths).await.unwrap();
-    assert!(
-        paths
-            .stored(&format!("avatars/starter-{}.png", starters::REN_KEY))
-            .unwrap()
-            .is_file()
-    );
+    starters::ensure(&db, &paths).await.unwrap();
+    let ren = db
+        .character_by_starter("ren_kagami")
+        .await
+        .unwrap()
+        .unwrap();
+    let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
+    let nora = db.persona_by_starter("nora").await.unwrap().unwrap();
     let service = Arc::new(ChatService::new(db.clone(), engine.clone()));
-    let view = service.open_chat(ren).await.unwrap();
+    let view = service.new_chat(ren, Some(kai)).await.unwrap();
     assert_eq!(view.messages.len(), 1, "the chat starts with the greeting");
     let chat_id = view.chat.id;
 
@@ -49,12 +60,92 @@ async fn stream_stop_and_reopen() {
         )
         .await
         .unwrap()
+        .message
         .expect("a reply");
     println!("reply in {pieces} pieces: {}", reply.content);
     assert!(pieces > 1, "the reply must stream");
     assert_eq!(reply.parent_id, user_id);
 
-    // 2. Busy while a reply runs, and Stop keeps the partial text.
+    // 2. Regenerate keeps the old reply as a sibling, and the arrows switch between them.
+    let shorter = service
+        .regenerate(chat_id, reply.id, RegenMode::Shorter, |_| {})
+        .await
+        .unwrap()
+        .message
+        .unwrap();
+    let view = service.view(chat_id).await.unwrap();
+    assert_eq!(view.messages[2].siblings, [reply.id, shorter.id]);
+    let view = service.show_branch(chat_id, reply.id).await.unwrap();
+    assert_eq!(view.messages[2].message.id, reply.id);
+    service
+        .regenerate(chat_id, reply.id, RegenMode::NotInCharacter, |_| {})
+        .await
+        .unwrap();
+    assert!(
+        db.message(chat_id, reply.id)
+            .await
+            .unwrap()
+            .flagged_out_of_character
+    );
+    service.show_branch(chat_id, reply.id).await.unwrap();
+
+    // 3. Continue adds to the same message.
+    let longer = service
+        .continue_reply(chat_id, |_| {})
+        .await
+        .unwrap()
+        .message
+        .unwrap();
+    assert_eq!(longer.id, reply.id);
+    assert!(longer.content.len() >= reply.content.len());
+    println!("continued: {}", longer.content);
+
+    // 4. Persona switch adds a note, an OOC note works, and a rewind restores Kai.
+    let view = service.set_persona(chat_id, Some(nora)).await.unwrap();
+    assert_eq!(view.messages.last().unwrap().message.role, "system");
+    let ooc = service
+        .send(chat_id, "/ooc keep it short and moody", |_| {}, |_| {})
+        .await
+        .unwrap();
+    assert!(ooc.message.is_some());
+    let view = service.view(chat_id).await.unwrap();
+    assert_eq!(view.persona.as_ref().unwrap().name, "Nora");
+    let ooc_msg = &view.messages[view.messages.len() - 2].message;
+    assert_eq!(ooc_msg.role, "ooc");
+    let view = service.set_head(chat_id, reply.id).await.unwrap();
+    assert_eq!(view.persona.as_ref().unwrap().name, "Kai");
+    assert_eq!(view.branches.len(), 1, "the system note is a hidden branch");
+
+    // 5. Edit a user message: a new version and a new reply.
+    let edited = service
+        .edit_and_resend(
+            chat_id,
+            user_id.unwrap(),
+            "My sister is missing.",
+            |_| {},
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert!(edited.message.is_some());
+    let view = service.view(chat_id).await.unwrap();
+    assert_eq!(view.messages[1].message.content, "My sister is missing.");
+    assert_eq!(view.messages[1].siblings.len(), 2);
+
+    // 6. Delete with undo.
+    let before = texts(&view).len();
+    let target = view.messages[1].message.id;
+    let (after, undo) = service.delete_message(chat_id, target).await.unwrap();
+    assert_eq!(texts(&after).len(), 1);
+    let restored = service.undo_delete(chat_id, &undo).await.unwrap();
+    assert_eq!(texts(&restored).len(), before);
+
+    // 7. Branch to a new chat copies the path up to a message.
+    let branch = service.branch(chat_id, target).await.unwrap();
+    assert_ne!(branch.chat.id, chat_id);
+    assert_eq!(texts(&branch), texts(&restored)[..2]);
+
+    // 8. Busy while a reply runs, and Stop keeps the partial text.
     let (first_tx, first_rx) = tokio::sync::oneshot::channel();
     let runner = {
         let service = service.clone();
@@ -86,18 +177,24 @@ async fn stream_stop_and_reopen() {
     let stopped = runner.await.unwrap().unwrap();
     println!("stopped reply: {stopped:?}");
 
-    // 3. History after a reopen.
+    // 9. The voice anchor helper.
+    let anchor = service
+        .suggest_anchor("June", "Warm, chatty, a bit clumsy.")
+        .await
+        .unwrap();
+    println!("anchor: {anchor}");
+    assert!(!anchor.is_empty() && anchor.len() <= 400);
+
+    // 10. History after a reopen.
+    let expected: Vec<(String, String)> = texts(&service.view(chat_id).await.unwrap())
+        .into_iter()
+        .map(|(r, c)| (r.to_owned(), c.to_owned()))
+        .collect();
     db.close().await;
     let db = Db::open(&paths.database()).await.unwrap();
-    let path = db.path_to_head(chat_id).await.unwrap();
-    let roles: Vec<&str> = path.iter().map(|m| m.role.as_str()).collect();
-    let expected: &[&str] = if stopped.is_some() {
-        &["character", "user", "character", "user", "character"]
-    } else {
-        &["character", "user", "character", "user"]
-    };
-    assert_eq!(roles, expected);
-    assert_eq!(path[2].content, reply.content);
+    let path: Vec<Message> = db.path_to_head(chat_id).await.unwrap();
+    let got: Vec<(String, String)> = path.into_iter().map(|m| (m.role, m.content)).collect();
+    assert_eq!(got, expected);
 
     engine.stop().await;
     assert!(

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE personas SET is_default = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d495128485986c66c3c947dceac2e0a6565a1e5b0d0c12ef9197b3c115858858"
+}

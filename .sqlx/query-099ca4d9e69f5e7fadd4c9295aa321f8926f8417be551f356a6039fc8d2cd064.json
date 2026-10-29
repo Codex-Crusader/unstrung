@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, chat_id, parent_id, role, persona_id, content,\n                    flagged_out_of_character AS \"flagged_out_of_character: bool\", model, created_at\n             FROM messages WHERE id = ? AND chat_id = ? AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chat_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "parent_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "role",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "persona_id",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "content",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "flagged_out_of_character: bool",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "model",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "099ca4d9e69f5e7fadd4c9295aa321f8926f8417be551f356a6039fc8d2cd064"
+}

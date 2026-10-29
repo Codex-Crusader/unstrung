@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-character"
+description = "Enables the open_character command without any pre-configured scope."
+commands.allow = ["open_character"]
+
+[[permission]]
+identifier = "deny-open-character"
+description = "Denies the open_character command without any pre-configured scope."
+commands.deny = ["open_character"]

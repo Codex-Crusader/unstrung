@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chats SET tone = ?, tone_custom = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "2bd6572e997ec8a596f0cf6059abda9ec9d3fb12152fbaa8a0d51240a357dd22"
+}

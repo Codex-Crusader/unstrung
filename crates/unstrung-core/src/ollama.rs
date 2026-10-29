@@ -58,6 +58,8 @@ struct ChatChunk {
     #[serde(default)]
     eval_count: Option<i64>,
     #[serde(default)]
+    prompt_eval_count: Option<i64>,
+    #[serde(default)]
     error: Option<String>,
 }
 
@@ -75,6 +77,8 @@ pub struct ChatOutcome {
     /// True when the reply hit the token cap.
     pub cut_at_cap: bool,
     pub eval_count: Option<i64>,
+    /// The real prompt size, to check the builder's estimate.
+    pub prompt_eval_count: Option<i64>,
 }
 
 #[derive(Clone)]
@@ -144,6 +148,41 @@ impl Client {
             .await?
             .error_for_status()?;
         Ok(())
+    }
+
+    /// One reply without streaming, for short helper tasks.
+    pub async fn complete(&self, params: &ChatParams<'_>, timeout: Duration) -> Result<String> {
+        let request = ChatRequest {
+            model: params.model,
+            messages: params.messages,
+            stream: false,
+            options: params.options,
+            keep_alive: params.keep_alive,
+        };
+        let response = self
+            .http
+            .post(format!("{}/api/chat", self.base))
+            .timeout(timeout)
+            .json(&request)
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::Engine(format!(
+                "HTTP {status}: {}",
+                engine_message(&body)
+            )));
+        }
+        let bytes = response.bytes().await?;
+        if bytes.len() > MAX_REPLY_BYTES {
+            return Err(Error::Engine("reply too long".into()));
+        }
+        let chunk: ChatChunk = serde_json::from_slice(&bytes)?;
+        if let Some(error) = chunk.error {
+            return Err(Error::Engine(error));
+        }
+        Ok(chunk.message.map(|m| m.content).unwrap_or_default())
     }
 
     /// Streams a chat reply. `on_text` gets each new piece of text.
@@ -234,6 +273,7 @@ fn handle_line(line: &[u8], out: &mut ChatOutcome, on_text: &mut impl FnMut(&str
     if chunk.done {
         out.cut_at_cap = chunk.done_reason.as_deref() == Some("length");
         out.eval_count = chunk.eval_count;
+        out.prompt_eval_count = chunk.prompt_eval_count;
         return Ok(true);
     }
     Ok(false)

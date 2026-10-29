@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH RECURSIVE sub(id) AS (\n                 SELECT id FROM messages WHERE id = ?1 AND chat_id = ?2\n                 UNION ALL\n                 SELECT m.id FROM messages m JOIN sub ON m.parent_id = sub.id\n             )\n             UPDATE messages SET deleted_at = NULL\n             WHERE id IN (SELECT id FROM sub) AND deleted_at = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "feb2a8b8de42a5c16499b621d51d823839cbf00b07d08a4c5695a7fd2a0a4c03"
+}

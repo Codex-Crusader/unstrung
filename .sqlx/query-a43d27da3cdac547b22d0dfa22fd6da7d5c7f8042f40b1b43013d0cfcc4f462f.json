@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH RECURSIVE path(id, depth) AS (\n                 SELECT head_message_id, 0 FROM chats WHERE id = ?1 AND head_message_id IS NOT NULL\n                 UNION ALL\n                 SELECT m.parent_id, path.depth + 1 FROM messages m JOIN path ON m.id = path.id\n                 WHERE m.parent_id IS NOT NULL AND path.depth < 100000\n             )\n             SELECT m.id AS \"id!\", m.chat_id AS \"chat_id!\", m.parent_id, m.role AS \"role!\",\n                    m.persona_id, m.content AS \"content!\",\n                    m.flagged_out_of_character AS \"flagged_out_of_character!: bool\",\n                    m.model, m.created_at AS \"created_at!\"\n             FROM path JOIN messages m ON m.id = path.id AND m.chat_id = ?1\n             WHERE m.deleted_at IS NULL\n             ORDER BY path.depth DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chat_id!",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "parent_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "role!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "persona_id",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "content!",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "flagged_out_of_character!: bool",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "model",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 8,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "a43d27da3cdac547b22d0dfa22fd6da7d5c7f8042f40b1b43013d0cfcc4f462f"
+}

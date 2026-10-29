@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO world_info (character_id, keywords, content, is_enabled)\n                 VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "5408434b446a35789242c277b011d022421cfec34bd875d4798569c0704e8180"
+}

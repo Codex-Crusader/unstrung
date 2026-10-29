@@ -17,9 +17,16 @@ export interface Message {
   chat_id: number;
   parent_id: number | null;
   role: Role;
+  persona_id: number | null;
   content: string;
+  flagged_out_of_character: boolean;
   model: string | null;
   created_at: number;
+}
+
+export interface ViewMessage extends Message {
+  /** This message and its other versions, oldest first. */
+  siblings: number[];
 }
 
 export interface Character {
@@ -27,22 +34,84 @@ export interface Character {
   name: string;
   avatar_path: string | null;
   tagline: string;
+  personality: string;
+  scenario: string;
+  greeting: string;
+  example_dialogue: string;
+  voice_anchor: string;
+  appearance_tags: string;
+  default_tone: string;
+  default_reply_style: string;
+  model_override: string | null;
+  age: number;
+  is_adult: boolean;
+  created_at: number;
+}
+
+export interface Persona {
+  id: number;
+  name: string;
+  avatar_path: string | null;
+  description: string;
+  appearance_tags: string;
+  age: number | null;
+  is_default: boolean;
 }
 
 export interface Chat {
   id: number;
   character_id: number;
+  persona_id: number | null;
   title: string;
   tone: string;
+  tone_custom: string;
   reply_style: string;
+  reply_custom: string;
   chat_model: string | null;
   head_message_id: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ChatSummary {
+  id: number;
+  title: string;
+  preview: string;
+  message_count: number;
+  updated_at: number;
 }
 
 export interface ChatView {
   chat: Chat;
   character: Character;
-  messages: Message[];
+  persona: Persona | null;
+  messages: ViewMessage[];
+  /** Hidden branches that continue from the last message. */
+  branches: number[];
+}
+
+export type Length = "very_short" | "short" | "medium" | "long" | "very_long";
+export type Talk = "dialogue_only" | "mostly_dialogue" | "mixed" | "mostly_narration";
+export type Description = "minimal" | "some" | "vivid";
+export type Initiative = "follow_me" | "balanced" | "lead_the_story";
+export type Perspective = "first" | "third";
+export type Actions = "asterisks" | "plain";
+
+export interface StyleSettings {
+  length: Length;
+  talk: Talk;
+  description: Description;
+  initiative: Initiative;
+  perspective: Perspective;
+  actions: Actions;
+}
+
+export type RegenMode = "normal" | "shorter" | "longer" | "in_character" | "not_in_character";
+
+export interface DeleteUndo {
+  message_id: number;
+  stamp: number;
+  old_head: number | null;
 }
 
 export interface UiError {
@@ -53,7 +122,8 @@ export interface UiError {
 export type ReplyEvent =
   | { kind: "user_saved"; message: Message }
   | { kind: "text"; text: string }
-  | { kind: "done"; message: Message | null }
+  | { kind: "restart" }
+  | { kind: "done"; view: ChatView; hint: string | null }
   | { kind: "failed"; error: UiError };
 
 export function isUiError(value: unknown): value is UiError {
@@ -79,21 +149,53 @@ export function onStatus(handler: (status: EngineStatus) => void): Promise<Unlis
   });
 }
 
-export const openChat = () => invoke<ChatView>("open_chat");
+export type ReplyHandler = (event: ReplyEvent) => void;
 
-function channel(handler: (event: ReplyEvent) => void): Channel<ReplyEvent> {
+function channel(handler: ReplyHandler): Channel<ReplyEvent> {
   const ch = new Channel<ReplyEvent>();
   ch.onmessage = handler;
   return ch;
 }
 
-export const sendMessage = (chatId: number, text: string, handler: (event: ReplyEvent) => void) =>
+export const listCharacters = () => invoke<Character[]>("list_characters");
+export const listPersonas = () => invoke<Persona[]>("list_personas");
+
+export const openCharacter = (characterId: number) => invoke<ChatView>("open_character", { characterId });
+export const openChat = (chatId: number) => invoke<ChatView>("open_chat", { chatId });
+export const newChat = (characterId: number, personaId: number | null) =>
+  invoke<ChatView>("new_chat", { characterId, personaId });
+export const listChats = (characterId: number) => invoke<ChatSummary[]>("list_chats", { characterId });
+export const deleteChat = (chatId: number) => invoke<null>("delete_chat", { chatId });
+
+export const sendMessage = (chatId: number, text: string, handler: ReplyHandler) =>
   invoke<null>("send_message", { chatId, text, onEvent: channel(handler) });
-
-export const retryReply = (chatId: number, handler: (event: ReplyEvent) => void) =>
+export const editMessage = (chatId: number, messageId: number, text: string, handler: ReplyHandler) =>
+  invoke<null>("edit_message", { chatId, messageId, text, onEvent: channel(handler) });
+export const regenerate = (chatId: number, messageId: number, mode: RegenMode, handler: ReplyHandler) =>
+  invoke<null>("regenerate", { chatId, messageId, mode, onEvent: channel(handler) });
+export const continueReply = (chatId: number, handler: ReplyHandler) =>
+  invoke<null>("continue_reply", { chatId, onEvent: channel(handler) });
+export const retryReply = (chatId: number, handler: ReplyHandler) =>
   invoke<null>("retry_reply", { chatId, onEvent: channel(handler) });
-
 export const stopReply = () => invoke<null>("stop_reply");
+
+export const editReply = (chatId: number, messageId: number, text: string) =>
+  invoke<ChatView>("edit_reply", { chatId, messageId, text });
+export const rewind = (chatId: number, messageId: number) => invoke<ChatView>("rewind", { chatId, messageId });
+export const showBranch = (chatId: number, messageId: number) =>
+  invoke<ChatView>("show_branch", { chatId, messageId });
+export const deleteMessage = (chatId: number, messageId: number) =>
+  invoke<{ view: ChatView; undo: DeleteUndo }>("delete_message", { chatId, messageId });
+export const undoDelete = (chatId: number, undo: DeleteUndo) => invoke<ChatView>("undo_delete", { chatId, undo });
+export const branchChat = (chatId: number, messageId: number) =>
+  invoke<ChatView>("branch_chat", { chatId, messageId });
+
+export const setChatPersona = (chatId: number, personaId: number | null) =>
+  invoke<ChatView>("set_chat_persona", { chatId, personaId });
+export const setChatTone = (chatId: number, tone: string, custom: string) =>
+  invoke<ChatView>("set_chat_tone", { chatId, tone, custom });
+export const setChatStyle = (chatId: number, style: string, custom: StyleSettings | null) =>
+  invoke<ChatView>("set_chat_style", { chatId, style, custom });
 
 export const restartEngine = () => invoke<null>("restart_engine");
 
@@ -109,9 +211,12 @@ export interface SelfTestReport {
 
 export const selfTestReport = (report: SelfTestReport) => invoke<null>("self_test_report", { report });
 
-/** The URL of a character's profile picture, served by the core. */
-export function avatarUrl(characterId: number): string {
-  const windows = navigator.userAgent.includes("Windows");
-  const base = windows ? "http://avatar.localhost" : "avatar://localhost";
-  return `${base}/character/${String(characterId)}`;
+const AVATAR_BASE = navigator.userAgent.includes("Windows") ? "http://avatar.localhost" : "avatar://localhost";
+
+/**
+ * The URL of a profile picture, served by the core. `version` changes when the
+ * picture changes, so the window does not show an old copy.
+ */
+export function avatarUrl(kind: "character" | "persona", id: number, version: string): string {
+  return `${AVATAR_BASE}/${kind}/${String(id)}?v=${encodeURIComponent(version)}`;
 }

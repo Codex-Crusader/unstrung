@@ -1,18 +1,38 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
+  branchChat,
+  continueReply,
+  deleteMessage,
+  editMessage,
+  editReply,
+  newChat,
+  openCharacter,
   openChat,
+  regenerate,
   retryReply,
+  rewind,
   sendMessage,
+  setChatPersona,
+  setChatStyle,
+  setChatTone,
+  showBranch,
   stopReply,
   toUiError,
+  undoDelete,
   type ChatView,
+  type DeleteUndo,
   type EngineStatus,
-  type Message,
+  type Persona,
   type ReplyEvent,
+  type ReplyHandler,
   type UiError,
+  type ViewMessage,
 } from "../api";
 import { strings } from "../strings";
-import { CharacterAvatar, UserAvatar } from "./Avatar";
+import { Avatar } from "./Avatar";
+import { ChatHeader } from "./ChatHeader";
+import { ChatList } from "./ChatList";
+import { MessageItem, type MessageActions } from "./MessageItem";
 import { MessageText } from "./MessageText";
 
 type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; text: string };
@@ -20,34 +40,52 @@ type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; tex
 /** Distance from the bottom, in pixels, that still counts as "at the bottom". */
 const STICK_DISTANCE = 80;
 
-export function ChatScreen({ status }: { status: EngineStatus }) {
+export function ChatScreen({
+  status,
+  characterId,
+  personas,
+  onBack,
+}: {
+  status: EngineStatus;
+  characterId: number;
+  personas: Persona[];
+  onBack: () => void;
+}) {
   const [view, setView] = useState<ChatView | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [pending, setPending] = useState<ViewMessage | null>(null);
   const [reply, setReply] = useState<Reply>({ phase: "idle" });
+  // The message under the reply that streams now. Messages after it are hidden.
+  const [replyAfter, setReplyAfter] = useState<number | null>(null);
   const [error, setError] = useState<UiError | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+  const [undo, setUndo] = useState<DeleteUndo | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    openChat()
+    let active = true;
+    openCharacter(characterId)
       .then((v) => {
-        setView(v);
-        setMessages(v.messages);
+        if (active) setView(v);
       })
       .catch((e: unknown) => {
-        setError(toUiError(e));
+        if (active) setError(toUiError(e));
       });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [characterId]);
 
   // Follow new text only when the user is already at the bottom, so reading
   // older messages is not interrupted.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (list && atBottom.current) list.scrollTop = list.scrollHeight;
-  }, [messages, reply]);
+  }, [view, pending, reply]);
 
   const onScroll = () => {
     const list = listRef.current;
@@ -57,53 +95,150 @@ export function ChatScreen({ status }: { status: EngineStatus }) {
   const handleEvent = useCallback((event: ReplyEvent) => {
     switch (event.kind) {
       case "user_saved":
-        setMessages((m) => [...m, event.message]);
+        setPending({ ...event.message, siblings: [event.message.id] });
         setDraft("");
         break;
       case "text":
         setReply((r) => ({ phase: "writing", text: (r.phase === "writing" ? r.text : "") + event.text }));
         break;
-      case "done": {
-        const saved = event.message;
-        if (saved) setMessages((m) => [...m, saved]);
-        setReply({ phase: "idle" });
+      case "restart":
+        setReply({ phase: "thinking" });
         break;
-      }
+      case "done":
+        setView(event.view);
+        setPending(null);
+        setReply({ phase: "idle" });
+        setReplyAfter(null);
+        setHint(event.hint);
+        break;
       case "failed":
         setReply({ phase: "idle" });
+        setReplyAfter(null);
         setError(event.error);
         break;
     }
   }, []);
 
-  const start = (run: () => Promise<null>) => {
+  const ready = status.state === "ready";
+  const busy = reply.phase !== "idle";
+  const locked = busy || !ready;
+
+  /** Starts a streamed reply. `after` is the message the reply answers. */
+  const start = (after: number | null, run: (handler: ReplyHandler) => Promise<null>) => {
     setError(null);
     setShowDetail(false);
+    setHint(null);
+    setUndo(null);
     setReply({ phase: "thinking" });
+    setReplyAfter(after);
     atBottom.current = true;
-    run().catch((e: unknown) => {
+    run((event) => {
+      // A failed reply can still have saved the user message, so reload the chat.
+      if (event.kind === "failed" && view) {
+        const chatId = view.chat.id;
+        void openChat(chatId).then(setView);
+        setPending(null);
+      }
+      handleEvent(event);
+    }).catch((e: unknown) => {
       setReply({ phase: "idle" });
+      setReplyAfter(null);
       setError(toUiError(e));
     });
   };
 
-  const ready = status.state === "ready";
-  const busy = reply.phase !== "idle";
-  const name = view?.character.name ?? "";
-  const canSend = ready && !busy && view !== null && draft.trim().length > 0;
-  const lastIsUser = messages.at(-1)?.role === "user";
+  /** Runs a quick change that returns the new view. */
+  const change = (run: () => Promise<ChatView>, after?: () => void) => {
+    setError(null);
+    setHint(null);
+    run()
+      .then((v) => {
+        setView(v);
+        after?.();
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  };
+
+  if (!view) {
+    return (
+      <section className="chat chat-empty">
+        {error && (
+          <p className="chat-error">
+            {strings.chat.loadFailed} {error.detail}
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  const chatId = view.chat.id;
+  const character = view.character;
+  const name = character.name;
+  const personaOf = (id: number | null) => personas.find((p) => p.id === id) ?? null;
+  const canSend = !locked && draft.trim().length > 0;
+  const last = view.messages.at(-1);
+  const lastIsUser = last !== undefined && last.role !== "character";
+
+  // While a reply streams, hide the messages it replaces.
+  let shown = view.messages;
+  if (replyAfter !== null) {
+    const at = shown.findIndex((m) => m.id === replyAfter);
+    if (at >= 0) shown = shown.slice(0, at + 1);
+  }
+  if (pending) {
+    // An edit puts the new message in place of the old one.
+    const at = pending.parent_id === null ? -1 : shown.findIndex((m) => m.id === pending.parent_id);
+    shown = [...shown.slice(0, at + 1), pending];
+  }
 
   const send = () => {
     if (!canSend) return;
-    const chatId = view.chat.id;
     const text = draft;
-    start(() => sendMessage(chatId, text, handleEvent));
+    start(last?.id ?? null, (h) => sendMessage(chatId, text, h));
   };
 
-  const retry = () => {
-    if (!view || busy) return;
-    const chatId = view.chat.id;
-    start(() => retryReply(chatId, handleEvent));
+  const actions: MessageActions = {
+    showVersion: (id) => {
+      change(() => showBranch(chatId, id));
+    },
+    regenerate: (id, mode) => {
+      const message = view.messages.find((m) => m.id === id);
+      start(message?.parent_id ?? null, (h) => regenerate(chatId, id, mode, h));
+    },
+    continueReply: () => {
+      start(null, (h) => continueReply(chatId, h));
+    },
+    edit: (message, text) => {
+      if (message.role === "character") {
+        change(() => editReply(chatId, message.id, text));
+      } else {
+        start(message.parent_id, (h) => editMessage(chatId, message.id, text, h));
+      }
+    },
+    rewind: (id) => {
+      change(
+        () => rewind(chatId, id),
+        () => {
+          setHint(strings.message.rewound);
+        },
+      );
+    },
+    branch: (id) => {
+      change(() => branchChat(chatId, id));
+    },
+    remove: (id) => {
+      setError(null);
+      deleteMessage(chatId, id)
+        .then((result) => {
+          setView(result.view);
+          setUndo(result.undo);
+        })
+        .catch((e: unknown) => {
+          setError(toUiError(e));
+        });
+    },
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -113,118 +248,193 @@ export function ChatScreen({ status }: { status: EngineStatus }) {
     }
   };
 
-  useEffect(() => {
-    if (ready && !busy) inputRef.current?.focus();
-  }, [ready, busy]);
-
-  if (!view) {
-    return (
-      <section className="chat chat-empty">
-        {error && <p className="chat-error">{strings.chat.loadFailed} {error.detail}</p>}
-      </section>
-    );
-  }
-
-  const character = view.character;
-  return (
-    <section className="chat">
-      <header className="chat-header">
-        <CharacterAvatar id={character.id} name={character.name} hasPicture={character.avatar_path !== null} />
-        <div className="chat-title">
-          <h1>{character.name}</h1>
-          <p>{character.tagline}</p>
-        </div>
-      </header>
-
-      <div className="messages" ref={listRef} onScroll={onScroll} role="log" aria-label={strings.chat.messages}>
-        {messages.map((m) => (
-          <article key={m.id} className={`message message-${m.role}`}>
-            {m.role === "user" ? (
-              <UserAvatar label={strings.chat.you} />
-            ) : (
-              <CharacterAvatar id={character.id} name={character.name} hasPicture={character.avatar_path !== null} />
-            )}
-            <div className="bubble">
-              <span className="speaker">{m.role === "user" ? strings.chat.you : character.name}</span>
-              <MessageText text={m.content} />
-            </div>
-          </article>
-        ))}
-        {reply.phase !== "idle" && (
-          <article className="message message-character" aria-busy="true">
-            <CharacterAvatar id={character.id} name={character.name} hasPicture={character.avatar_path !== null} />
-            <div className="bubble">
-              <span className="speaker">{character.name}</span>
-              {reply.phase === "thinking" ? (
-                <span className="typing" role="img" aria-label={strings.chat.thinking(name)}>
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              ) : (
-                <MessageText text={reply.text} />
-              )}
-            </div>
-          </article>
-        )}
-        {error && (
-          <div className="chat-error" role="alert">
-            <span>{error.message}</span>
-            {lastIsUser && (
-              <button type="button" className="link-button" onClick={retry} disabled={!ready}>
-                {strings.chat.tryAgain}
-              </button>
-            )}
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => {
-                setShowDetail((v) => !v);
-              }}
-            >
-              {showDetail ? strings.status.hideDetails : strings.status.details}
-            </button>
-            {showDetail && <code className="error-detail">{error.detail}</code>}
-          </div>
+  const streaming = busy && (
+    <article className="message message-character" aria-busy="true">
+      <Avatar kind="character" owner={character} />
+      <div className="bubble">
+        <span className="speaker">{name}</span>
+        {reply.phase === "writing" ? (
+          <MessageText text={reply.text} />
+        ) : (
+          <span className="typing" role="img" aria-label={strings.chat.thinking(name)}>
+            <span />
+            <span />
+            <span />
+          </span>
         )}
       </div>
+    </article>
+  );
 
-      <form
-        className="composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <textarea
-          ref={inputRef}
-          value={draft}
-          rows={2}
-          maxLength={8000}
-          placeholder={
-            ready
-              ? strings.chat.placeholder(name)
-              : status.state === "error"
-                ? status.message
-                : strings.chat.notReady(name)
-          }
-          aria-label={strings.chat.placeholder(name)}
-          disabled={!ready}
-          onChange={(e) => {
-            setDraft(e.target.value);
+  return (
+    <div className="chat-layout">
+      <section className="chat">
+        <ChatHeader
+          view={view}
+          personas={personas}
+          locked={locked}
+          onBack={onBack}
+          onPersona={(id) => {
+            change(() => setChatPersona(chatId, id));
           }}
-          onKeyDown={onKeyDown}
+          onTone={(tone, custom) => {
+            change(() => setChatTone(chatId, tone, custom));
+          }}
+          onStyle={(style, custom) => {
+            change(() => setChatStyle(chatId, style, custom));
+          }}
+          onToggleChats={() => {
+            setListOpen((v) => !v);
+          }}
         />
-        {busy ? (
-          <button type="button" className="button button-stop" onClick={() => void stopReply()}>
-            {strings.chat.stop}
-          </button>
-        ) : (
-          <button type="submit" className="button" disabled={!canSend}>
-            {strings.chat.send}
-          </button>
-        )}
-      </form>
-    </section>
+
+        <div className="messages" ref={listRef} onScroll={onScroll} role="log" aria-label={strings.chat.messages}>
+          {shown.map((m, i) => (
+            <MessageItem
+              key={m.id}
+              message={m}
+              character={character}
+              persona={personaOf(m.persona_id)}
+              isLast={i === shown.length - 1}
+              locked={locked}
+              actions={actions}
+            />
+          ))}
+          {streaming}
+          {!busy && view.branches.length > 0 && (
+            <p className="system-note">
+              {strings.chat.hiddenBranch(view.branches.length)}{" "}
+              <button
+                type="button"
+                className="link-button"
+                disabled={locked}
+                onClick={() => {
+                  const newest = view.branches.at(-1);
+                  if (newest !== undefined) actions.showVersion(newest);
+                }}
+              >
+                {strings.chat.showHidden}
+              </button>
+            </p>
+          )}
+          {hint && !busy && (
+            <p className="hint" role="status">
+              {hint}
+            </p>
+          )}
+          {undo && (
+            <p className="toast" role="status">
+              {strings.chat.deleted}{" "}
+              <button
+                type="button"
+                className="link-button"
+                disabled={locked}
+                onClick={() => {
+                  const token = undo;
+                  setUndo(null);
+                  change(() => undoDelete(chatId, token));
+                }}
+              >
+                {strings.chat.undo}
+              </button>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setUndo(null);
+                }}
+              >
+                {strings.chat.dismiss}
+              </button>
+            </p>
+          )}
+          {error && (
+            <div className="chat-error" role="alert">
+              <span>{error.message}</span>
+              {lastIsUser && !busy && (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    start(last.id, (h) => retryReply(chatId, h));
+                  }}
+                  disabled={!ready}
+                >
+                  {strings.chat.tryAgain}
+                </button>
+              )}
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setShowDetail((v) => !v);
+                }}
+              >
+                {showDetail ? strings.status.hideDetails : strings.status.details}
+              </button>
+              {showDetail && <code className="error-detail">{error.detail}</code>}
+            </div>
+          )}
+        </div>
+
+        <form
+          className="composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
+          }}
+        >
+          <textarea
+            ref={inputRef}
+            value={draft}
+            rows={2}
+            maxLength={8000}
+            placeholder={
+              ready
+                ? strings.chat.placeholder(name)
+                : status.state === "error"
+                  ? status.message
+                  : strings.chat.notReady(name)
+            }
+            title={strings.chat.oocHint}
+            aria-label={strings.chat.placeholder(name)}
+            disabled={!ready}
+            onChange={(e) => {
+              setDraft(e.target.value);
+            }}
+            onKeyDown={onKeyDown}
+          />
+          {busy ? (
+            <button type="button" className="button button-stop" onClick={() => void stopReply()}>
+              {strings.chat.stop}
+            </button>
+          ) : (
+            <button type="submit" className="button" disabled={!canSend}>
+              {strings.chat.send}
+            </button>
+          )}
+        </form>
+      </section>
+      {listOpen && (
+        <ChatList
+          characterId={character.id}
+          currentChatId={chatId}
+          refreshKey={`${String(chatId)}-${String(view.chat.updated_at)}`}
+          disabled={locked}
+          onOpen={(id) => {
+            change(() => openChat(id));
+          }}
+          onNew={() => {
+            change(() => newChat(character.id, view.chat.persona_id));
+          }}
+          onDeleted={(id) => {
+            if (id === chatId) change(() => openCharacter(character.id));
+          }}
+          onClose={() => {
+            setListOpen(false);
+          }}
+        />
+      )}
+    </div>
   );
 }

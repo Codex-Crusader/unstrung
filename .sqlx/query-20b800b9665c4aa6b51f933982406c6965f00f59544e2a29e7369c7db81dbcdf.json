@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO messages (chat_id, parent_id, role, persona_id, content, raw_content,\n                        token_count, model, prompt_version, sampler_json, created_at)\n                 SELECT ?, ?, role, persona_id, content, raw_content, token_count, model,\n                        prompt_version, sampler_json, created_at\n                 FROM messages WHERE id = ?\n                 RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "20b800b9665c4aa6b51f933982406c6965f00f59544e2a29e7369c7db81dbcdf"
+}

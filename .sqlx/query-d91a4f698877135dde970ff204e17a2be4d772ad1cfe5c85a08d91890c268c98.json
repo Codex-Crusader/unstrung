@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM chats WHERE character_id = ? AND deleted_at IS NULL\n             ORDER BY updated_at DESC, id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d91a4f698877135dde970ff204e17a2be4d772ad1cfe5c85a08d91890c268c98"
+}

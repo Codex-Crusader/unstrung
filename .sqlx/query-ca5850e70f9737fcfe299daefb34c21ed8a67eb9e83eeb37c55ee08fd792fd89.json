@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE characters SET voice_anchor = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ca5850e70f9737fcfe299daefb34c21ed8a67eb9e83eeb37c55ee08fd792fd89"
+}

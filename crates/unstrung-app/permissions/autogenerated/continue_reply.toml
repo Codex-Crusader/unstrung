@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-continue-reply"
+description = "Enables the continue_reply command without any pre-configured scope."
+commands.allow = ["continue_reply"]
+
+[[permission]]
+identifier = "deny-continue-reply"
+description = "Denies the continue_reply command without any pre-configured scope."
+commands.deny = ["continue_reply"]

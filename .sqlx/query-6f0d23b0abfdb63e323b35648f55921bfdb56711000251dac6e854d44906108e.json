@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,\n                    reply_custom, chat_model, head_message_id, created_at, updated_at\n             FROM chats WHERE id = ? AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "character_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "persona_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "title",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "tone",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "tone_custom",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "reply_style",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "reply_custom",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "chat_model",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "head_message_id",
+        "ordinal": 9,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 11,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6f0d23b0abfdb63e323b35648f55921bfdb56711000251dac6e854d44906108e"
+}

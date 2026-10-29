@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE messages SET flagged_out_of_character = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8f5196fa9148be625e3b53d2e69fd68971a63f8c543d54fbc52bd2b140397404"
+}
