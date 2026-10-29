@@ -40,6 +40,9 @@ type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; tex
 /** Distance from the bottom, in pixels, that still counts as "at the bottom". */
 const STICK_DISTANCE = 80;
 
+/** `replyAfter` value for a new greeting: no earlier message stays in view. Message IDs start at 1. */
+const BEFORE_FIRST = 0;
+
 export function ChatScreen({
   status,
   characterId,
@@ -187,7 +190,9 @@ export function ChatScreen({
 
   // While a reply streams, hide the messages it replaces.
   let shown = view.messages;
-  if (replyAfter !== null) {
+  if (replyAfter === BEFORE_FIRST) {
+    shown = [];
+  } else if (replyAfter !== null) {
     const at = shown.findIndex((m) => m.id === replyAfter);
     if (at >= 0) shown = shown.slice(0, at + 1);
   }
@@ -209,7 +214,8 @@ export function ChatScreen({
     },
     regenerate: (id, mode) => {
       const message = view.messages.find((m) => m.id === id);
-      start(message?.parent_id ?? null, (h) => regenerate(chatId, id, mode, h));
+      // A new greeting replaces the whole chat view while it streams.
+      start(message?.parent_id ?? BEFORE_FIRST, (h) => regenerate(chatId, id, mode, h));
     },
     continueReply: () => {
       start(null, (h) => continueReply(chatId, h));

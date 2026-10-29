@@ -138,7 +138,7 @@ export function MessageItem({
             <details className="menu" ref={menu}>
               <summary aria-label={strings.message.menu}>⋯</summary>
               <ul className="menu-list">
-                {fromCharacter && message.parent_id !== null && [
+                {fromCharacter && [
                   item(strings.message.regenerate, () => {
                     actions.regenerate(message.id, "normal");
                   }),
@@ -148,6 +148,8 @@ export function MessageItem({
                   item(strings.message.longer, () => {
                     actions.regenerate(message.id, "longer");
                   }),
+                ]}
+                {fromCharacter && message.parent_id !== null && [
                   item(strings.message.inCharacter, () => {
                     actions.regenerate(message.id, "in_character");
                   }),

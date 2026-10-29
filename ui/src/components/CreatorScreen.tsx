@@ -18,10 +18,10 @@ import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { CropAvatar } from "./CropAvatar";
 import { PictureField } from "./PictureField";
+import { startingCustom, StyleEditor } from "./StylePanel";
 import { TestChat } from "./TestChat";
 
 const TONES = ["casual", "wholesome", "dramatic", "flirty", "dark", "funny"];
-const STYLES = ["texting", "conversational", "storyteller", "novel"];
 
 const EMPTY: CharacterFields = {
   name: "",
@@ -34,6 +34,7 @@ const EMPTY: CharacterFields = {
   appearance_tags: "",
   default_tone: "casual",
   default_reply_style: "conversational",
+  default_reply_custom: "",
   age: 25,
   is_adult: false,
 };
@@ -50,6 +51,7 @@ function fieldsOf(c: Character): CharacterFields {
     appearance_tags: c.appearance_tags,
     default_tone: c.default_tone,
     default_reply_style: c.default_reply_style,
+    default_reply_custom: c.default_reply_custom,
     age: c.age,
     is_adult: c.is_adult,
   };
@@ -362,20 +364,22 @@ export function CreatorScreen({
                 ))}
               </select>
             </Field>
-            <Field label={strings.creator.style}>
-              <select
-                value={fields.default_reply_style}
-                onChange={(e) => {
-                  set("default_reply_style", e.target.value);
-                }}
-              >
-                {STYLES.map((s) => (
-                  <option key={s} value={s}>
-                    {strings.styles.get(s) ?? s}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          </div>
+          <div className="field creator-style">
+            <StyleEditor
+              picked={fields.default_reply_style}
+              custom={startingCustom(fields.default_reply_style, fields.default_reply_custom)}
+              name="default-reply-style"
+              legend={strings.creator.style}
+              onChange={(picked, custom) => {
+                setFields((f) => ({
+                  ...f,
+                  default_reply_style: picked,
+                  default_reply_custom: picked === "custom" ? JSON.stringify(custom) : "",
+                }));
+              }}
+            />
+            <span className="field-hint">{strings.creator.styleHint}</span>
           </div>
         </details>
 

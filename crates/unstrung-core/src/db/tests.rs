@@ -7,6 +7,7 @@ fn ren() -> CharacterFields {
         greeting: "Sit. Talk.".into(),
         default_tone: "dark".into(),
         default_reply_style: "conversational".into(),
+        default_reply_custom: String::new(),
         age: 34,
         ..Default::default()
     }
@@ -53,7 +54,7 @@ async fn message_tree_survives_a_reopen() {
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
     assert_eq!(
         db.meta("schema_version").await.unwrap().as_deref(),
-        Some("2")
+        Some("3")
     );
     let summaries = db.chat_summaries(id).await.unwrap();
     assert_eq!(summaries[0].message_count, 4);

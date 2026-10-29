@@ -16,6 +16,8 @@ pub struct Character {
     pub appearance_tags: String,
     pub default_tone: String,
     pub default_reply_style: String,
+    /// StyleSettings JSON when `default_reply_style` is "custom", else empty.
+    pub default_reply_custom: String,
     pub model_override: Option<String>,
     pub age: i64,
     pub is_adult: bool,
@@ -35,6 +37,8 @@ pub struct CharacterFields {
     pub appearance_tags: String,
     pub default_tone: String,
     pub default_reply_style: String,
+    #[serde(default)]
+    pub default_reply_custom: String,
     pub age: i64,
     pub is_adult: bool,
 }
@@ -52,7 +56,7 @@ impl Db {
             Character,
             r#"SELECT id, name, avatar_path, tagline, personality, scenario, greeting,
                     example_dialogue, voice_anchor, appearance_tags, default_tone,
-                    default_reply_style, model_override, age, is_adult AS "is_adult: bool",
+                    default_reply_style, default_reply_custom, model_override, age, is_adult AS "is_adult: bool",
                     created_at
              FROM characters WHERE id = ?"#,
             id
@@ -67,7 +71,7 @@ impl Db {
             Character,
             r#"SELECT id AS "id!", name, avatar_path, tagline, personality, scenario, greeting,
                     example_dialogue, voice_anchor, appearance_tags, default_tone,
-                    default_reply_style, model_override, age, is_adult AS "is_adult: bool",
+                    default_reply_style, default_reply_custom, model_override, age, is_adult AS "is_adult: bool",
                     created_at
              FROM characters ORDER BY created_at, id"#
         )
@@ -96,8 +100,9 @@ impl Db {
         let id = sqlx::query_scalar!(
             r#"INSERT INTO characters (starter_key, name, tagline, personality, scenario,
                     greeting, example_dialogue, voice_anchor, appearance_tags, default_tone,
-                    default_reply_style, age, is_adult, extensions_json, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    default_reply_style, default_reply_custom, age, is_adult, extensions_json,
+                    created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              RETURNING id AS "id!""#,
             starter_key,
             f.name,
@@ -110,6 +115,7 @@ impl Db {
             f.appearance_tags,
             f.default_tone,
             f.default_reply_style,
+            f.default_reply_custom,
             f.age,
             f.is_adult,
             extensions_json,
@@ -124,7 +130,8 @@ impl Db {
         let done = sqlx::query!(
             "UPDATE characters SET name = ?, tagline = ?, personality = ?, scenario = ?,
                     greeting = ?, example_dialogue = ?, voice_anchor = ?, appearance_tags = ?,
-                    default_tone = ?, default_reply_style = ?, age = ?, is_adult = ?
+                    default_tone = ?, default_reply_style = ?, default_reply_custom = ?,
+                    age = ?, is_adult = ?
              WHERE id = ?",
             f.name,
             f.tagline,
@@ -136,6 +143,7 @@ impl Db {
             f.appearance_tags,
             f.default_tone,
             f.default_reply_style,
+            f.default_reply_custom,
             f.age,
             f.is_adult,
             id

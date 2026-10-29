@@ -1271,3 +1271,13 @@ textarea:focus-visible {
   gap: 10px;
   margin-top: 24px;
 }
+
+/* Tauri's isolation pattern adds an iframe at the end of the page. It must
+   stay loaded, but it must not take space: at its default 300 x 150 size it
+   made the page taller than the window. */
+body > iframe {
+  position: fixed;
+  width: 0;
+  height: 0;
+  border: 0;
+}

@@ -340,6 +340,7 @@ fn from_value(value: &Value) -> Result<ParsedCard> {
         ),
         default_tone: preset("default_tone", TONES, "casual"),
         default_reply_style: preset("default_reply_style", STYLES, "conversational"),
+        default_reply_custom: String::new(),
         age,
         is_adult,
     };

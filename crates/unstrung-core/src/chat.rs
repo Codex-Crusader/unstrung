@@ -495,8 +495,136 @@ impl ChatService {
             },
             push_character: matches!(mode, RegenMode::InCharacter | RegenMode::NotInCharacter),
         };
+        // The greeting has no user message before it, so it gets its own path.
+        if path[at].parent_id.is_none() {
+            return self
+                .new_greeting(&chat, &path[at], plan, &cancel, progress)
+                .await;
+        }
         self.reply(&chat, &path[..at], plan, &cancel, progress)
             .await
+    }
+
+    /// Writes a new version of the greeting. The card's greeting stays as the
+    /// first version, and new chats always start with it.
+    async fn new_greeting(
+        &self,
+        chat: &Chat,
+        greeting: &Message,
+        plan: ReplyPlan,
+        cancel: &CancellationToken,
+        mut progress: impl FnMut(Progress<'_>),
+    ) -> Result<ReplyResult> {
+        let client = self.engine.client()?;
+        let character = self.db.character(chat.character_id).await?;
+        let persona = self.persona_of(chat).await?;
+        let style = plan
+            .style
+            .unwrap_or_else(|| StyleSettings::of(&chat.reply_style, &chat.reply_custom));
+        let model = self.model_for(chat, &character);
+        let request = Message {
+            id: 0,
+            chat_id: chat.id,
+            parent_id: None,
+            role: "user".into(),
+            persona_id: chat.persona_id,
+            content: format!(
+                "(Story note, not said by anyone: the chat starts now. Write the opening                  message of the story as {}.)",
+                character.name
+            ),
+            flagged_out_of_character: false,
+            model: None,
+            created_at: 0,
+        };
+        let note = format!(
+            "This is the first message of a new chat. The usual opening is below. Keep its              setting and situation, but write a new opening in your own words. Do not copy it.
+             Usual opening: \"{}\"",
+            greeting.content
+        );
+        let mut extra = note.clone();
+        let mut retried = false;
+        let (outcome, content, prompt, hint) = loop {
+            let prompt = prompt::build(&PromptInput {
+                character: &character,
+                persona: persona.as_ref(),
+                tone: &chat.tone,
+                tone_custom: &chat.tone_custom,
+                style,
+                history: std::slice::from_ref(&request),
+                push_character: plan.push_character,
+                extra_reminder: Some(&extra),
+                continuation: false,
+            });
+            let outcome = client
+                .chat(
+                    &chat_params(&model, &prompt.messages, &prompt.options),
+                    REPLY_TIMEOUT,
+                    cancel,
+                    |t| progress(Progress::Text(t)),
+                )
+                .await?;
+            let content = guard::clean(
+                &outcome.text,
+                &character.name,
+                &prompt.user_name,
+                outcome.cut_at_cap,
+                false,
+            );
+            let problem = if outcome.stopped {
+                None
+            } else if content.is_empty() {
+                Some(Problem::CharacterBreak)
+            } else {
+                // A copy of the old greeting counts as repetition.
+                guard::check(&content, &[greeting.content.as_str()])
+            };
+            match problem {
+                Some(p) if !retried => {
+                    log::info!("silent regenerate of the greeting: {p:?}");
+                    retried = true;
+                    progress(Progress::Restart);
+                    extra = format!(
+                        "{note}
+{}",
+                        p.reminder().replace("{{char}}", &character.name)
+                    );
+                }
+                Some(Problem::CharacterBreak) => {
+                    break (outcome, content, prompt, Some(OUT_OF_CHARACTER_HINT));
+                }
+                _ => break (outcome, content, prompt, None),
+            }
+        };
+        if content.is_empty() {
+            return if outcome.stopped {
+                Ok(ReplyResult {
+                    message: None,
+                    hint: None,
+                })
+            } else {
+                Err(Error::Engine("the reply was empty".into()))
+            };
+        }
+        let sampler = serde_json::to_string(&prompt.options)?;
+        let saved = self
+            .db
+            .append_message(&NewMessage {
+                chat_id: chat.id,
+                parent_id: None,
+                role: "character",
+                content: &content,
+                raw_content: Some(&outcome.text),
+                token_count: outcome.eval_count,
+                model: Some(&model),
+                prompt_version: Some(PROMPT_VERSION),
+                sampler_json: Some(&sampler),
+                ..Default::default()
+            })
+            .await?;
+        Ok(ReplyResult {
+            message: Some(saved),
+            hint,
+        })
     }
 
     /// Makes the last reply longer. The new text is added to the same message.
@@ -582,7 +710,10 @@ impl ChatService {
             persona,
             tone: &character.default_tone,
             tone_custom: "",
-            style: StyleSettings::of(&character.default_reply_style, ""),
+            style: StyleSettings::of(
+                &character.default_reply_style,
+                &character.default_reply_custom,
+            ),
             history,
             push_character: false,
             extra_reminder: None,

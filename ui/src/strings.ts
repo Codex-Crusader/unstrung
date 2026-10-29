@@ -68,6 +68,8 @@ export const strings = {
     tagsHint: "Short tags, for pictures later: hair, eyes, clothes, setting.",
     tone: "Default tone",
     style: "Default reply style",
+    styleHint:
+      "New chats with this character start with this style. Pick Custom to set each part yourself. You can still change the style in each chat.",
     save: "Save",
     saving: "Saving...",
     cancel: "Cancel",

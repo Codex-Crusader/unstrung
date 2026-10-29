@@ -9,7 +9,7 @@ use crate::chat::{clean_line, is_bidi_control};
 use crate::db::{Character, CharacterFields, Db, Persona, PersonaFields, WorldEntry};
 use crate::error::{Error, Result};
 use crate::paths::AppPaths;
-use crate::presets::{STYLES, TONES};
+use crate::presets::{STYLES, StyleSettings, TONES};
 
 pub const MAX_NAME: usize = 80;
 pub const MAX_TAGLINE: usize = 160;
@@ -55,6 +55,17 @@ fn required(value: String, label: &str) -> Result<String> {
     Ok(value)
 }
 
+/// The custom style JSON to store: checked and rewritten for "custom",
+/// empty for a preset.
+fn custom_style(style: &str, json: &str) -> Result<String> {
+    if style != "custom" {
+        return Ok(String::new());
+    }
+    let settings: StyleSettings = serde_json::from_str(json)
+        .map_err(|_| Error::Invalid("the custom reply style is not valid".into()))?;
+    Ok(serde_json::to_string(&settings)?)
+}
+
 pub fn check_character(f: &CharacterFields) -> Result<CharacterFields> {
     let out = CharacterFields {
         name: required(line(&f.name, MAX_NAME, "the name")?, "the name")?,
@@ -73,13 +84,14 @@ pub fn check_character(f: &CharacterFields) -> Result<CharacterFields> {
         appearance_tags: line(&f.appearance_tags, MAX_TAGS, "the appearance tags")?,
         default_tone: f.default_tone.clone(),
         default_reply_style: f.default_reply_style.clone(),
+        default_reply_custom: custom_style(&f.default_reply_style, &f.default_reply_custom)?,
         age: f.age,
         is_adult: f.is_adult,
     };
     if !TONES.contains(&out.default_tone.as_str()) || out.default_tone == "custom" {
         return Err(Error::Invalid(format!("unknown tone {}", out.default_tone)));
     }
-    if !STYLES.contains(&out.default_reply_style.as_str()) || out.default_reply_style == "custom" {
+    if !STYLES.contains(&out.default_reply_style.as_str()) {
         return Err(Error::Invalid(format!(
             "unknown reply style {}",
             out.default_reply_style
@@ -305,6 +317,7 @@ mod tests {
             greeting: "Hello.".into(),
             default_tone: "casual".into(),
             default_reply_style: "conversational".into(),
+            default_reply_custom: String::new(),
             age: 30,
             ..Default::default()
         }
@@ -326,6 +339,28 @@ mod tests {
         assert!(bad(|f| f.age = 0));
         assert!(bad(|f| f.default_tone = "custom".into()));
         assert!(bad(|f| f.default_reply_style = "loud".into()));
+        assert!(
+            bad(|f| f.default_reply_style = "custom".into()),
+            "custom needs settings"
+        );
+        assert!(bad(|f| {
+            f.default_reply_style = "custom".into();
+            f.default_reply_custom = r#"{"length":"huge"}"#.into();
+        }));
+        let mut custom = fields();
+        custom.default_reply_style = "custom".into();
+        custom.default_reply_custom =
+            serde_json::to_string(&StyleSettings::of("novel", "")).unwrap();
+        assert!(
+            check_character(&custom)
+                .unwrap()
+                .default_reply_custom
+                .contains("long")
+        );
+        // A preset never keeps old custom settings.
+        let mut preset = custom.clone();
+        preset.default_reply_style = "texting".into();
+        assert_eq!(check_character(&preset).unwrap().default_reply_custom, "");
         assert!(bad(|f| f.personality = "a".repeat(MAX_PERSONALITY + 1)));
         assert!(bad(|f| {
             f.is_adult = true;

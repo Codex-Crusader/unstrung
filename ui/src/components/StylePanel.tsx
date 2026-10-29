@@ -97,8 +97,8 @@ const SLIDERS: Slider[] = [
   },
 ];
 
-/** Reads the chat's saved custom style. Returns null when it is missing or not valid. */
-function parseCustom(json: string): StyleSettings | null {
+/** Reads a saved custom style. Returns null when it is missing or not valid. */
+export function parseCustom(json: string): StyleSettings | null {
   try {
     const value: unknown = JSON.parse(json);
     if (typeof value !== "object" || value === null) return null;
@@ -109,37 +109,34 @@ function parseCustom(json: string): StyleSettings | null {
   }
 }
 
-export function StylePanel({
-  style,
-  customJson,
-  onApply,
-  onClose,
+/** The preset list and, for "Custom", the sliders. The chat panel and the creator both use it. */
+export function StyleEditor({
+  picked,
+  custom,
+  name,
+  legend,
+  onChange,
 }: {
-  style: string;
-  customJson: string;
-  onApply: (style: string, custom: StyleSettings | null) => void;
-  onClose: () => void;
+  picked: string;
+  custom: StyleSettings;
+  /** The radio group name. It must be unique on the page. */
+  name: string;
+  legend: string;
+  onChange: (picked: string, custom: StyleSettings) => void;
 }) {
-  const [picked, setPicked] = useState(style);
-  const [custom, setCustom] = useState<StyleSettings>(
-    () => parseCustom(customJson) ?? PRESET_SETTINGS.get(style) ?? CONVERSATIONAL,
-  );
-
   return (
-    <div className="popover style-panel" role="dialog" aria-label={strings.header.style}>
+    <>
       <fieldset className="preset-list">
-        <legend>{strings.header.style}</legend>
+        <legend>{legend}</legend>
         {PRESETS.map((p) => (
           <label key={p} className={p === picked ? "preset preset-picked" : "preset"}>
             <input
               type="radio"
-              name="reply-style"
+              name={name}
               value={p}
               checked={p === picked}
               onChange={() => {
-                setPicked(p);
-                const base = PRESET_SETTINGS.get(p);
-                if (base) setCustom(base);
+                onChange(p, PRESET_SETTINGS.get(p) ?? custom);
               }}
             />
             <span className="preset-name">{strings.styles.get(p)}</span>
@@ -155,7 +152,7 @@ export function StylePanel({
               <select
                 value={s.get(custom)}
                 onChange={(e) => {
-                  setCustom(s.set(custom, e.target.value));
+                  onChange(picked, s.set(custom, e.target.value));
                 }}
               >
                 {s.values.map((v) => (
@@ -168,6 +165,41 @@ export function StylePanel({
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+/** The starting sliders for a style and its saved custom JSON. */
+export function startingCustom(style: string, customJson: string): StyleSettings {
+  return parseCustom(customJson) ?? PRESET_SETTINGS.get(style) ?? CONVERSATIONAL;
+}
+
+export function StylePanel({
+  style,
+  customJson,
+  onApply,
+  onClose,
+}: {
+  style: string;
+  customJson: string;
+  onApply: (style: string, custom: StyleSettings | null) => void;
+  onClose: () => void;
+}) {
+  const [picked, setPicked] = useState(style);
+  const [custom, setCustom] = useState<StyleSettings>(() => startingCustom(style, customJson));
+
+  return (
+    <div className="popover style-panel" role="dialog" aria-label={strings.header.style}>
+      <StyleEditor
+        picked={picked}
+        custom={custom}
+        name="reply-style"
+        legend={strings.header.style}
+        onChange={(p, c) => {
+          setPicked(p);
+          setCustom(c);
+        }}
+      />
       <div className="popover-actions">
         <button type="button" className="button button-quiet" onClick={onClose}>
           {strings.message.cancel}

@@ -5,6 +5,7 @@ import type { Screen } from "./App";
 import {
   deleteCharacter,
   getCharacter,
+  newChat,
   getStatus,
   importCard,
   listCharacters,
@@ -24,6 +25,7 @@ import {
   type EngineStatus,
   type ReplyHandler,
   type SelfTestReport,
+  type StyleSettings,
 } from "./api";
 
 function waitForReady(): Promise<EngineStatus> {
@@ -63,6 +65,26 @@ const SHOW_MS = 1500;
 function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/** The page must fit the window. Otherwise keyboard focus can scroll it and hide the sidebar top. */
+function pageOverflow(): string {
+  const root = document.documentElement;
+  if (root.scrollHeight <= root.clientHeight && root.scrollWidth <= root.clientWidth) return "";
+  const below = [...document.body.children]
+    .filter((el) => el.getBoundingClientRect().bottom > root.clientHeight + 1)
+    .map((el) => el.tagName.toLowerCase());
+  return `the page is ${String(root.scrollHeight)} px high in a ${String(root.clientHeight)} px window: ${below.join(", ")}`;
+}
+
+/** A custom style for the self-test character. The chat must copy it. */
+const SHORT_STYLE: StyleSettings = {
+  length: "very_short",
+  talk: "dialogue_only",
+  description: "minimal",
+  initiative: "balanced",
+  perspective: "third",
+  actions: "asterisks",
+};
 
 /** A small PNG drawn in the window, to send through the real upload path. */
 async function drawPicture(): Promise<Uint8Array> {
@@ -135,6 +157,13 @@ async function checkCreator(show: (screen: Screen) => void, renId: number): Prom
   // Each screen stays for a moment, so a screenshot of the run can show it.
   show({ name: "creator", characterId: renId });
   await pause(SHOW_MS);
+  const overflow = pageOverflow();
+  if (overflow) return overflow;
+  // Scroll only the panel, so the page itself never moves.
+  const section = document.querySelector(".creator-style");
+  const panel = document.querySelector(".creator");
+  if (section && panel) panel.scrollTop += section.getBoundingClientRect().top - 200;
+  await pause(SHOW_MS);
   show({ name: "personas" });
   await pause(SHOW_MS);
   const staged = await stageUpload(await drawPicture());
@@ -151,10 +180,12 @@ async function checkCreator(show: (screen: Screen) => void, renId: number): Prom
     appearance_tags: "",
     default_tone: "wholesome",
     default_reply_style: "conversational",
+    default_reply_custom: "",
     age: 30,
     is_adult: false,
   };
-  const character = await saveCharacter(null, fields, {
+  const custom = { ...fields, default_reply_style: "custom", default_reply_custom: JSON.stringify(SHORT_STYLE) };
+  const character = await saveCharacter(null, custom, {
     kind: "staged",
     token: staged.token,
     crop: { x: 50, y: 0, size: 200 },
@@ -163,8 +194,23 @@ async function checkCreator(show: (screen: Screen) => void, renId: number): Prom
   show({ name: "chat", characterId: character.id });
   const view = await openCharacter(character.id);
   if (view.messages[0]?.content !== fields.greeting) return "the new chat does not start with the greeting";
+  if (view.chat.reply_style !== "custom" || !view.chat.reply_custom.includes("very_short"))
+    return `the chat did not take the character's custom style: ${view.chat.reply_style} ${view.chat.reply_custom}`;
   const sent = await stream((h) => sendMessage(view.chat.id, "Hi Iris. How are you today?", h));
   if (sent.error || !sent.view) return `the new character did not reply: ${sent.error}`;
+
+  // A new version of the greeting. The card's greeting stays as version 1.
+  const greetingId = view.messages[0].id;
+  const again = await stream((h) => regenerate(view.chat.id, greetingId, "normal", h));
+  if (again.error || !again.view) return `the greeting regenerate failed: ${again.error}`;
+  const first = again.view.messages[0];
+  if (!first || first.siblings.length !== 2 || !first.siblings.includes(greetingId))
+    return "the greeting regenerate did not keep the old greeting as a version";
+  if (first.content === fields.greeting) return "the new greeting is the same as the old one";
+  if (again.view.messages.length !== 1) return "the new greeting did not start a new branch";
+  // Every new chat still starts with the card's greeting.
+  const fresh = await newChat(character.id, null);
+  if (fresh.messages[0]?.content !== fields.greeting) return "a new chat did not start with the card's greeting";
 
   const test = await new Promise<string>((resolve) => {
     testReply(fields, null, [{ role: "character", content: fields.greeting }, { role: "user", content: "Hi!" }], (e) => {

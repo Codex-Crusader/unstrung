@@ -42,6 +42,7 @@ export interface Character {
   appearance_tags: string;
   default_tone: string;
   default_reply_style: string;
+  default_reply_custom: string;
   model_override: string | null;
   age: number;
   is_adult: boolean;
@@ -208,6 +209,7 @@ export interface CharacterFields {
   appearance_tags: string;
   default_tone: string;
   default_reply_style: string;
+  default_reply_custom: string;
   age: number;
   is_adult: boolean;
 }

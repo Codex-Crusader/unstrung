@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO chats (character_id, persona_id, title, tone, reply_style, reply_custom,\n                    created_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "1cf31050317b30dff18d0f65d4bd0a622af7ca4e30bc6b2cd84a21b408b8727d"
+}

@@ -83,13 +83,15 @@ impl Db {
         let now = now_ms();
         let mut tx = self.pool.begin().await?;
         let chat_id = sqlx::query_scalar!(
-            r#"INSERT INTO chats (character_id, persona_id, title, tone, reply_style, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
+            r#"INSERT INTO chats (character_id, persona_id, title, tone, reply_style, reply_custom,
+                    created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
             character.id,
             persona_id,
             title,
             character.default_tone,
             character.default_reply_style,
+            character.default_reply_custom,
             now,
             now
         )

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO characters (starter_key, name, tagline, personality, scenario,\n                    greeting, example_dialogue, voice_anchor, appearance_tags, default_tone,\n                    default_reply_style, default_reply_custom, age, is_adult, extensions_json,\n                    created_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n             RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 16
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3d9b187d4ba3b4e171923943ab8781a2db4de9f63c4275c7c9d29c3ae32eb802"
+}
