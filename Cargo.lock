@@ -4530,6 +4530,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "unstrung-quality"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "unstrung-core",
+]
+
+[[package]]
 name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"

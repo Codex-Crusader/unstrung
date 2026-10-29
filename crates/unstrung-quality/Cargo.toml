@@ -1,0 +1,19 @@
+[package]
+name = "unstrung-quality"
+description = "Quality test suite for Unstrung: scripted chats and a prompt injection set, run against a real model through the core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+unstrung-core.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

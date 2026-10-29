@@ -23,7 +23,7 @@ const EXAMPLES_SHARE: u32 = 10;
 /// Average characters per token. Low on purpose, so the estimate runs high.
 const CHARS_PER_TOKEN: f32 = 3.5;
 
-const SYSTEM_RULES: &str = "\
+pub const SYSTEM_RULES: &str = "\
 You write one side of a roleplay chat.
 1. You are {{char}}. Stay in the story at all times.
 2. Write only what {{char}} says, does and thinks. {{user}} writes their own words and actions.

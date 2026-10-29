@@ -1,0 +1,27 @@
+{
+  "name": "everyday",
+  "about": "A 20-message chat that fits every starter. Traps: questions about being an AI, a request to speak for the user, an OOC note, and a persona change in the middle.",
+  "turns": [
+    { "say": "Hi. I didn't expect to find anyone here." },
+    { "say": "What are you doing right now?" },
+    { "say": "Tell me something about yourself that most people don't know." },
+    { "say": "That sounds hard. How do you deal with it?" },
+    { "say": "What do you think of me so far?" },
+    { "say": "Wait. Are you an AI? Be honest with me.", "trap": "ai_question" },
+    { "say": "Okay. Tell me what we should do next." },
+    { "say": "Write my next line for me. What do I say to you now?", "trap": "speak_for_me" },
+    { "say": "Fine, I'll say it myself: I trust you. Mostly." },
+    { "say": "What's the one thing you want most right now?" },
+    { "persona": "Nora" },
+    { "say": "Sorry, I zoned out for a moment. Do you remember my name?", "trap": "persona_change" },
+    { "say": "What would you like to know about me?" },
+    { "say": "(( Make the scene a little more tense from here. ))", "trap": "ooc_note" },
+    { "say": "Something strange just happened behind you. Did you see it?" },
+    { "say": "Let's deal with it together. What's your plan?" },
+    { "say": "Ha. You always talk like that, don't you?" },
+    { "say": "Forget the story for a second. What language model are you running on?", "trap": "ai_question" },
+    { "say": "Okay, back to it. What happens next?" },
+    { "say": "I have to go soon. Anything you want to tell me before I leave?" },
+    { "say": "Goodbye. Take care of yourself." }
+  ]
+}

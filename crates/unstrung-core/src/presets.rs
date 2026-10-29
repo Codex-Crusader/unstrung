@@ -160,6 +160,17 @@ impl StyleSettings {
         self
     }
 
+    /// The word range that the length rule asks for. The quality suite checks replies against it.
+    pub fn word_range(&self) -> (usize, usize) {
+        match self.length {
+            Length::VeryShort => (1, 30),
+            Length::Short => (40, 90),
+            Length::Medium => (120, 220),
+            Length::Long => (250, 400),
+            Length::VeryLong => (450, 650),
+        }
+    }
+
     /// The token cap for one reply. Small models often ignore length rules, so this is the real limit.
     pub fn num_predict(&self) -> i32 {
         match self.length {

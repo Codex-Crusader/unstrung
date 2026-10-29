@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT raw_content FROM messages WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "raw_content",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "364de56e5ecfb10b6874a28a6a6199cc083f427617c071430895b0237cbd7490"
+}

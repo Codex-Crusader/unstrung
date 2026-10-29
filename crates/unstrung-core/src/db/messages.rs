@@ -91,6 +91,14 @@ impl Db {
     }
 
     /// The messages from the first message to the head, oldest first.
+    /// The model output before cleanup, for the quality suite. `None` for user messages.
+    pub async fn raw_content(&self, id: i64) -> Result<Option<String>> {
+        let raw = sqlx::query_scalar!("SELECT raw_content FROM messages WHERE id = ?", id)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(raw)
+    }
+
     pub async fn path_to_head(&self, chat_id: i64) -> Result<Vec<Message>> {
         let rows = sqlx::query_as!(
             Message,
