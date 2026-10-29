@@ -114,7 +114,9 @@ function AutoNumber({
   );
 }
 
-export function ModelsScreen() {
+/** `engine` is the engine state and model. The list reloads when it changes,
+ * because the engine finds the installed models only after it starts. */
+export function ModelsScreen({ engine }: { engine: string }) {
   const s = strings.models;
   const [page, setPage] = useState<ModelsPage | null>(null);
   const [download, setDownload] = useState<Download | null>(null);
@@ -163,6 +165,20 @@ export function ModelsScreen() {
       });
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    modelsPage()
+      .then((p) => {
+        if (active) setPage(p);
+      })
+      .catch(() => {
+        // The list stays as it was.
+      });
+    return () => {
+      active = false;
+    };
+  }, [engine]);
 
   if (!page) {
     return (

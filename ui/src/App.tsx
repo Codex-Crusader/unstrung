@@ -161,7 +161,9 @@ export function App() {
             />
           )}
           {screen.name === "personas" && <PersonasScreen onChanged={loadPersonas} />}
-          {screen.name === "models" && <ModelsScreen />}
+          {screen.name === "models" && (
+            <ModelsScreen engine={`${status.state}:${"model" in status ? status.model : ""}`} />
+          )}
         </main>
       </div>
       <StatusBar
