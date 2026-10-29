@@ -12,6 +12,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 log = { version = "0.4", features = ["std"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream"] }

@@ -32,6 +32,16 @@
     "allow-set-chat-tone",
     "allow-set-chat-style",
     "allow-restart-engine",
+    "allow-get-character",
+    "allow-save-character",
+    "allow-delete-character",
+    "allow-restore-starters",
+    "allow-save-persona",
+    "allow-delete-persona",
+    "allow-set-default-persona",
+    "allow-stage-upload",
+    "allow-suggest-anchor",
+    "allow-test-reply",
     "allow-self-test-mode",
     "allow-self-test-report"
   ]

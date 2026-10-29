@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listCharacters, toUiError, type Character, type UiError } from "../api";
+import { listCharacters, restoreStarters, toUiError, type Character, type UiError } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 
@@ -14,14 +14,27 @@ export function HomeScreen({
 }) {
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [error, setError] = useState<UiError | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     listCharacters()
       .then(setCharacters)
       .catch((e: unknown) => {
         setError(toUiError(e));
       });
-  }, []);
+  };
+  useEffect(load, []);
+
+  const restore = () => {
+    restoreStarters()
+      .then(() => {
+        setNote(strings.home.restored);
+        load();
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  };
 
   return (
     <section className="home">
@@ -68,6 +81,12 @@ export function HomeScreen({
         ))}
       </ul>
       {characters?.length === 0 && <p className="muted">{strings.home.empty}</p>}
+      <p className="home-foot">
+        <button type="button" className="link-button" onClick={restore}>
+          {strings.home.restore}
+        </button>
+        {note && <span className="muted"> {note}</span>}
+      </p>
     </section>
   );
 }

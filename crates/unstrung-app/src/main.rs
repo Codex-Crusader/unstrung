@@ -5,6 +5,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod creator;
 mod logfile;
 mod selftest;
 mod state;
@@ -80,6 +81,16 @@ fn main() {
             commands::set_chat_tone,
             commands::set_chat_style,
             commands::restart_engine,
+            creator::get_character,
+            creator::save_character,
+            creator::delete_character,
+            creator::restore_starters,
+            creator::save_persona,
+            creator::delete_persona,
+            creator::set_default_persona,
+            creator::stage_upload,
+            creator::suggest_anchor,
+            creator::test_reply,
             selftest::self_test_mode,
             selftest::self_test_report,
         ])
@@ -126,6 +137,7 @@ async fn open_core(paths: AppPaths, self_test: bool) -> unstrung_core::Result<Ap
         // Phase 7 adds snapshots and the restore screen.
         log::error!("the database failed its quick check");
     }
+    unstrung_core::avatar::clear_staging(&paths);
     starters::ensure(&db, &paths).await?;
     let engine = Engine::new(paths.clone());
     let chats = Arc::new(ChatService::new(db, engine.clone()));
@@ -169,17 +181,16 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
             .unwrap_or_default()
     };
     let state = app.state::<AppState>();
-    let Some((kind, id)) = path
-        .trim_start_matches('/')
-        .split_once('/')
-        .and_then(|(kind, id)| Some((kind, id.parse::<i64>().ok()?)))
-    else {
+    let Some((kind, key)) = path.trim_start_matches('/').split_once('/') else {
         return not_found();
     };
     let db = state.chats.db();
-    let stored = match kind {
-        "character" => db.character(id).await.ok().and_then(|c| c.avatar_path),
-        "persona" => db.persona(id).await.ok().and_then(|p| p.avatar_path),
+    let id = key.parse::<i64>().ok();
+    let stored = match (kind, id) {
+        ("character", Some(id)) => db.character(id).await.ok().and_then(|c| c.avatar_path),
+        ("persona", Some(id)) => db.persona(id).await.ok().and_then(|p| p.avatar_path),
+        // A picture that the user is cropping now.
+        ("staged", _) => unstrung_core::avatar::staged_path(key).ok(),
         _ => None,
     };
     let Some(stored) = stored else {

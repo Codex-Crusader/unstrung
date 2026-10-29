@@ -197,6 +197,79 @@ export const setChatTone = (chatId: number, tone: string, custom: string) =>
 export const setChatStyle = (chatId: number, style: string, custom: StyleSettings | null) =>
   invoke<ChatView>("set_chat_style", { chatId, style, custom });
 
+export interface CharacterFields {
+  name: string;
+  tagline: string;
+  personality: string;
+  scenario: string;
+  greeting: string;
+  example_dialogue: string;
+  voice_anchor: string;
+  appearance_tags: string;
+  default_tone: string;
+  default_reply_style: string;
+  age: number;
+  is_adult: boolean;
+}
+
+export interface PersonaFields {
+  name: string;
+  description: string;
+  appearance_tags: string;
+  age: number | null;
+}
+
+export interface Staged {
+  token: string;
+  width: number;
+  height: number;
+}
+
+export interface Crop {
+  x: number;
+  y: number;
+  size: number;
+}
+
+export type AvatarChange = { kind: "keep" } | { kind: "remove" } | { kind: "staged"; token: string; crop: Crop };
+
+export type TestEvent =
+  | { kind: "text"; text: string }
+  | { kind: "restart" }
+  | { kind: "done"; text: string }
+  | { kind: "failed"; error: UiError };
+
+export interface TestLine {
+  role: "user" | "character";
+  content: string;
+}
+
+export const getCharacter = (characterId: number) => invoke<Character>("get_character", { characterId });
+export const saveCharacter = (characterId: number | null, fields: CharacterFields, avatar: AvatarChange) =>
+  invoke<Character>("save_character", { characterId, fields, avatar });
+export const deleteCharacter = (characterId: number) => invoke<null>("delete_character", { characterId });
+export const restoreStarters = () => invoke<null>("restore_starters");
+export const savePersona = (personaId: number | null, fields: PersonaFields, avatar: AvatarChange) =>
+  invoke<Persona>("save_persona", { personaId, fields, avatar });
+export const deletePersona = (personaId: number) => invoke<null>("delete_persona", { personaId });
+export const setDefaultPersona = (personaId: number | null) => invoke<null>("set_default_persona", { personaId });
+export const suggestAnchor = (name: string, personality: string) =>
+  invoke<string>("suggest_anchor", { name, personality });
+
+/** Sends the raw bytes of a picture file. The core decodes it and keeps a clean copy. */
+export const stageUpload = (bytes: Uint8Array) => invoke<Staged>("stage_upload", bytes);
+
+export function testReply(
+  fields: CharacterFields,
+  personaId: number | null,
+  history: TestLine[],
+  handler: (event: TestEvent) => void,
+) {
+  const ch = new Channel<TestEvent>();
+  ch.onmessage = handler;
+  return invoke<null>("test_reply", { fields, personaId, history, onEvent: ch });
+}
+
 export const restartEngine = () => invoke<null>("restart_engine");
 
 export const selfTestMode = () => invoke<boolean>("self_test_mode");
@@ -217,6 +290,11 @@ const AVATAR_BASE = navigator.userAgent.includes("Windows") ? "http://avatar.loc
  * The URL of a profile picture, served by the core. `version` changes when the
  * picture changes, so the window does not show an old copy.
  */
+/** The URL of a picture that the user is cropping now. */
+export function stagedUrl(token: string): string {
+  return `${AVATAR_BASE}/staged/${encodeURIComponent(token)}`;
+}
+
 export function avatarUrl(kind: "character" | "persona", id: number, version: string): string {
   return `${AVATAR_BASE}/${kind}/${String(id)}?v=${encodeURIComponent(version)}`;
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stage-upload"
+description = "Enables the stage_upload command without any pre-configured scope."
+commands.allow = ["stage_upload"]
+
+[[permission]]
+identifier = "deny-stage-upload"
+description = "Denies the stage_upload command without any pre-configured scope."
+commands.deny = ["stage_upload"]

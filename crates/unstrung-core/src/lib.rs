@@ -3,11 +3,13 @@
 
 #![forbid(unsafe_code)]
 
+pub mod avatar;
 pub mod chat;
 pub mod db;
 pub mod engine;
 pub mod error;
 pub mod guard;
+pub mod library;
 pub mod ollama;
 pub mod paths;
 pub mod presets;

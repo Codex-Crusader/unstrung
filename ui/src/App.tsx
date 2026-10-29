@@ -1,17 +1,47 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getStatus, listPersonas, onStatus, selfTestMode, type EngineStatus, type Persona } from "./api";
 import { ChatScreen } from "./components/ChatScreen";
+import { CreatorScreen } from "./components/CreatorScreen";
 import { HomeScreen } from "./components/HomeScreen";
+import { PersonasScreen } from "./components/PersonasScreen";
 import { StatusBar } from "./components/StatusBar";
 import { runSelfTest } from "./selfTest";
 import { strings } from "./strings";
 
-export type Screen = { name: "home" } | { name: "chat"; characterId: number };
+export type Screen =
+  | { name: "home" }
+  | { name: "chat"; characterId: number }
+  | { name: "creator"; characterId: number | null }
+  | { name: "personas" };
+
+/** Closes open message menus on a click outside them, or on Escape. */
+function useMenuDismiss() {
+  useEffect(() => {
+    const closeAll = (keep: Node | null) => {
+      document.querySelectorAll("details.menu[open]").forEach((menu) => {
+        if (!keep || !menu.contains(keep)) menu.removeAttribute("open");
+      });
+    };
+    const onPointer = (e: PointerEvent) => {
+      closeAll(e.target instanceof Node ? e.target : null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeAll(null);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+}
 
 export function App() {
   const [status, setStatus] = useState<EngineStatus>({ state: "starting" });
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [personas, setPersonas] = useState<Persona[]>([]);
+  useMenuDismiss();
 
   useEffect(() => {
     let active = true;
@@ -24,8 +54,8 @@ export function App() {
     });
     void selfTestMode().then((on) => {
       if (on)
-        void runSelfTest((characterId) => {
-          setScreen({ name: "chat", characterId });
+        void runSelfTest((next) => {
+          setScreen(next);
         });
     });
     return () => {
@@ -36,13 +66,19 @@ export function App() {
     };
   }, []);
 
-  useEffect(() => {
-    void listPersonas().then(setPersonas);
-  }, [screen]);
+  const loadPersonas = useCallback(() => {
+    listPersonas()
+      .then(setPersonas)
+      .catch(() => {
+        setPersonas([]);
+      });
+  }, []);
+  useEffect(loadPersonas, [loadPersonas]);
 
   const home = () => {
     setScreen({ name: "home" });
   };
+  const ready = status.state === "ready";
 
   return (
     <div className="app">
@@ -56,6 +92,15 @@ export function App() {
           >
             {strings.nav.home}
           </button>
+          <button
+            type="button"
+            className={screen.name === "personas" ? "nav-item nav-current" : "nav-item"}
+            onClick={() => {
+              setScreen({ name: "personas" });
+            }}
+          >
+            {strings.nav.personas}
+          </button>
         </nav>
         <main className="app-main">
           {screen.name === "home" && (
@@ -63,8 +108,12 @@ export function App() {
               onOpen={(c) => {
                 setScreen({ name: "chat", characterId: c.id });
               }}
-              onCreate={home}
-              onEdit={home}
+              onCreate={() => {
+                setScreen({ name: "creator", characterId: null });
+              }}
+              onEdit={(c) => {
+                setScreen({ name: "creator", characterId: c.id });
+              }}
             />
           )}
           {screen.name === "chat" && (
@@ -76,6 +125,19 @@ export function App() {
               onBack={home}
             />
           )}
+          {screen.name === "creator" && (
+            <CreatorScreen
+              key={screen.characterId ?? "new"}
+              characterId={screen.characterId}
+              ready={ready}
+              onSaved={(c) => {
+                setScreen({ name: "chat", characterId: c.id });
+              }}
+              onDeleted={home}
+              onCancel={home}
+            />
+          )}
+          {screen.name === "personas" && <PersonasScreen onChanged={loadPersonas} />}
         </main>
       </div>
       <StatusBar status={status} />

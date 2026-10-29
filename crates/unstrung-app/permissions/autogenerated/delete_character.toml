@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-character"
+description = "Enables the delete_character command without any pre-configured scope."
+commands.allow = ["delete_character"]
+
+[[permission]]
+identifier = "deny-delete-character"
+description = "Denies the delete_character command without any pre-configured scope."
+commands.deny = ["delete_character"]

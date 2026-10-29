@@ -892,3 +892,341 @@ textarea:focus-visible {
 .message-tools:empty {
   display: none;
 }
+
+/* ---- Phase 2 step 6: creator, pictures, test chat, personas. ---- */
+
+.creator-layout {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.creator {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.creator-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.creator-main {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.field-required {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.field-hint.warn,
+.field-error {
+  color: var(--bad);
+}
+
+.field-error {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.field textarea,
+.persona-form textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.field input[type="number"] {
+  max-width: 120px;
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.field-short {
+  max-width: 160px;
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.more[open] > summary {
+  margin-bottom: 12px;
+}
+
+.more > .field,
+.more > .field-row,
+.more > .link-button {
+  margin-bottom: 12px;
+}
+
+.more summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tips {
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+}
+
+.tips p {
+  margin: 0;
+}
+
+.tips ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.picture-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.picture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cropper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 300px;
+}
+
+.crop-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--panel);
+  user-select: none;
+}
+
+.crop-stage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.crop-box {
+  position: absolute;
+  cursor: move;
+  touch-action: none;
+  border-radius: 50%;
+  outline: 2px dashed var(--accent-text);
+  outline-offset: -1px;
+  /* Darkens everything outside the circle. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+}
+
+.crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.crop-zoom input {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.test-chat {
+  flex: none;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 14px;
+  border-left: 3px double var(--panel-line);
+  background: var(--panel);
+  overflow-y: auto;
+}
+
+.test-chat h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17px;
+}
+
+.test-lines {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.test-line {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.test-user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+}
+
+.test-ready {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chip {
+  border: 1px solid var(--panel-line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.test-composer {
+  display: flex;
+  gap: 6px;
+}
+
+.test-composer input {
+  flex: 1;
+  min-width: 0;
+}
+
+.personas {
+  max-width: 760px;
+}
+
+.persona-list {
+  list-style: none;
+  margin: 16px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.persona-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--panel-line);
+}
+
+.persona-row .avatar {
+  width: 48px;
+  height: 48px;
+}
+
+.persona-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.persona-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.persona-fields {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-foot {
+  margin-top: 24px;
+}

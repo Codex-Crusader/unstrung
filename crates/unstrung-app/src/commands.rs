@@ -69,7 +69,7 @@ pub enum ReplyEvent {
     },
 }
 
-pub fn emit(channel: &Channel<ReplyEvent>, event: ReplyEvent) {
+pub fn emit<T: tauri::ipc::IpcResponse>(channel: &Channel<T>, event: T) {
     if let Err(e) = channel.send(event) {
         log::warn!("could not send a reply event to the window: {e}");
     }
@@ -126,7 +126,10 @@ pub fn get_status(state: State<'_, AppState>) -> EngineStatus {
 
 #[tauri::command]
 pub async fn list_characters(state: State<'_, AppState>) -> CmdResult<Vec<Character>> {
-    Ok(state.chats.db().characters().await?)
+    let mut all = state.chats.db().characters().await?;
+    // 18+ cards stay hidden until Phase 7 adds the adult content setting.
+    all.retain(|c| !c.is_adult);
+    Ok(all)
 }
 
 #[tauri::command]

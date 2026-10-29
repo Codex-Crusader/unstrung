@@ -136,7 +136,11 @@ export function ChatScreen({
       // A failed reply can still have saved the user message, so reload the chat.
       if (event.kind === "failed" && view) {
         const chatId = view.chat.id;
-        void openChat(chatId).then(setView);
+        openChat(chatId)
+          .then(setView)
+          .catch(() => {
+            // The error below already tells the user that the reply failed.
+          });
         setPending(null);
       }
       handleEvent(event);
