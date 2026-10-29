@@ -53,17 +53,26 @@ impl Problem {
 /// Cleans a reply:
 /// 1. removes a leading name prefix (`Ren:`),
 /// 2. removes chat template tags,
-/// 3. cuts at the first line where the persona speaks or acts,
+/// 3. removes lines where the persona speaks or acts (see `cut_at_user_line`),
 /// 4. trims a reply cut by the token cap to its last full sentence, and closes `*` and quotes,
 /// 5. collapses runs of empty lines.
-pub fn clean(text: &str, char_name: &str, user_name: &str, cut_at_cap: bool) -> String {
+///
+/// `continued` is true when `text` starts with an earlier reply, which the
+/// user may have edited. Then the first line always stays.
+pub fn clean(
+    text: &str,
+    char_name: &str,
+    user_name: &str,
+    cut_at_cap: bool,
+    continued: bool,
+) -> String {
     let mut text = strip_template_tokens(text);
     // A reply that copies the end reminder stops before it.
     if let Some(at) = text.find(GUIDE_MARK) {
         text.truncate(at);
     }
     text = strip_name_prefix(text.trim(), char_name).to_owned();
-    text = cut_at_user_line(&text, user_name);
+    text = cut_at_user_line(&text, user_name, continued);
     if cut_at_cap {
         text = trim_to_sentence(&text);
     }
@@ -152,16 +161,16 @@ fn strip_name_prefix<'a>(text: &'a str, char_name: &str) -> &'a str {
 /// lines at the start are dropped, and the first one after a kept line cuts
 /// the reply there. If nothing is left, the reply loop makes the reply again.
 /// Lines where the character only names the user (`Kai, sit down.`) stay.
-fn cut_at_user_line(text: &str, user_name: &str) -> String {
+fn cut_at_user_line(text: &str, user_name: &str, keep_first: bool) -> String {
     if user_name.trim().is_empty() {
         return text.to_owned();
     }
     let speaks = format!("{user_name}:");
     let acts = format!("*{user_name} ");
     let mut kept: Vec<&str> = Vec::new();
-    for line in text.lines() {
+    for (i, line) in text.lines().enumerate() {
         let t = line.trim_start();
-        if t.starts_with(&speaks) || t.starts_with(&acts) {
+        if !(keep_first && i == 0) && (t.starts_with(&speaks) || t.starts_with(&acts)) {
             if kept.iter().any(|k| !k.trim().is_empty()) {
                 break;
             }
@@ -218,7 +227,7 @@ mod tests {
 
     #[test]
     fn cleanup_steps() {
-        let c = |t: &str| clean(t, "Ren Kagami", "Kai", false);
+        let c = |t: &str| clean(t, "Ren Kagami", "Kai", false, false);
         assert_eq!(c("Ren: Sit down."), "Sit down.");
         assert_eq!(c("**Ren Kagami:** Sit."), "Sit.");
         assert_eq!(c("Sit.<|im_end|>"), "Sit.");
@@ -232,14 +241,19 @@ mod tests {
             "*Ren looks up.* Sit."
         );
         assert_eq!(c("Kai: Hi.\n*Kai waves.*"), "");
+        // A continued reply keeps its first line, which the user may have written.
+        assert_eq!(
+            clean("*Kai sits.* Ren nods.\nKai: Hi.", "Ren", "Kai", false, true),
+            "*Kai sits.* Ren nods."
+        );
         // The character may name the user.
         assert_eq!(c("Fine.\nKai, sit down."), "Fine.\nKai, sit down.");
         assert_eq!(c("*He nods"), "*He nods*");
         assert_eq!(c("*"), "");
         assert_eq!(c("Sit.\n\n[Reply guide for Ren. Not part"), "Sit.");
         assert_eq!(c("a\n\n\n\nb"), "a\n\nb");
-        assert_eq!(clean("Sit. Then we tal", "Ren", "Kai", true), "Sit.");
-        assert_eq!(clean("“Sit.” Then", "Ren", "Kai", true), "“Sit.”");
+        assert_eq!(clean("Sit. Then we tal", "Ren", "Kai", true, false), "Sit.");
+        assert_eq!(clean("“Sit.” Then", "Ren", "Kai", true, false), "“Sit.”");
     }
 
     #[test]

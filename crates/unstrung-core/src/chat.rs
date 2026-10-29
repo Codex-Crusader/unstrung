@@ -545,6 +545,7 @@ impl ChatService {
             &character.name,
             &prompt.user_name,
             outcome.cut_at_cap,
+            true,
         );
         self.db
             .update_message_content(last.id, &content, Some(&joined), None)
@@ -601,6 +602,7 @@ impl ChatService {
             &character.name,
             &prompt.user_name,
             outcome.cut_at_cap,
+            false,
         ))
     }
 
@@ -731,6 +733,7 @@ impl ChatService {
                 &character.name,
                 &prompt.user_name,
                 outcome.cut_at_cap,
+                false,
             );
             let problem = if outcome.stopped {
                 None
