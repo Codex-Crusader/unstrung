@@ -98,7 +98,7 @@ async fn chat_engine_done_tests() {
         .unwrap();
     assert_eq!(longer.id, reply.id);
     assert!(longer.content.len() >= reply.content.len());
-    println!("continued: {}", longer.content);
+    println!("continued: {}", longer.content.replace('\n', " / "));
 
     // 4. Persona switch adds a note, an OOC note works, and a rewind restores Kai.
     let view = service.set_persona(chat_id, Some(nora)).await.unwrap();
