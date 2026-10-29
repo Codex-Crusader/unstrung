@@ -8,10 +8,10 @@
 use crate::catalog::Tuning;
 use crate::db::{Character, Message, Persona};
 use crate::ollama::{ChatMessage, Options};
-use crate::presets::{Length, StyleSettings};
+use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 5;
+pub const PROMPT_VERSION: i64 = 6;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -43,6 +43,8 @@ If a scene goes there, {{char}} steers it away, in character.";
 pub const REMINDER_HEAD: &str = "[Reply guide for {{char}}. Not part of the story.]";
 const STORY_NOTE: &str = "Story note, not said by anyone:";
 const OPENING_WORDS: usize = 5;
+/// A user message with this many words or fewer gives the character little to answer.
+const SHORT_MESSAGE_WORDS: usize = 4;
 
 const OOC_NOTE: &str = "(Note from {{user}}, not part of the story: {{note}}\n\
 Follow it, and continue the story in character.)";
@@ -143,6 +145,52 @@ fn push_merged(messages: &mut Vec<ChatMessage>, role: &'static str, content: Str
     }
 }
 
+/// Ways to keep a conversation going. The reminder offers one per reply, in
+/// turn, so the character does not use the same trick every time.
+const MOVES: [&str; 8] = [
+    "pick up a word or detail from {{user}}'s message and ask about it.",
+    "{{char}} shares a short memory or opinion that ties to the talk.",
+    "something small happens near {{char}}: a sound, a call, a visitor or an object.",
+    "{{char}} makes an offer, or suggests something to do together.",
+    "{{char}} teases, challenges or disagrees with {{user}} a little, in character.",
+    "{{char}} brings back something that {{user}} said earlier in the chat.",
+    "{{char}} hints at a secret or a problem, without explaining all of it.",
+    "{{char}} gives {{user}} a choice between two things.",
+];
+
+/// The move for this reply. It changes with each character reply. A short
+/// message has no word worth asking about, so it skips the first move.
+fn next_move(history: &[Message], short: bool) -> &'static str {
+    let replies = history.iter().filter(|m| m.role == "character").count();
+    let moves = if short { &MOVES[1..] } else { &MOVES[..] };
+    moves[replies % moves.len()]
+}
+
+/// How many of the user's last messages in a row are short, up to 2.
+fn short_user_turns(history: &[Message]) -> usize {
+    history
+        .iter()
+        .rev()
+        .filter(|m| m.role == "user")
+        .take(2)
+        .take_while(|m| m.content.split_whitespace().count() <= SHORT_MESSAGE_WORDS)
+        .count()
+}
+
+/// True when the character's last reply ended with a question.
+fn last_ended_with_question(history: &[Message]) -> bool {
+    history
+        .iter()
+        .rev()
+        .find(|m| m.role == "character")
+        .is_some_and(|m| {
+            m.content
+                .trim_end()
+                .trim_end_matches(['*', '"', '\u{201d}', '_', ' '])
+                .ends_with('?')
+        })
+}
+
 /// The first words of the character's last reply.
 fn last_opening(history: &[Message]) -> Option<String> {
     let last = history.iter().rev().find(|m| m.role == "character")?;
@@ -225,6 +273,31 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         reminder.push_str(&format!(
             "Your last reply began with \"{opening}\". Begin this one with something new that {{{{char}}}} does or says.\n"
         ));
+    }
+    // A short user message gives the character nothing to work with, so the
+    // reminder offers one idea to keep the talk going. A full message gets no
+    // idea: small models then answer the idea and ignore the message.
+    // Not for Follow me, where the user asked for no new events.
+    if !input.continuation && style.initiative != Initiative::FollowMe {
+        let short = short_user_turns(input.history);
+        let idea = next_move(input.history, short > 0);
+        match short {
+            0 => {}
+            1 => reminder.push_str(&format!(
+                "{{{{user}}}}'s message is short, so do not only agree. In this reply, {idea}\n"
+            )),
+            _ => reminder.push_str(
+                "The talk is slowing down. {{char}} now brings in something new and concrete: \
+                 an event, a person, a discovery or a secret of {{char}}'s.\n",
+            ),
+        }
+        // Small models end almost every reply with a question, and the chat
+        // starts to feel like an interview. This makes the endings alternate.
+        if last_ended_with_question(input.history) {
+            reminder.push_str(
+                "Your last reply ended with a question. End this one on an action or a statement.\n",
+            );
+        }
     }
     // After a persona change, the history is full of the old name. This line
     // names the person now, so the character does not keep the old name.

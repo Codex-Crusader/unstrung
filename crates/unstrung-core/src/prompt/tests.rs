@@ -195,3 +195,35 @@ fn texting_drops_long_examples_unless_pushed() {
             .contains("Stay true to this voice")
     );
 }
+
+#[test]
+fn conversation_moves_rotate_and_respect_follow_me() {
+    let (c, k) = (ren(), kai());
+    let reminder = |history: &[Message], style: &str| {
+        let mut i = input(&c, Some(&k), history);
+        i.style = StyleSettings::of(style, "");
+        build(&i).messages.last().unwrap().content.clone()
+    };
+    // A full message gets no idea, so the character answers the message.
+    let long = "I came here because the rain would not stop and I need a place to think.";
+    let first = reminder(&[msg("user", long)], "conversational");
+    assert!(!first.contains("In this reply") && !first.contains("slowing down"));
+    // The idea for a short message changes with each reply.
+    let next = reminder(&[msg("character", "Sit."), msg("user", "ok")], "conversational");
+    assert!(next.contains("In this reply, something small happens near Ren Kagami"));
+    // One short message makes the idea firmer. Two in a row ask for something new.
+    let short = reminder(&[msg("user", "eh, fair enough")], "conversational");
+    assert!(short.contains("Kai's message is short, so do not only agree. In this reply, Ren Kagami shares"));
+    // An ending with a question asks for a different ending next time.
+    let asked = reminder(&[msg("character", "*Ren waits.* \"Well?\""), msg("user", long)], "conversational");
+    assert!(asked.contains("Your last reply ended with a question."));
+    assert!(!first.contains("ended with a question"));
+    let stall = [msg("user", "ok"), msg("character", "Sit."), msg("user", "hm")];
+    assert!(reminder(&stall, "conversational").contains("The talk is slowing down."));
+    // Follow me asked for no new events.
+    let custom = r#"{"length":"short","talk":"mixed","description":"some","initiative":"follow_me","perspective":"third","actions":"asterisks"}"#;
+    let mut i = input(&c, Some(&k), &stall);
+    i.style = StyleSettings::of("custom", custom);
+    let follow = build(&i).messages.last().unwrap().content.clone();
+    assert!(!follow.contains("slowing down") && !follow.contains("In this reply"));
+}

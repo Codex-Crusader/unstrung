@@ -117,7 +117,7 @@ impl StyleSettings {
                 L::VeryShort,
                 T::DialogueOnly,
                 D::Minimal,
-                I::FollowMe,
+                I::Balanced,
                 Actions::Asterisks,
             ),
             "storyteller" => s(
@@ -229,10 +229,13 @@ impl StyleSettings {
         parts.push(match self.initiative {
             Initiative::FollowMe => "Only react to what {{user}} does. Do not add new events.",
             Initiative::Balanced => {
-                "React first, then add one new thing: an action, a feeling, a fact or a question."
+                "Answer what {{user}} said, so {{user}} sees that {{char}} listened. \
+                 Then give {{user}} one concrete new thing to answer: a detail, a fact about {{char}}, \
+                 a small event or an offer."
             }
             Initiative::LeadTheStory => {
-                "Move the story forward with new events, and end with a hook or a question."
+                "Answer what {{user}} said. Then {{char}} moves the story forward and brings in \
+                 something concrete: an event, a person, a discovery or a problem."
             }
         });
         if self.length >= Length::Medium {
