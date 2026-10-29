@@ -9,6 +9,8 @@ import {
   getStatus,
   importCard,
   listCharacters,
+  modelsPage,
+  setChatModel,
   onStatus,
   openCharacter,
   regenerate,
@@ -228,6 +230,32 @@ async function checkCreator(show: (screen: Screen) => void, renId: number): Prom
   return "";
 }
 
+/** The Models screen loads, and a chat can switch to another installed model and get a reply from it. */
+async function checkModels(show: (screen: Screen) => void, renId: number): Promise<{ error: string; note: string }> {
+  show({ name: "models" });
+  await pause(SHOW_MS * 2);
+  const overflow = pageOverflow();
+  if (overflow) return { error: overflow, note: "" };
+  const page = await modelsPage();
+  if (page.models.length === 0) return { error: "the Models screen lists no models", note: "" };
+  if (!page.models.some((m) => m.recommended)) return { error: "no model is marked Recommended", note: "" };
+  const other = page.models.find((m) => m.installed && !m.is_default);
+  if (!other) return { error: "", note: " (model switch skipped: only one model is installed)" };
+
+  show({ name: "chat", characterId: renId });
+  let view = await openCharacter(renId);
+  const chatId = view.chat.id;
+  view = await setChatModel(chatId, other.id);
+  if (view.model !== other.id) return { error: `the chat did not switch to ${other.id}: ${view.model}`, note: "" };
+  const sent = await stream((h) => sendMessage(chatId, "Tell me one thing about this room.", h));
+  if (sent.error || !sent.view) return { error: `${other.id} did not reply: ${sent.error}`, note: "" };
+  const written = sent.view.messages.at(-1);
+  if (written?.model !== other.id) return { error: `the reply came from ${written?.model ?? "nothing"}`, note: "" };
+  view = await setChatModel(chatId, null);
+  if (view.model !== page.default_model) return { error: "the chat did not go back to the default model", note: "" };
+  return { error: "", note: ` (switched to ${other.id}: ${written.content.slice(0, 80)})` };
+}
+
 async function check(report: SelfTestReport, show: (screen: Screen) => void): Promise<string> {
   const characters = await listCharacters();
   const ren = characters.find((c) => c.name === "Ren Kagami") ?? characters[0];
@@ -262,7 +290,9 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   if (creator) return creator;
   const imported = await checkImport(show);
   if (imported) return imported;
-  return `ok: ${reply.content}`;
+  const models = await checkModels(show, ren.id);
+  if (models.error) return models.error;
+  return `ok: ${reply.content}${models.note}`;
 }
 
 /** `show` opens the chat screen of the tested character, so a screenshot can show it. */

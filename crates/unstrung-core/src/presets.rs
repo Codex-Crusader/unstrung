@@ -188,8 +188,7 @@ impl StyleSettings {
             Length::VeryShort => "Reply in 1 to 2 short sentences, under 30 words.",
             Length::Short => "Reply in one paragraph of 40 to 90 words.",
             Length::Medium => {
-                "Reply in 2 to 3 paragraphs separated by blank lines, 120 to 220 words in total: \
-                 a paragraph of action and setting, then {{char}}'s words, then a closing beat."
+                "Reply in 2 to 3 paragraphs separated by blank lines, 120 to 220 words in total."
             }
             Length::Long => {
                 "Reply in 3 to 5 paragraphs separated by blank lines, 250 to 400 words in total, \
@@ -203,16 +202,20 @@ impl StyleSettings {
         parts.push(match self.talk {
             Talk::DialogueOnly => "Write only what {{char}} says, with no actions or narration.",
             Talk::MostlyDialogue => "Write mostly dialogue, with at most one short action.",
-            Talk::Mixed => "Mix dialogue and narration.",
+            Talk::Mixed => "Mix what {{char}} says with what {{char}} does.",
             Talk::MostlyNarration => {
-                "Write mostly narration and inner thoughts, with some dialogue."
+                "Write mostly narration about {{char}} only: what {{char}} does, notices, thinks and decides. \
+                 {{char}} also says a few lines to {{user}}. \
+                 Leave {{user}}'s actions, words and feelings to {{user}}."
             }
         });
         if self.talk != Talk::DialogueOnly {
             parts.push(match self.description {
                 Description::Minimal => "Keep descriptions to a minimum.",
-                Description::Some => "Add a little setting and body language.",
-                Description::Vivid => "Describe the setting, body language and senses vividly.",
+                Description::Some => "Add a little body language, and setting where it matters.",
+                Description::Vivid => {
+                    "Use vivid detail for {{char}}'s actions, body language and senses, and for what changes in the scene."
+                }
             });
             parts.push(match self.perspective {
                 Perspective::First => "Write {{char}}'s actions in first person (I).",
@@ -225,7 +228,9 @@ impl StyleSettings {
         }
         parts.push(match self.initiative {
             Initiative::FollowMe => "Only react to what {{user}} does. Do not add new events.",
-            Initiative::Balanced => "React first. You can add a small detail or a question.",
+            Initiative::Balanced => {
+                "React first, then add one new thing: an action, a feeling, a fact or a question."
+            }
             Initiative::LeadTheStory => {
                 "Move the story forward with new events, and end with a hook or a question."
             }

@@ -4527,6 +4527,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "win32job",
+ "winreg",
 ]
 
 [[package]]
@@ -4537,6 +4538,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-util",
  "unstrung-core",
 ]
 

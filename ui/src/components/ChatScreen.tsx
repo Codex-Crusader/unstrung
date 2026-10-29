@@ -14,6 +14,8 @@ import {
   sendMessage,
   setChatPersona,
   setChatStyle,
+  setChatModel,
+  modelsPage,
   setChatTone,
   showBranch,
   stopReply,
@@ -68,6 +70,26 @@ export function ChatScreen({
   const listRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [defaultModel, setDefaultModel] = useState("");
+
+  // The model picker in the header lists the installed models.
+  useEffect(() => {
+    let active = true;
+    if (status.state !== "ready") return;
+    modelsPage()
+      .then((p) => {
+        if (!active) return;
+        setModels(p.models.filter((m) => m.installed).map((m) => m.id));
+        setDefaultModel(p.default_model);
+      })
+      .catch(() => {
+        // Without the list, the header has no model picker.
+      });
+    return () => {
+      active = false;
+    };
+  }, [status.state]);
 
   useEffect(() => {
     let active = true;
@@ -293,11 +315,17 @@ export function ChatScreen({
           onStyle={(style, custom) => {
             change(() => setChatStyle(chatId, style, custom));
           }}
+          onModel={(model) => {
+            change(() => setChatModel(chatId, model));
+          }}
+          models={models}
+          defaultModel={defaultModel}
           onToggleChats={() => {
             setListOpen((v) => !v);
           }}
         />
 
+        {view.model_removed && <p className="chat-notice">{strings.header.modelRemoved(view.model_removed)}</p>}
         <div className="messages" ref={listRef} onScroll={onScroll} role="log" aria-label={strings.chat.messages}>
           {shown.map((m, i) => (
             <MessageItem
@@ -404,7 +432,9 @@ export function ChatScreen({
                 ? strings.chat.placeholder(name)
                 : status.state === "error"
                   ? status.message
-                  : strings.chat.notReady(name)
+                  : status.state === "no_model"
+                    ? strings.status.noModel(status.model)
+                    : strings.chat.notReady(name)
             }
             title={strings.chat.oocHint}
             aria-label={strings.chat.placeholder(name)}

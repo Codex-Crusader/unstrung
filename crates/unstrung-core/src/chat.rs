@@ -26,6 +26,20 @@ const CONTINUE_REMINDER: &str =
 /// Shown under a reply that failed the checks twice.
 pub const OUT_OF_CHARACTER_HINT: &str = "Not in character? Regenerate.";
 
+/// The error for a reply with no text left. When the model wrote text and the
+/// guard removed all of it, the text was lines for the user.
+fn empty_reply(raw: &str) -> Error {
+    if raw.trim().is_empty() {
+        Error::Engine("the reply was empty".into())
+    } else {
+        Error::Engine(
+            "the model wrote only lines for you, and the app removed them. \
+             Send your message again, or change it"
+                .into(),
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ViewMessage {
     #[serde(flatten)]
@@ -42,6 +56,10 @@ pub struct ChatView {
     pub messages: Vec<ViewMessage>,
     /// Hidden branches that continue from the head, for example after a rewind.
     pub branches: Vec<i64>,
+    /// The model that writes the next reply.
+    pub model: String,
+    /// The chat's own model, when it was removed. The default writes instead.
+    pub model_removed: Option<String>,
 }
 
 /// Progress of one reply.
@@ -139,13 +157,45 @@ impl ChatService {
                 message,
             })
             .collect();
+        let model = self.model_for(&chat, &character);
+        // The installed list is only known when the engine runs.
+        let known = matches!(self.engine.status(), crate::engine::EngineStatus::Ready { .. });
+        let model_removed = chat
+            .chat_model
+            .clone()
+            .filter(|m| known && !self.engine.is_installed(m));
         Ok(ChatView {
             chat,
             character,
             persona,
             messages,
             branches,
+            model,
+            model_removed,
         })
+    }
+
+    /// The model for this chat's next replies. `None` goes back to the
+    /// character's model or the default.
+    pub async fn set_model(&self, chat_id: i64, model: Option<&str>) -> Result<ChatView> {
+        self.idle()?;
+        if let Some(m) = model
+            && !self.engine.is_installed(m)
+        {
+            return Err(Error::Invalid(format!("{m} is not installed")));
+        }
+        self.db.set_chat_model(chat_id, model).await?;
+        self.view(chat_id).await
+    }
+
+    /// The model for a character's new chats and test replies. `None` uses the default.
+    pub async fn set_character_model(&self, character_id: i64, model: Option<&str>) -> Result<()> {
+        if let Some(m) = model
+            && !self.engine.is_installed(m)
+        {
+            return Err(Error::Invalid(format!("{m} is not installed")));
+        }
+        self.db.set_character_model(character_id, model).await
     }
 
     async fn persona_of(&self, chat: &Chat) -> Result<Option<Persona>> {
@@ -522,6 +572,7 @@ impl ChatService {
             .style
             .unwrap_or_else(|| StyleSettings::of(&chat.reply_style, &chat.reply_custom));
         let model = self.model_for(chat, &character);
+        let tuning = self.engine.tuning_for(&model);
         let request = Message {
             id: 0,
             chat_id: chat.id,
@@ -554,10 +605,11 @@ impl ChatService {
                 push_character: plan.push_character,
                 extra_reminder: Some(&extra),
                 continuation: false,
+                tuning: &tuning,
             });
             let outcome = client
                 .chat(
-                    &chat_params(&model, &prompt.messages, &prompt.options),
+                    &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                     REPLY_TIMEOUT,
                     cancel,
                     |t| progress(Progress::Text(t)),
@@ -602,7 +654,7 @@ impl ChatService {
                     hint: None,
                 })
             } else {
-                Err(Error::Engine("the reply was empty".into()))
+                Err(empty_reply(&outcome.text))
             };
         }
         let sampler = serde_json::to_string(&prompt.options)?;
@@ -647,6 +699,8 @@ impl ChatService {
         // finished reply gets one new paragraph, because the model stops at once
         // when it continues a finished text.
         let mid_sentence = !ends_sentence(&last.content);
+        let model = self.model_for(&chat, &character);
+        let tuning = self.engine.tuning_for(&model);
         let prompt = prompt::build(&PromptInput {
             character: &character,
             persona: persona.as_ref(),
@@ -657,11 +711,11 @@ impl ChatService {
             push_character: false,
             extra_reminder: Some(CONTINUE_REMINDER),
             continuation: mid_sentence,
+            tuning: &tuning,
         });
-        let model = self.model_for(&chat, &character);
         let outcome = client
             .chat(
-                &chat_params(&model, &prompt.messages, &prompt.options),
+                &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                 REPLY_TIMEOUT,
                 &cancel,
                 |t| progress(Progress::Text(t)),
@@ -705,6 +759,8 @@ impl ChatService {
         let cancel = self.begin()?;
         let _guard = ReplyGuard(&self.current);
         let client = self.engine.client()?;
+        let model = self.resolve_model(None, character.model_override.as_deref());
+        let tuning = self.engine.tuning_for(&model);
         let prompt = prompt::build(&PromptInput {
             character,
             persona,
@@ -718,11 +774,11 @@ impl ChatService {
             push_character: false,
             extra_reminder: None,
             continuation: false,
+            tuning: &tuning,
         });
-        let model = self.engine.model().to_owned();
         let outcome = client
             .chat(
-                &chat_params(&model, &prompt.messages, &prompt.options),
+                &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                 REPLY_TIMEOUT,
                 &cancel,
                 |t| progress(Progress::Text(t)),
@@ -765,15 +821,18 @@ impl ChatService {
             temperature: 0.5,
             min_p: 0.05,
             top_p: 1.0,
+            top_k: 40,
+            presence_penalty: 0.0,
             repeat_penalty: 1.08,
             repeat_last_n: 64,
             num_ctx: 2048,
             num_predict: 120,
             stop: Vec::new(),
         };
-        let model = self.engine.model().to_owned();
+        let model = self.engine.model();
+        let think = self.engine.tuning_for(&model).think.map(|_| false);
         let text = client
-            .complete(&chat_params(&model, &messages, &options), REPLY_TIMEOUT)
+            .complete(&chat_params(&model, &messages, &options, think), REPLY_TIMEOUT)
             .await?;
         Ok(clean_line(text.trim().trim_matches('"'), 400))
     }
@@ -797,10 +856,17 @@ impl ChatService {
     }
 
     fn model_for(&self, chat: &Chat, character: &Character) -> String {
-        chat.chat_model
-            .clone()
-            .or_else(|| character.model_override.clone())
-            .unwrap_or_else(|| self.engine.model().to_owned())
+        self.resolve_model(chat.chat_model.as_deref(), character.model_override.as_deref())
+    }
+
+    /// The chat's model, else the character's, else the default. A model that
+    /// is no longer installed is skipped.
+    fn resolve_model(&self, chat_model: Option<&str>, character_model: Option<&str>) -> String {
+        [chat_model, character_model]
+            .into_iter()
+            .flatten()
+            .find(|m| self.engine.is_installed(m))
+            .map_or_else(|| self.engine.model(), str::to_owned)
     }
 
     /// Streams, checks and saves a reply to the last message of `history`.
@@ -828,6 +894,7 @@ impl ChatService {
             .style
             .unwrap_or_else(|| StyleSettings::of(&chat.reply_style, &chat.reply_custom));
         let model = self.model_for(chat, &character);
+        let tuning = self.engine.tuning_for(&model);
         let recent: Vec<&str> = history
             .iter()
             .rev()
@@ -849,10 +916,11 @@ impl ChatService {
                 push_character: plan.push_character,
                 extra_reminder: extra.as_deref(),
                 continuation: false,
+                tuning: &tuning,
             });
             let outcome = client
                 .chat(
-                    &chat_params(&model, &prompt.messages, &prompt.options),
+                    &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                     REPLY_TIMEOUT,
                     cancel,
                     |t| progress(Progress::Text(t)),
@@ -893,7 +961,7 @@ impl ChatService {
                     hint: None,
                 })
             } else {
-                Err(Error::Engine("the reply was empty".into()))
+                Err(empty_reply(&outcome.text))
             };
         }
         let sampler = serde_json::to_string(&prompt.options)?;
@@ -923,12 +991,14 @@ fn chat_params<'a>(
     model: &'a str,
     messages: &'a [ChatMessage],
     options: &'a Options,
+    think: Option<bool>,
 ) -> ChatParams<'a> {
     ChatParams {
         model,
         messages,
         options,
         keep_alive: KEEP_ALIVE,
+        think,
     }
 }
 

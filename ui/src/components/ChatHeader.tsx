@@ -15,6 +15,9 @@ export function ChatHeader({
   onPersona,
   onTone,
   onStyle,
+  onModel,
+  models,
+  defaultModel,
   onToggleChats,
 }: {
   view: ChatView;
@@ -24,6 +27,10 @@ export function ChatHeader({
   onPersona: (personaId: number | null) => void;
   onTone: (tone: string, custom: string) => void;
   onStyle: (style: string, custom: StyleSettings | null) => void;
+  onModel: (model: string | null) => void;
+  /** The installed models. */
+  models: string[];
+  defaultModel: string;
   onToggleChats: () => void;
 }) {
   const { chat, character } = view;
@@ -106,6 +113,25 @@ export function ChatHeader({
             />
           )}
         </div>
+        {models.length > 1 && (
+          <label className="control">
+            <span>{strings.header.model}</span>
+            <select
+              value={chat.chat_model ?? ""}
+              disabled={locked}
+              onChange={(e) => {
+                onModel(e.target.value === "" ? null : e.target.value);
+              }}
+            >
+              <option value="">{strings.header.defaultModel(character.model_override ?? defaultModel)}</option>
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button type="button" className="button button-quiet" onClick={onToggleChats}>
           {strings.header.chats}
         </button>

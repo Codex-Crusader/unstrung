@@ -11,6 +11,10 @@
 //! --skip-chats            run only the injection set
 //! --skip-injection        run only the scripted chats
 //! --label TEXT            a word for the report name
+//! --model TAG             the chat model (default: the app's default)
+//! --think on|off          for a thinking model: think before each reply
+//! --context N             the context size (num_ctx)
+//! --pull TAG              download a model through the core, then stop
 //!
 //! It needs the default model. It uses a new, empty data folder, so it never
 //! touches the user's data. A release build looks for models in that empty
@@ -21,6 +25,7 @@
 mod checks;
 mod report;
 
+use unstrung_core::catalog::Advanced;
 use checks::{Context, Flags, PROMPT_LEAKS, TEMPLATE_TOKENS};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -48,6 +53,9 @@ enum Step {
         say: String,
         #[serde(default)]
         trap: Option<String>,
+        /// For a recall question: the reply must have one of these words.
+        #[serde(default)]
+        expect: Vec<String>,
     },
     Persona {
         persona: String,
@@ -79,6 +87,10 @@ struct Options {
     skip_chats: bool,
     skip_injection: bool,
     label: String,
+    model: Option<String>,
+    think: Option<bool>,
+    context: Option<u32>,
+    pull: Option<String>,
 }
 
 fn options() -> Result<Options, Fail> {
@@ -110,6 +122,16 @@ fn options() -> Result<Options, Fail> {
                     .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
                     .collect();
             }
+            "--model" => o.model = Some(args.next().ok_or("--model needs a tag")?),
+            "--pull" => o.pull = Some(args.next().ok_or("--pull needs a tag")?),
+            "--context" => o.context = Some(args.next().ok_or("--context needs a number")?.parse()?),
+            "--think" => {
+                o.think = Some(match args.next().as_deref() {
+                    Some("on") => true,
+                    Some("off") => false,
+                    _ => return Err("--think needs on or off".into()),
+                });
+            }
             other => return Err(format!("unknown option {other}").into()),
         }
     }
@@ -133,7 +155,11 @@ pub struct Reply {
     pub said: String,
     pub trap: Option<String>,
     pub text: String,
+    /// What the model wrote before the guard.
+    pub raw: String,
     pub flags: Flags,
+    /// For a recall question: true when the reply has the expected word.
+    pub recall: Option<bool>,
     pub restarts: usize,
     pub hint: bool,
     pub seconds: f32,
@@ -175,12 +201,38 @@ async fn main() -> Result<(), Fail> {
     paths.ensure()?;
     let db = unstrung_core::db::Db::open(&paths.database()).await?;
     starters::ensure(&db, &paths).await?;
-    let engine = Engine::new(paths.clone());
+    let advanced = Advanced {
+        think: o.think,
+        context: o.context,
+        ..Advanced::default()
+    };
+    advanced.check()?;
+    let engine = Engine::with_model(
+        paths.clone(),
+        o.model.as_deref().unwrap_or(unstrung_core::engine::DEFAULT_CHAT_MODEL),
+        advanced,
+    );
     engine.start().await;
+    if let Some(tag) = &o.pull {
+        return pull(&engine, tag).await;
+    }
     if !matches!(engine.status(), EngineStatus::Ready { .. }) {
         return Err(format!("the engine is not ready: {:?}", engine.status()).into());
     }
-    let model = engine.model().to_owned();
+    let model = engine.model();
+    let tuning = engine.tuning_for(&model);
+    let gpu_share = gpu_share(&engine, &model).await;
+    let settings = format!(
+        "Context {}. Thinking {}. GPU share of the model: {}.",
+        tuning.context,
+        match tuning.think {
+            None => "not available",
+            Some(true) => "on",
+            Some(false) => "off",
+        },
+        gpu_share.map_or_else(|| "unknown".to_owned(), |s| format!("{:.0}%", s * 100.0)),
+    );
+    eprintln!("{model}: {settings}");
     let service = ChatService::new(db, engine.clone());
     let personas = service.db().personas().await?;
     let find_persona = |name: &str| personas.iter().find(|p| p.name.eq_ignore_ascii_case(name));
@@ -254,6 +306,7 @@ async fn main() -> Result<(), Fail> {
     );
     let summary = report::Summary {
         model: &model,
+        settings: &settings,
         script: &script.name,
         label: &o.label,
         minutes: started.elapsed().as_secs_f32() / 60.0,
@@ -312,7 +365,7 @@ impl Run<'_> {
                         .ok_or_else(|| format!("no persona named {name}"))?;
                     self.service.set_persona(chat, Some(persona.id)).await?;
                 }
-                Step::Say { say, trap } => {
+                Step::Say { say, trap, expect } => {
                     said += 1;
                     let start = Instant::now();
                     let mut restarts = 0;
@@ -367,7 +420,10 @@ impl Run<'_> {
                         turn: said,
                         said: say.clone(),
                         trap: trap.clone(),
+                        recall: (!expect.is_empty())
+                            .then(|| expect.iter().any(|w| checks::has_word(&message.content, w))),
                         text: message.content,
+                        raw: raw.clone(),
                         flags,
                         restarts,
                         hint: result.hint.is_some(),
@@ -438,6 +494,19 @@ async fn run_case(
                 });
                 continue;
             }
+            // An empty reply, or one the guard removed in full. No rule broke,
+            // because nothing was shown.
+            Err(unstrung_core::Error::Engine(why)) if why.contains("lines for you") || why.contains("empty") => {
+                out.push(InjectionResult {
+                    name: case.name.clone(),
+                    about: case.about.clone(),
+                    said: say.clone(),
+                    reply: String::new(),
+                    failed: Vec::new(),
+                    note: Some(format!("no reply was shown: {why}")),
+                });
+                continue;
+            }
             Err(e) => return Err(e.into()),
         };
         let reply = result.message.map(|m| (m.role, m.content));
@@ -485,6 +554,42 @@ async fn run_case(
     Ok(out)
 }
 
+/// Downloads a model and prints the progress.
+async fn pull(engine: &Engine, tag: &str) -> Result<(), Fail> {
+    let client = engine.running_client()?;
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let mut last = String::new();
+    client
+        .pull(tag, &cancel, |line| {
+            let percent = (line.completed * 100).checked_div(line.total).unwrap_or(0);
+            let shown = format!("{} {}%", line.status, percent / 10 * 10);
+            if shown != last {
+                eprintln!("{shown}");
+                last = shown;
+            }
+        })
+        .await?;
+    let installed = client.installed().await?;
+    let found = installed
+        .iter()
+        .find(|m| unstrung_core::catalog::same_tag(&m.name, tag))
+        .ok_or("the model is not in the list after the download")?;
+    println!("{} {} {}", found.name, found.size, found.digest);
+    engine.stop().await;
+    Ok(())
+}
+
+/// The share of the loaded model that is in VRAM. Under 1.0, part of it runs on the CPU.
+async fn gpu_share(engine: &Engine, model: &str) -> Option<f32> {
+    let loaded = engine.running_client().ok()?.loaded().await.ok()?;
+    let m = loaded
+        .iter()
+        .find(|m| unstrung_core::catalog::same_tag(&m.name, model))?;
+    #[allow(clippy::cast_precision_loss)]
+    let share = m.size_vram as f32 / m.size.max(1) as f32;
+    Some(share)
+}
+
 async fn system_count(service: &ChatService, chat: i64) -> Result<usize, Fail> {
     Ok(service
         .db()
@@ -528,6 +633,7 @@ async fn prompt_shape_holds(service: &ChatService, chat_id: i64) -> Result<bool,
         push_character: false,
         extra_reminder: None,
         continuation: false,
+        tuning: &unstrung_core::catalog::Tuning::default(),
     });
     let first_rule = prompt::SYSTEM_RULES.lines().next().unwrap_or_default();
     let rules_first = built

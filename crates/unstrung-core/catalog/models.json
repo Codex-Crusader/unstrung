@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "gemma4:e4b-it-qat",
+      "name": "Gemma 4 E4B",
+      "kind": "chat",
+      "size_bytes": 6146501801,
+      "min_tier": "standard",
+      "recommended_for": [
+        "standard",
+        "high"
+      ],
+      "context": 8192,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://ai.google.dev/gemma/docs/gemma_4_license"
+      },
+      "digest": "sha256:ee665637121887cf3befff38abbb1be4ee117c7db867d97a67e29049ecd7e15f",
+      "mature_ok": false,
+      "description": "Google's 2026 small model. Natural writing that stays in its role.",
+      "tested": "2026-10-29",
+      "tuning": {
+        "context": 8192,
+        "think": false,
+        "temperature_scale": 1.15,
+        "top_p": 0.95,
+        "top_k": 64,
+        "min_p": 0.0,
+        "repeat_penalty": 1.0,
+        "style_following": "good"
+      }
+    },
+    {
+      "id": "qwen3.5:9b",
+      "name": "Qwen 3.5 9B",
+      "kind": "chat",
+      "size_bytes": 6550825550,
+      "min_tier": "standard",
+      "recommended_for": [],
+      "context": 8192,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE"
+      },
+      "digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+      "mature_ok": false,
+      "description": "Best at remembering facts. Can repeat phrases in long replies.",
+      "tested": "2026-10-29",
+      "tuning": {
+        "context": 8192,
+        "think": false,
+        "temperature_scale": 0.9,
+        "top_p": 0.8,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "repeat_penalty": 1.0,
+        "style_following": "good"
+      }
+    },
+    {
+      "id": "qwen2.5:7b",
+      "name": "Qwen 2.5 7B",
+      "kind": "chat",
+      "size_bytes": 4683087332,
+      "min_tier": "standard",
+      "recommended_for": [],
+      "context": 8192,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/blob/main/LICENSE"
+      },
+      "digest": "sha256:845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+      "mature_ok": false,
+      "description": "The older default. Plain writing, and weak at long reply styles.",
+      "tested": "2026-10-29",
+      "tuning": {
+        "context": 8192,
+        "style_following": "weak"
+      }
+    },
+    {
+      "id": "qwen3.5:4b",
+      "name": "Qwen 3.5 4B",
+      "kind": "chat",
+      "size_bytes": 3324173934,
+      "min_tier": "basic",
+      "recommended_for": [
+        "basic"
+      ],
+      "context": 8192,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/LICENSE"
+      },
+      "digest": "sha256:d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+      "mature_ok": false,
+      "description": "A small, fast model that follows the reply style well. For PCs with little video memory.",
+      "tested": "2026-10-29",
+      "tuning": {
+        "context": 8192,
+        "think": false,
+        "temperature_scale": 0.9,
+        "top_p": 0.8,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "repeat_penalty": 1.0,
+        "style_following": "good"
+      }
+    },
+    {
+      "id": "gemma4:e2b-it-qat",
+      "name": "Gemma 4 E2B",
+      "kind": "chat",
+      "size_bytes": 4336358185,
+      "min_tier": "basic",
+      "recommended_for": [],
+      "context": 8192,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://ai.google.dev/gemma/docs/gemma_4_license"
+      },
+      "digest": "sha256:07ea59a474013479c8b6b802bef095c40e964a1d776ba02f264c0e30e1aede0c",
+      "mature_ok": false,
+      "description": "Google's smallest 2026 model. Forgets more, and long replies run long.",
+      "tested": "2026-10-29",
+      "tuning": {
+        "context": 8192,
+        "think": false,
+        "temperature_scale": 1.15,
+        "top_p": 0.95,
+        "top_k": 64,
+        "min_p": 0.0,
+        "repeat_penalty": 1.0,
+        "style_following": "fair"
+      }
+    }
+  ]
+}

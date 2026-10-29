@@ -23,6 +23,8 @@ pub struct Options {
     pub temperature: f32,
     pub min_p: f32,
     pub top_p: f32,
+    pub top_k: i32,
+    pub presence_penalty: f32,
     pub repeat_penalty: f32,
     pub repeat_last_n: i32,
     pub num_ctx: u32,
@@ -36,6 +38,9 @@ pub struct ChatParams<'a> {
     pub messages: &'a [ChatMessage],
     pub options: &'a Options,
     pub keep_alive: &'a str,
+    /// For thinking models: `Some(false)` turns thinking off. `None` sends nothing,
+    /// because a model without thinking rejects the field.
+    pub think: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,6 +50,81 @@ struct ChatRequest<'a> {
     stream: bool,
     options: &'a Options,
     keep_alive: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    think: Option<bool>,
+}
+
+impl<'a> ChatRequest<'a> {
+    fn of(params: &ChatParams<'a>, stream: bool) -> Self {
+        Self {
+            model: params.model,
+            messages: params.messages,
+            stream,
+            options: params.options,
+            keep_alive: params.keep_alive,
+            think: params.think,
+        }
+    }
+}
+
+/// A model that the engine has on disk.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct Installed {
+    pub name: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub digest: String,
+    #[serde(default)]
+    pub details: InstalledDetails,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
+pub struct InstalledDetails {
+    #[serde(default)]
+    pub family: String,
+    #[serde(default)]
+    pub parameter_size: String,
+    #[serde(default)]
+    pub quantization_level: String,
+}
+
+/// A model that the engine has in memory, and how much of it is on the GPU.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct Loaded {
+    pub name: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub size_vram: u64,
+}
+
+/// One progress line of a download.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct PullLine {
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub digest: String,
+    #[serde(default)]
+    pub total: u64,
+    #[serde(default)]
+    pub completed: u64,
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// What the engine says about a model.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ModelInfo {
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
+impl ModelInfo {
+    pub fn can_think(&self) -> bool {
+        self.capabilities.iter().any(|c| c == "thinking")
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,13 +197,14 @@ impl Client {
     }
 
     pub async fn has_model(&self, name: &str) -> Result<bool> {
+        Ok(self.installed().await?.iter().any(|t| t.name == name))
+    }
+
+    /// The models on disk (`GET /api/tags`).
+    pub async fn installed(&self) -> Result<Vec<Installed>> {
         #[derive(Deserialize)]
         struct Tags {
-            models: Vec<Tag>,
-        }
-        #[derive(Deserialize)]
-        struct Tag {
-            name: String,
+            models: Vec<Installed>,
         }
         let tags: Tags = self
             .http
@@ -134,7 +215,123 @@ impl Client {
             .error_for_status()?
             .json()
             .await?;
-        Ok(tags.models.iter().any(|t| t.name == name))
+        Ok(tags.models)
+    }
+
+    /// The models in memory (`GET /api/ps`).
+    pub async fn loaded(&self) -> Result<Vec<Loaded>> {
+        #[derive(Deserialize)]
+        struct Ps {
+            models: Vec<Loaded>,
+        }
+        let ps: Ps = self
+            .http
+            .get(format!("{}/api/ps", self.base))
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(ps.models)
+    }
+
+    /// The capabilities of an installed model (`POST /api/show`).
+    pub async fn info(&self, model: &str) -> Result<ModelInfo> {
+        let response = self
+            .http
+            .post(format!("{}/api/show", self.base))
+            .timeout(Duration::from_secs(10))
+            .json(&serde_json::json!({ "model": model }))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::Engine(engine_message(&body)));
+        }
+        Ok(response.json().await?)
+    }
+
+    /// Removes a model from disk (`DELETE /api/delete`).
+    pub async fn delete(&self, model: &str) -> Result<()> {
+        let response = self
+            .http
+            .delete(format!("{}/api/delete", self.base))
+            .timeout(Duration::from_secs(30))
+            .json(&serde_json::json!({ "model": model }))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::Engine(engine_message(&body)));
+        }
+        Ok(())
+    }
+
+    /// Takes a model out of memory.
+    pub async fn unload(&self, model: &str) -> Result<()> {
+        self.http
+            .post(format!("{}/api/generate", self.base))
+            .timeout(Duration::from_secs(30))
+            .json(&serde_json::json!({ "model": model, "keep_alive": 0 }))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    /// Downloads a model (`POST /api/pull`). The engine keeps finished parts,
+    /// so a new pull after a stop or a failure continues where it was.
+    /// Returns `false` when `cancel` stopped it.
+    pub async fn pull(
+        &self,
+        model: &str,
+        cancel: &CancellationToken,
+        mut on_line: impl FnMut(&PullLine),
+    ) -> Result<bool> {
+        // The engine can stay quiet for a while when it checks a large file.
+        const QUIET_LIMIT: Duration = Duration::from_secs(300);
+        let send = self
+            .http
+            .post(format!("{}/api/pull", self.base))
+            .json(&serde_json::json!({ "model": model, "stream": true }))
+            .send();
+        let response = tokio::select! {
+            () = cancel.cancelled() => return Ok(false),
+            r = tokio::time::timeout(QUIET_LIMIT, send) => r.map_err(|_| timeout_error(QUIET_LIMIT))??,
+        };
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::Engine(engine_message(&body)));
+        }
+        let mut stream = response.bytes_stream();
+        let mut line = Vec::new();
+        loop {
+            let next = tokio::select! {
+                () = cancel.cancelled() => return Ok(false),
+                n = tokio::time::timeout(QUIET_LIMIT, stream.next()) => n.map_err(|_| timeout_error(QUIET_LIMIT))?,
+            };
+            let Some(bytes) = next else {
+                return Err(Error::Engine("the download ended early".into()));
+            };
+            for &b in bytes?.iter() {
+                if b != b'\n' {
+                    if line.len() >= MAX_LINE_BYTES {
+                        return Err(Error::Engine("download line too long".into()));
+                    }
+                    line.push(b);
+                    continue;
+                }
+                let parsed = parse_pull_line(&line)?;
+                line.clear();
+                if let Some(parsed) = parsed {
+                    on_line(&parsed);
+                    if parsed.status == "success" {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
     }
 
     /// Loads a model into memory. A chat request with no messages only loads the model.
@@ -152,13 +349,7 @@ impl Client {
 
     /// One reply without streaming, for short helper tasks.
     pub async fn complete(&self, params: &ChatParams<'_>, timeout: Duration) -> Result<String> {
-        let request = ChatRequest {
-            model: params.model,
-            messages: params.messages,
-            stream: false,
-            options: params.options,
-            keep_alive: params.keep_alive,
-        };
+        let request = ChatRequest::of(params, false);
         let response = self
             .http
             .post(format!("{}/api/chat", self.base))
@@ -195,13 +386,7 @@ impl Client {
         cancel: &CancellationToken,
         mut on_text: impl FnMut(&str),
     ) -> Result<ChatOutcome> {
-        let request = ChatRequest {
-            model: params.model,
-            messages: params.messages,
-            stream: true,
-            options: params.options,
-            keep_alive: params.keep_alive,
-        };
+        let request = ChatRequest::of(params, true);
         let send = self
             .http
             .post(format!("{}/api/chat", self.base))
@@ -279,6 +464,18 @@ fn handle_line(line: &[u8], out: &mut ChatOutcome, on_text: &mut impl FnMut(&str
     Ok(false)
 }
 
+/// Reads one download progress line. Blank lines give `None`.
+fn parse_pull_line(line: &[u8]) -> Result<Option<PullLine>> {
+    if line.iter().all(u8::is_ascii_whitespace) {
+        return Ok(None);
+    }
+    let parsed: PullLine = serde_json::from_slice(line)?;
+    if let Some(error) = parsed.error {
+        return Err(Error::Engine(error));
+    }
+    Ok(Some(parsed))
+}
+
 fn timeout_error(limit: Duration) -> Error {
     Error::Timeout(limit.as_secs())
 }
@@ -328,5 +525,35 @@ mod tests {
         assert!(handle_line(br#"{"error":"model not found"}"#, &mut out, &mut push).is_err());
         assert!(handle_line(b"not json", &mut out, &mut push).is_err());
         assert_eq!(engine_message(r#"{"error":"boom"}"#), "boom");
+    }
+
+    #[test]
+    fn pull_lines() {
+        let line = parse_pull_line(br#"{"status":"pulling 6a0746a1ec1a","digest":"sha256:6a07","total":4683073184,"completed":241970}"#)
+            .unwrap()
+            .unwrap();
+        assert_eq!((line.total, line.completed), (4_683_073_184, 241_970));
+        assert!(parse_pull_line(b"  ").unwrap().is_none());
+        assert!(parse_pull_line(br#"{"error":"pull model manifest: file does not exist"}"#).is_err());
+        let request = ChatRequest {
+            model: "m",
+            messages: &[],
+            stream: true,
+            options: &Options {
+                temperature: 0.8,
+                min_p: 0.05,
+                top_p: 1.0,
+                top_k: 40,
+                presence_penalty: 0.0,
+                repeat_penalty: 1.0,
+                repeat_last_n: 64,
+                num_ctx: 8192,
+                num_predict: 100,
+                stop: vec![],
+            },
+            keep_alive: "5m",
+            think: None,
+        };
+        assert!(!serde_json::to_string(&request).unwrap().contains("think"));
     }
 }

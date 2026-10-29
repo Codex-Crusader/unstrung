@@ -80,6 +80,13 @@ impl Sidecar {
         }
         cmd.env("OLLAMA_HOST", format!("127.0.0.1:{port}"))
             .env("OLLAMA_MODELS", &models)
+            // Chats stay on this PC: no cloud models, no web search, no
+            // recommendation calls. Downloads still work.
+            .env("OLLAMA_NO_CLOUD", "1")
+            // Flash attention with an 8-bit context cache needs about half
+            // the memory for the chat history, so more of it fits on the GPU.
+            .env("OLLAMA_FLASH_ATTENTION", "1")
+            .env("OLLAMA_KV_CACHE_TYPE", "q8_0")
             .stdin(Stdio::null())
             .stdout(log.try_clone()?)
             .stderr(log);

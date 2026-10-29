@@ -58,6 +58,13 @@ pub struct Flags {
     pub wrong_name: bool,
     /// A `{{char}}` or `{{user}}` macro is in the text.
     pub macro_leak: bool,
+    /// The first sentence describes the weather or the room, not the character.
+    pub setting_opener: bool,
+    /// Words inside quotation marks.
+    pub dialogue_words: usize,
+    /// Narration outside quotes has a sentence where the user's persona acts,
+    /// for example "Kai takes the glass".
+    pub narrates_user: bool,
 }
 
 fn starts_ci(text: &str, prefix: &str) -> bool {
@@ -108,6 +115,92 @@ pub fn name_prefix(text: &str, character: &str) -> bool {
     starts_ci(text, &format!("{character}:")) || starts_ci(text, &format!("{first}:"))
 }
 
+/// Words that open a "weather and room" sentence.
+const SETTING_WORDS: [&str; 22] = [
+    "storm", "rain", "thunder", "lightning", "wind", "candle", "candlelight", "fire",
+    "fireplace", "flame", "flames", "shadows", "room", "air", "night", "manor", "house",
+    "walls", "window", "sky", "silence", "fog",
+];
+
+/// True when the first sentence is about the setting: it has a setting word
+/// in its first five words, and it has no dialogue and no name of the character.
+pub fn setting_opener(text: &str, character: &str) -> bool {
+    let first = text
+        .trim_start_matches(['*', '_', ' ', '\n'])
+        .split(['.', '!', '?', '\n'])
+        .next()
+        .unwrap_or_default();
+    let first_name = character.split_whitespace().next().unwrap_or(character);
+    if first.contains(['"', '\u{201c}']) || has_word(first, first_name) {
+        return false;
+    }
+    first
+        .split_whitespace()
+        .take(5)
+        .any(|w| SETTING_WORDS.iter().any(|s| has_word(w, s)))
+}
+
+/// True when a sentence outside quotes starts with the persona's name and a verb-like word.
+pub fn narrates_user(text: &str, persona: &str) -> bool {
+    // Drop quoted speech, which can name the user freely.
+    let mut narration = String::new();
+    let mut inside = false;
+    for ch in text.chars() {
+        match ch {
+            '"' => inside = !inside,
+            '\u{201c}' => inside = true,
+            '\u{201d}' => inside = false,
+            _ if !inside => narration.push(ch),
+            _ => {}
+        }
+    }
+    let possessive = format!("{persona}'s");
+    narration
+        .split(['.', '!', '?', '*', '\n', ';'])
+        .map(str::trim)
+        .any(|sentence| {
+            let mut words = sentence.split_whitespace();
+            match (words.next(), words.next()) {
+                (Some(first), Some(second)) => {
+                    let second = second.trim_matches(|c: char| !c.is_alphabetic());
+                    (first == persona && second.ends_with('s') && second.len() > 2)
+                        || first == possessive
+                }
+                _ => false,
+            }
+        })
+}
+
+/// Spoken words. With quotes, the words inside them. With `*actions*` and no
+/// quotes, the words outside the asterisks.
+pub fn dialogue_words(text: &str) -> usize {
+    let quoted = text.contains(['"', '\u{201c}']);
+    if !quoted && text.contains('*') {
+        return text
+            .split('*')
+            .step_by(2)
+            .map(|part| part.split_whitespace().count())
+            .sum();
+    }
+    let mut inside = false;
+    let mut count = 0;
+    let mut word = false;
+    for ch in text.chars() {
+        match ch {
+            '"' => inside = !inside,
+            '\u{201c}' => inside = true,
+            '\u{201d}' => inside = false,
+            _ => {}
+        }
+        let letter = ch.is_alphanumeric();
+        if inside && letter && !word {
+            count += 1;
+        }
+        word = letter;
+    }
+    count
+}
+
 pub fn check(text: &str, raw: &str, recent: &[&str], cx: &Context<'_>) -> Flags {
     let words = text.split_whitespace().count();
     let problem = guard::check(text, recent);
@@ -133,6 +226,9 @@ pub fn check(text: &str, raw: &str, recent: &[&str], cx: &Context<'_>) -> Flags 
         trait_claim,
         wrong_name: cx.other_persona.is_some_and(|other| has_word(text, other)),
         macro_leak: text.contains("{{char}}") || text.contains("{{user}}"),
+        setting_opener: setting_opener(text, cx.character),
+        dialogue_words: dialogue_words(text),
+        narrates_user: narrates_user(text, cx.persona),
     }
 }
 
@@ -171,12 +267,27 @@ mod tests {
     }
 
     #[test]
+    fn setting_and_dialogue() {
+        assert!(setting_opener("The storm roars outside, the thunder echoing.", "Ash"));
+        assert!(setting_opener("*The candlelight casts eerie shadows.* Hi.", "Ash"));
+        assert!(!setting_opener("*Ash sets a candle down.* The storm is loud.", "Ash"));
+        assert!(!setting_opener("\"Stay,\" Ash says as the rain falls.", "Ash"));
+        assert_eq!(dialogue_words("He said \"stay here now\" and left. \u{201c}Go.\u{201d}"), 4);
+        assert_eq!(dialogue_words("*Ash nods.* Stay here. *He waits.* Please."), 3);
+        assert!(narrates_user("Ash pours. Kai takes the glass, smiling.", "Kai"));
+        assert!(narrates_user("*Kai's hands shake.*", "Kai"));
+        assert!(!narrates_user("\"Kai takes too long,\" Ash says.", "Kai"));
+        assert!(!narrates_user("Ash looks at Kai. Kai, sit.", "Kai"));
+    }
+
+    #[test]
     fn clean_reply_passes() {
         let text = "Door was unlocked. *Ren leans back.* Sit, kid.";
         assert_eq!(
             check(text, text, &[], &CX),
             Flags {
                 words: 8,
+                dialogue_words: 5,
                 ..Flags::default()
             }
         );

@@ -167,6 +167,18 @@ impl Db {
         Ok(())
     }
 
+    /// The model for this character's new replies. `None` uses the default.
+    pub async fn set_character_model(&self, id: i64, model: Option<&str>) -> Result<()> {
+        sqlx::query!(
+            "UPDATE characters SET model_override = ? WHERE id = ?",
+            model,
+            id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn set_voice_anchor(&self, id: i64, anchor: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE characters SET voice_anchor = ? WHERE id = ?",

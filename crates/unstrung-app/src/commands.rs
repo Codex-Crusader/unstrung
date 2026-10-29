@@ -1,6 +1,8 @@
 //! The chat commands that the UI can call. Each one checks its input and
 //! returns errors in plain words, with the technical detail apart.
 
+use unstrung_core::catalog::Advanced;
+use unstrung_core::models::ModelsPage;
 use crate::state::AppState;
 use serde::Serialize;
 use tauri::State;
@@ -357,4 +359,65 @@ pub async fn restart_engine(state: State<'_, AppState>) -> CmdResult<()> {
     let engine = state.engine.clone();
     tauri::async_runtime::spawn(async move { engine.restart().await });
     Ok(())
+}
+
+#[tauri::command]
+pub async fn models_page(state: State<'_, AppState>) -> CmdResult<ModelsPage> {
+    Ok(state.models.page().await?)
+}
+
+#[tauri::command]
+pub async fn recheck_hardware(state: State<'_, AppState>) -> CmdResult<ModelsPage> {
+    state.models.recheck_hardware().await?;
+    Ok(state.models.page().await?)
+}
+
+/// Starts a download. Progress comes as `model-download` events.
+#[tauri::command]
+pub fn download_model(state: State<'_, AppState>, model: String) -> CmdResult<()> {
+    Ok(state.models.download(&model)?)
+}
+
+#[tauri::command]
+pub fn stop_download(state: State<'_, AppState>) {
+    state.models.stop_download();
+}
+
+#[tauri::command]
+pub async fn remove_model(state: State<'_, AppState>, model: String) -> CmdResult<ModelsPage> {
+    state.models.remove(&model).await?;
+    Ok(state.models.page().await?)
+}
+
+#[tauri::command]
+pub async fn set_default_model(state: State<'_, AppState>, model: String) -> CmdResult<ModelsPage> {
+    state.models.set_default(&model).await?;
+    Ok(state.models.page().await?)
+}
+
+#[tauri::command]
+pub async fn set_advanced(state: State<'_, AppState>, advanced: Advanced) -> CmdResult<ModelsPage> {
+    state.models.set_advanced(advanced).await?;
+    Ok(state.models.page().await?)
+}
+
+#[tauri::command]
+pub async fn set_chat_model(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    model: Option<String>,
+) -> CmdResult<ChatView> {
+    Ok(state.chats.set_model(chat_id, model.as_deref()).await?)
+}
+
+#[tauri::command]
+pub async fn set_character_model(
+    state: State<'_, AppState>,
+    character_id: i64,
+    model: Option<String>,
+) -> CmdResult<()> {
+    Ok(state
+        .chats
+        .set_character_model(character_id, model.as_deref())
+        .await?)
 }

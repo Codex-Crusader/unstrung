@@ -142,6 +142,18 @@ impl Db {
         Ok(())
     }
 
+    /// The model for this chat's next replies. `None` uses the character's or the default.
+    pub async fn set_chat_model(&self, chat_id: i64, model: Option<&str>) -> Result<()> {
+        sqlx::query!(
+            "UPDATE chats SET chat_model = ? WHERE id = ?",
+            model,
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn set_chat_style(&self, chat_id: i64, style: &str, custom: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE chats SET reply_style = ?, reply_custom = ? WHERE id = ?",

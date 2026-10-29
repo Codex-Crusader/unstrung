@@ -8,6 +8,7 @@ export type EngineStatus =
   | { state: "starting" }
   | { state: "loading_model"; model: string }
   | { state: "ready"; model: string }
+  | { state: "no_model"; model: string }
   | { state: "error"; message: string; detail: string };
 
 export type Role = "user" | "character" | "system" | "ooc";
@@ -89,6 +90,10 @@ export interface ChatView {
   messages: ViewMessage[];
   /** Hidden branches that continue from the last message. */
   branches: number[];
+  /** The model that writes the next reply. */
+  model: string;
+  /** The chat's own model, when it was removed. The default writes instead. */
+  model_removed: string | null;
 }
 
 export type Length = "very_short" | "short" | "medium" | "long" | "very_long";
@@ -146,6 +151,81 @@ export const getStatus = () => invoke<EngineStatus>("get_status");
 
 export function onStatus(handler: (status: EngineStatus) => void): Promise<UnlistenFn> {
   return listen<EngineStatus>("engine-status", (event) => {
+    handler(event.payload);
+  });
+}
+
+export type Tier = "basic" | "standard" | "high";
+
+export interface Hardware {
+  gpu: { name: string; vendor: string; vram_bytes: number; driver: string } | null;
+  ram_bytes: number;
+  disk_free_bytes: number;
+  avx2: boolean;
+  tier: Tier;
+  below_minimum: boolean;
+}
+
+export interface ModelView {
+  id: string;
+  name: string;
+  description: string;
+  size_bytes: number;
+  installed: boolean;
+  in_catalog: boolean;
+  recommended: boolean;
+  fits: boolean;
+  min_tier: Tier | null;
+  license_name: string;
+  license_url: string;
+  style_following: "good" | "fair" | "weak";
+  can_think: boolean;
+  is_default: boolean;
+  changed_upstream: boolean;
+}
+
+/** `null` means "Automatic": the catalog value. */
+export interface Advanced {
+  context: number | null;
+  temperature: number | null;
+  min_p: number | null;
+  repeat_penalty: number | null;
+  think: boolean | null;
+}
+
+export interface Download {
+  model: string;
+  state: "downloading" | "checking" | "done" | "stopped" | "failed";
+  completed: number;
+  total: number;
+  bytes_per_second: number;
+  error: string;
+}
+
+export interface ModelsPage {
+  hardware: Hardware;
+  models: ModelView[];
+  default_model: string;
+  advanced: Advanced;
+  shared_folder: boolean;
+  download: Download | null;
+  hardware_changed: boolean;
+}
+
+export const modelsPage = () => invoke<ModelsPage>("models_page");
+export const recheckHardware = () => invoke<ModelsPage>("recheck_hardware");
+export const downloadModel = (model: string) => invoke<null>("download_model", { model });
+export const stopDownload = () => invoke<null>("stop_download");
+export const removeModel = (model: string) => invoke<ModelsPage>("remove_model", { model });
+export const setDefaultModel = (model: string) => invoke<ModelsPage>("set_default_model", { model });
+export const setAdvanced = (advanced: Advanced) => invoke<ModelsPage>("set_advanced", { advanced });
+export const setChatModel = (chatId: number, model: string | null) =>
+  invoke<ChatView>("set_chat_model", { chatId, model });
+export const setCharacterModel = (characterId: number, model: string | null) =>
+  invoke<null>("set_character_model", { characterId, model });
+
+export function onDownload(handler: (download: Download | null) => void): Promise<UnlistenFn> {
+  return listen<Download | null>("model-download", (event) => {
     handler(event.payload);
   });
 }

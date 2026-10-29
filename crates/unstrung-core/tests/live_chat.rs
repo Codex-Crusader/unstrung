@@ -202,3 +202,34 @@ async fn chat_engine_done_tests() {
         "the PID file is removed at a clean stop"
     );
 }
+
+/// Phase 3: a missing default model leaves the engine running, so the model
+/// list works. A chat cannot reply then. Picking an installed model makes it ready.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama and the default chat model"]
+async fn missing_model_keeps_the_engine_running() {
+    let home = tempfile::tempdir().unwrap();
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths.ensure().unwrap();
+
+    let engine = Engine::with_model(
+        paths.clone(),
+        "no-such-model:1b",
+        unstrung_core::catalog::Advanced::default(),
+    );
+    engine.start().await;
+    let status = engine.status();
+    assert!(matches!(status, EngineStatus::NoModel { .. }), "{status:?}");
+    assert!(engine.client().is_err());
+    let installed = engine.refresh_installed().await.unwrap();
+    assert!(engine.is_installed(unstrung_core::engine::DEFAULT_CHAT_MODEL));
+    assert!(!installed.is_empty());
+
+    engine
+        .set_model(unstrung_core::engine::DEFAULT_CHAT_MODEL)
+        .await
+        .unwrap();
+    assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
+    assert!(engine.client().is_ok());
+    engine.stop().await;
+}

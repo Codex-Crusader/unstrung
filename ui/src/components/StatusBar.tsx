@@ -10,17 +10,24 @@ function label(status: EngineStatus): string {
       return strings.status.loading(status.model);
     case "ready":
       return `${strings.status.ready} · ${status.model}`;
+    case "no_model":
+      return strings.status.noModel(status.model);
     case "error":
       return status.message;
   }
 }
 
-export function StatusBar({ status }: { status: EngineStatus }) {
+export function StatusBar({ status, onOpenModels }: { status: EngineStatus; onOpenModels: () => void }) {
   const [showDetail, setShowDetail] = useState(false);
   return (
     <footer className="status-bar" role="status" aria-live="polite">
       <span className={`pin-dot pin-${status.state}`} aria-hidden="true" />
       <span className="status-label">{label(status)}</span>
+      {status.state === "no_model" && (
+        <button type="button" className="link-button" onClick={onOpenModels}>
+          {strings.status.openModels}
+        </button>
+      )}
       {status.state === "error" && (
         <>
           <button

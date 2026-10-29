@@ -5,17 +5,23 @@
 //! The rules are always first and the reminder is always last, whatever a card says.
 //! Memories, the summary and world info come in later phases.
 
+use crate::catalog::Tuning;
 use crate::db::{Character, Message, Persona};
 use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 4;
+pub const PROMPT_VERSION: i64 = 5;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
 
+/// The card, persona and example budgets are shares of this size. A larger
+/// context gives only the history more room.
 pub const CONTEXT_TOKENS: u32 = 8192;
+
+/// Extra tokens for a model that thinks before it replies.
+pub const THINK_TOKENS: i32 = 1024;
 const REPLY_MARGIN_TOKENS: u32 = 64;
 const CARD_SHARE: u32 = 20;
 const PERSONA_SHARE: u32 = 5;
@@ -27,7 +33,7 @@ pub const SYSTEM_RULES: &str = "\
 You write one side of a roleplay chat.
 1. You are {{char}}. Stay in the story at all times.
 2. Write only what {{char}} says, does and thinks. {{user}} writes their own words and actions.
-3. React to what {{user}} just wrote before you add anything new.
+3. React to what {{user}} just wrote. {{char}} is a person in the scene who talks and acts, not a narrator.
 4. Keep the facts about {{char}}, {{user}} and the world consistent with what came before.
 5. Follow the reply style and tone at the end of this prompt.
 6. Keep content non-explicit. Never write sexual content that involves anyone under 18. \
@@ -55,6 +61,8 @@ pub struct PromptInput<'a> {
     pub extra_reminder: Option<&'a str>,
     /// Continue the last message of `history` instead of writing a new one.
     pub continuation: bool,
+    /// The settings of the model that writes the reply.
+    pub tuning: &'a Tuning,
 }
 
 pub struct Prompt {
@@ -154,11 +162,14 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         user: user_name,
     };
     let style = input.style;
-    let (tone_text, temperature) = crate::presets::tone(input.tone, input.tone_custom);
+    let tuning = input.tuning;
+    let (tone_text, tone_temperature) = crate::presets::tone(input.tone, input.tone_custom);
+    let temperature = tuning.temperature_for(tone_temperature);
 
-    let card_budget = CONTEXT_TOKENS * CARD_SHARE / 100;
-    let persona_budget = CONTEXT_TOKENS * PERSONA_SHARE / 100;
-    let examples_budget = CONTEXT_TOKENS * EXAMPLES_SHARE / 100;
+    let shares = tuning.context.min(CONTEXT_TOKENS);
+    let card_budget = shares * CARD_SHARE / 100;
+    let persona_budget = shares * PERSONA_SHARE / 100;
+    let examples_budget = shares * EXAMPLES_SHARE / 100;
 
     // 1 to 3: rules, character card, persona.
     let card = section(
@@ -212,13 +223,17 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     ));
     if let Some(opening) = last_opening(input.history) {
         reminder.push_str(&format!(
-            "Your last reply began with \"{opening}\". Begin this one in a different way.\n"
+            "Your last reply began with \"{opening}\". Begin this one with something new that {{{{char}}}} does or says.\n"
         ));
     }
     // After a persona change, the history is full of the old name. This line
     // names the person now, so the character does not keep the old name.
     if input.persona.is_some() {
         reminder.push_str("The person you talk to is named {{user}}.\n");
+    }
+    if !tuning.reminder_extra.is_empty() {
+        reminder.push_str(&tuning.reminder_extra);
+        reminder.push('\n');
     }
     if let Some(extra) = input.extra_reminder {
         reminder.push_str(extra);
@@ -245,9 +260,16 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         )
     });
 
-    let num_predict = style.num_predict();
+    // Thinking tokens count against the cap, so a thinking model gets room for both.
+    let thinking = if tuning.think == Some(true) {
+        THINK_TOKENS
+    } else {
+        0
+    };
+    let num_predict = tuning.num_predict(style.num_predict()) + thinking;
     let reserved = u32::try_from(num_predict).unwrap_or_default() + REPLY_MARGIN_TOKENS;
-    let mut budget = CONTEXT_TOKENS
+    let mut budget = tuning
+        .context
         .saturating_sub(reserved)
         .saturating_sub(estimate_tokens(&system))
         .saturating_sub(estimate_tokens(&reminder));
@@ -312,15 +334,19 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         });
     }
 
+    let mut stop = vec![format!("\n{user_name}:"), format!("{user_name}:")];
+    stop.extend(tuning.stops.iter().cloned());
     let options = Options {
         temperature,
-        min_p: 0.05,
-        top_p: 1.0,
-        repeat_penalty: 1.08,
-        repeat_last_n: 256,
-        num_ctx: CONTEXT_TOKENS,
+        min_p: tuning.min_p,
+        top_p: tuning.top_p,
+        top_k: tuning.top_k,
+        presence_penalty: tuning.presence_penalty,
+        repeat_penalty: tuning.repeat_penalty,
+        repeat_last_n: tuning.repeat_last_n,
+        num_ctx: tuning.context,
         num_predict,
-        stop: vec![format!("\n{user_name}:"), format!("{user_name}:")],
+        stop,
     };
     Prompt {
         messages,

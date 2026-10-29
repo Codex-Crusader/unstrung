@@ -11,6 +11,7 @@ import {
 import { ChatScreen } from "./components/ChatScreen";
 import { CreatorScreen } from "./components/CreatorScreen";
 import { HomeScreen } from "./components/HomeScreen";
+import { ModelsScreen } from "./components/ModelsScreen";
 import { PersonasScreen } from "./components/PersonasScreen";
 import { StatusBar } from "./components/StatusBar";
 import { runSelfTest } from "./selfTest";
@@ -20,7 +21,8 @@ export type Screen =
   | { name: "home" }
   | { name: "chat"; characterId: number }
   | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number }
-  | { name: "personas" };
+  | { name: "personas" }
+  | { name: "models" };
 
 /** Closes open message menus on a click outside them, or on Escape. */
 function useMenuDismiss() {
@@ -109,6 +111,15 @@ export function App() {
           >
             {strings.nav.personas}
           </button>
+          <button
+            type="button"
+            className={screen.name === "models" ? "nav-item nav-current" : "nav-item"}
+            onClick={() => {
+              setScreen({ name: "models" });
+            }}
+          >
+            {strings.nav.models}
+          </button>
         </nav>
         <main className="app-main">
           {screen.name === "home" && (
@@ -150,9 +161,15 @@ export function App() {
             />
           )}
           {screen.name === "personas" && <PersonasScreen onChanged={loadPersonas} />}
+          {screen.name === "models" && <ModelsScreen />}
         </main>
       </div>
-      <StatusBar status={status} />
+      <StatusBar
+        status={status}
+        onOpenModels={() => {
+          setScreen({ name: "models" });
+        }}
+      />
     </div>
   );
 }

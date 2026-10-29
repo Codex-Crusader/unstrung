@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   deleteCharacter,
   getCharacter,
+  modelsPage,
   saveCharacter,
+  setCharacterModel,
   suggestAnchor,
   toUiError,
   type AvatarChange,
@@ -133,6 +135,25 @@ export function CreatorScreen({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
   const [staged, setStaged] = useState<Staged | null>(draft?.picture ?? null);
+  const [model, setModel] = useState<string | null>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [defaultModel, setDefaultModel] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    modelsPage()
+      .then((p) => {
+        if (!active) return;
+        setModels(p.models.filter((m) => m.installed).map((m) => m.id));
+        setDefaultModel(p.default_model);
+      })
+      .catch(() => {
+        // Without the list, the creator has no model picker.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (characterId === null) return;
@@ -140,6 +161,7 @@ export function CreatorScreen({
       .then((c) => {
         setSaved(c);
         setFields(fieldsOf(c));
+        setModel(c.model_override);
       })
       .catch((e: unknown) => {
         setError(toUiError(e));
@@ -158,7 +180,14 @@ export function CreatorScreen({
     setSaving(true);
     setError(null);
     saveCharacter(saved?.id ?? null, fields, avatar, saved ? null : (draft?.extras ?? null))
-      .then(onSaved)
+      .then(async (c) => {
+        if (c.model_override !== model) {
+          await setCharacterModel(c.id, model);
+          onSaved({ ...c, model_override: model });
+        } else {
+          onSaved(c);
+        }
+      })
       .catch((e: unknown) => {
         setError(toUiError(e));
       })
@@ -381,6 +410,23 @@ export function CreatorScreen({
             />
             <span className="field-hint">{strings.creator.styleHint}</span>
           </div>
+          {models.length > 1 && (
+            <Field label={strings.creator.model} hint={strings.creator.modelHint}>
+              <select
+                value={model ?? ""}
+                onChange={(e) => {
+                  setModel(e.target.value === "" ? null : e.target.value);
+                }}
+              >
+                <option value="">{strings.header.defaultModel(defaultModel)}</option>
+                {models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
         </details>
 
         <section className="tips" aria-label={strings.creator.tips}>

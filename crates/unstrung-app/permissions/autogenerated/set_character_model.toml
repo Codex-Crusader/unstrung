@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-character-model"
+description = "Enables the set_character_model command without any pre-configured scope."
+commands.allow = ["set_character_model"]
+
+[[permission]]
+identifier = "deny-set-character-model"
+description = "Denies the set_character_model command without any pre-configured scope."
+commands.deny = ["set_character_model"]

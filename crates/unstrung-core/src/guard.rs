@@ -27,6 +27,8 @@ const TEMPLATE_TOKENS: &[&str] = &[
     "[/INST]",
     "<start_of_turn>",
     "<end_of_turn>",
+    "[SYSTEM_PROMPT]",
+    "[/SYSTEM_PROMPT]",
     "<|endoftext|>",
 ];
 

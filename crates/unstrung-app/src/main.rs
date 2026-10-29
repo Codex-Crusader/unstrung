@@ -17,10 +17,12 @@ use tauri::{Emitter, Manager, RunEvent};
 use unstrung_core::chat::ChatService;
 use unstrung_core::db::Db;
 use unstrung_core::engine::Engine;
+use unstrung_core::models::{self, ModelService};
 use unstrung_core::paths::AppPaths;
 use unstrung_core::starters;
 
 pub const STATUS_EVENT: &str = "engine-status";
+pub const DOWNLOAD_EVENT: &str = "model-download";
 
 fn fail(message: &str) -> ! {
     log::error!("{message}");
@@ -81,6 +83,15 @@ fn main() {
             commands::set_chat_tone,
             commands::set_chat_style,
             commands::restart_engine,
+            commands::models_page,
+            commands::recheck_hardware,
+            commands::download_model,
+            commands::stop_download,
+            commands::remove_model,
+            commands::set_default_model,
+            commands::set_advanced,
+            commands::set_chat_model,
+            commands::set_character_model,
             creator::get_character,
             creator::save_character,
             creator::delete_character,
@@ -98,7 +109,7 @@ fn main() {
         .setup(move |app| {
             let state = tauri::async_runtime::block_on(open_core(paths, self_test))?;
             open_window(app, background)?;
-            start_engine(app.handle(), &state.engine);
+            start_engine(app.handle(), &state.engine, &state.models);
             if self_test {
                 selftest::arm_timeout(app.handle().clone());
             }
@@ -140,18 +151,37 @@ async fn open_core(paths: AppPaths, self_test: bool) -> unstrung_core::Result<Ap
     }
     unstrung_core::avatar::clear_staging(&paths);
     starters::ensure(&db, &paths).await?;
-    let engine = Engine::new(paths.clone());
+    let startup = models::startup(&db, &paths).await?;
+    log::info!(
+        "hardware tier {:?}, default model {}",
+        startup.hardware.tier,
+        startup.model
+    );
+    let engine = Engine::with_model(paths.clone(), &startup.model, startup.advanced.clone());
+    let models = ModelService::new(engine.clone(), db.clone(), &startup);
     let chats = Arc::new(ChatService::new(db, engine.clone()));
     Ok(AppState {
         paths,
         engine,
         chats,
+        models,
         self_test,
     })
 }
 
 /// Starts the engine in the background and sends each status change to the window.
-fn start_engine(app: &tauri::AppHandle, engine: &Arc<Engine>) {
+fn start_engine(app: &tauri::AppHandle, engine: &Arc<Engine>, models: &Arc<ModelService>) {
+    let mut downloads = models.subscribe();
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while downloads.changed().await.is_ok() {
+            let current = downloads.borrow_and_update().clone();
+            if let Err(e) = handle.emit(DOWNLOAD_EVENT, current) {
+                log::warn!("could not send the download progress: {e}");
+            }
+        }
+    });
+    let models = models.clone();
     let mut status = engine.subscribe();
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -168,6 +198,9 @@ fn start_engine(app: &tauri::AppHandle, engine: &Arc<Engine>) {
     let engine = engine.clone();
     tauri::async_runtime::spawn(async move {
         engine.start().await;
+        if let Err(e) = models.after_start().await {
+            log::warn!("could not pick an installed model: {e}");
+        }
         engine.watch_health().await;
     });
 }

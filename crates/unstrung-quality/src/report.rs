@@ -8,6 +8,7 @@ use unstrung_core::prompt::PROMPT_VERSION;
 
 pub struct Summary<'a> {
     pub model: &'a str,
+    pub settings: &'a str,
     pub script: &'a str,
     pub label: &'a str,
     pub minutes: f32,
@@ -65,6 +66,11 @@ struct Tally {
     traits: usize,
     wrong_name: usize,
     macros: usize,
+    recall_asked: usize,
+    recall_ok: usize,
+    setting_openers: usize,
+    dialogue_words: usize,
+    narrates_user: usize,
 }
 
 impl Tally {
@@ -86,6 +92,13 @@ impl Tally {
         self.traits += count(f.trait_claim);
         self.wrong_name += count(f.wrong_name);
         self.macros += count(f.macro_leak);
+        self.setting_openers += count(f.setting_opener);
+        self.narrates_user += count(f.narrates_user);
+        self.dialogue_words += f.dialogue_words;
+        if let Some(ok) = r.recall {
+            self.recall_asked += 1;
+            self.recall_ok += count(ok);
+        }
     }
 
     fn row(&self, character: &str, style: &str) -> String {
@@ -95,17 +108,22 @@ impl Tally {
         #[allow(clippy::cast_precision_loss)]
         let seconds = self.seconds / n as f32;
         format!(
-            "| {} | {} | {} | {:.0} | {}% | {} | {} | {} | {} | {} | {} | {} / {} | {} | {} | {} | {:.1} |\n",
+            "| {} | {} | {} | {:.0} | {}% | {} / {} | {} | {}% | {} | {} | {} | {} | {} | {} | {} | {} / {} | {} | {} | {} | {:.1} |\n",
             cell(character),
             style,
             self.replies,
             avg(self.words),
             self.in_range * 100 / n,
+            self.recall_ok,
+            self.recall_asked,
+            self.setting_openers,
+            self.dialogue_words * 100 / self.words.max(1),
             self.restarts,
             self.hints,
             self.breaks,
             self.repeats,
             self.speaks,
+            self.narrates_user,
             self.guard_cut,
             self.prefix_raw,
             self.prefix_final,
@@ -143,8 +161,8 @@ pub fn summary(s: &Summary<'_>) -> String {
     let _ = writeln!(out, "# Quality report: {}, {}\n", s.model, today());
     let _ = writeln!(
         out,
-        "Prompt version {PROMPT_VERSION}. Script \"{}\". Label \"{}\". The run took {:.0} minutes.\n",
-        s.script, s.label, s.minutes
+        "Prompt version {PROMPT_VERSION}. Script \"{}\". Label \"{}\". The run took {:.0} minutes.\n\n{}\n",
+        s.script, s.label, s.minutes, s.settings
     );
     out.push_str(
         "The counts come from heuristics. A count shows where to read the replies, not a final verdict. \
@@ -154,11 +172,11 @@ pub fn summary(s: &Summary<'_>) -> String {
 
     out.push_str("## Scripted chats\n\n");
     out.push_str(
-        "| Character | Style | Replies | Avg words | In range | Silent regenerates | Break hints | Breaks left | \
-         Repeats | Speaks for user | Guard cut user lines | Name prefix (raw / final) | Persona trait claims | \
+        "| Character | Style | Replies | Avg words | In range | Recall | Setting openers | Dialogue share | Silent regenerates | Break hints | Breaks left | \
+         Repeats | Speaks for user | Narrates user | Guard cut user lines | Name prefix (raw / final) | Persona trait claims | \
          Wrong persona name | Macro left | Avg seconds |\n",
     );
-    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
+    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
     let mut keys: Vec<(&str, &str)> = Vec::new();
     for r in s.replies {
         let key = (r.character.as_str(), r.style.as_str());
@@ -181,7 +199,9 @@ pub fn summary(s: &Summary<'_>) -> String {
     }
     out.push_str(&all.row("All", ""));
     out.push_str(
-        "\nIn range: the reply length is in the word range of the style. Silent regenerates: the guard \
+        "\nIn range: the reply length is in the word range of the style. Recall: questions about facts \
+         that the user said earlier, answered with the right word. Setting openers: replies whose first \
+         sentence is about the weather or the room. Dialogue share: words inside quotes. Silent regenerates: the guard \
          found a problem and the core made the reply again. Break hints: the second reply also broke \
          character, so the user saw a hint. Guard cut user lines: the model wrote for the user and the \
          guard removed it.\n",
@@ -292,11 +312,13 @@ fn problems(r: &Reply) -> String {
         (f.break_final, "breaks character"),
         (f.repetition, "repeats"),
         (f.speaks_for_user, "speaks for user"),
+        (f.narrates_user, "narrates user"),
         (f.guard_cut_user, "guard cut user lines"),
         (f.prefix_final, "name prefix"),
         (f.trait_claim, "persona trait"),
         (f.wrong_name, "wrong persona name"),
         (f.macro_leak, "macro left"),
+        (r.recall == Some(false), "forgot"),
     ] {
         if on {
             list.push(name);
@@ -331,6 +353,15 @@ pub fn transcript(s: &Summary<'_>) -> String {
         let _ = writeln!(out, "{}. User{trap}: {}\n", r.turn, r.said);
         for line in r.text.lines() {
             let _ = writeln!(out, "> {line}");
+        }
+        if !r.raw.is_empty() && r.raw.trim() != r.text.trim() {
+            out.push_str("
+The model wrote this before the guard:
+
+");
+            for line in r.raw.lines() {
+                let _ = writeln!(out, ">> {line}");
+            }
         }
         let _ = writeln!(
             out,

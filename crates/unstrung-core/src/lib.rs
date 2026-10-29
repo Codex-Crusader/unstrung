@@ -5,12 +5,15 @@
 
 pub mod avatar;
 pub mod card;
+pub mod catalog;
 pub mod chat;
 pub mod db;
 pub mod engine;
 pub mod error;
 pub mod guard;
+pub mod hardware;
 pub mod library;
+pub mod models;
 pub mod ollama;
 pub mod paths;
 pub mod presets;

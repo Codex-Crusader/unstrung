@@ -1,0 +1,18 @@
+{
+  "name": "casual",
+  "about": "Short, casual user lines, like a real user who chats loosely. Several turns give the character nothing to work with, so the character must carry the scene.",
+  "turns": [
+    { "say": "hey. so, uh, where exactly am i?" },
+    { "say": "my gut says i should not be here....." },
+    { "say": "you're being weirdly cryptic. are you always like this?" },
+    { "say": "eh, fair enough i suppose" },
+    { "say": "ok. so what do people usually do around here?" },
+    { "say": "i can see that" },
+    { "say": "lol. ok show me something interesting" },
+    { "say": "hm" },
+    { "say": "wait, what was that sound?" },
+    { "say": "fine, lead the way" },
+    { "say": "this is getting creepy ngl" },
+    { "say": "ok i'm staying. what now?" }
+  ]
+}

@@ -1,16 +1,18 @@
 //! Keeps the chat engine running and reports its state.
 
+use crate::catalog::{self, Advanced, Tuning};
 use crate::error::{Error, Result};
-use crate::ollama::Client;
+use crate::ollama::{Client, Installed};
 use crate::paths::AppPaths;
 use crate::sidecar::{self, Sidecar};
 use serde::Serialize;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::{Mutex, watch};
 
-/// The chat model for Phase 1. The model catalog (Phase 3) replaces it.
-pub const DEFAULT_CHAT_MODEL: &str = "qwen2.5:7b";
+/// The chat model when the user has not picked one and the catalog has no
+/// recommendation that is installed.
+pub const DEFAULT_CHAT_MODEL: &str = "gemma4:e4b-it-qat";
 /// How long the engine keeps the model in memory after the last reply.
 pub const KEEP_ALIVE: &str = "30m";
 
@@ -24,12 +26,22 @@ pub enum EngineStatus {
     Starting,
     LoadingModel { model: String },
     Ready { model: String },
+    /// The engine runs, but the default chat model is not installed.
+    /// Downloads work in this state.
+    NoModel { model: String },
     Error { message: String, detail: String },
 }
 
 pub struct Engine {
     paths: AppPaths,
-    model: String,
+    /// The global default chat model.
+    model: RwLock<String>,
+    advanced: RwLock<Advanced>,
+    /// The names from the last model list, so a reply can skip a removed model.
+    installed: RwLock<Vec<String>>,
+    /// Installed models outside the catalog that can think. They get
+    /// `think: false` by default, or the thinking uses up the reply cap.
+    thinkers: RwLock<Vec<String>>,
     sidecar: Mutex<Option<Sidecar>>,
     client: watch::Sender<Option<Client>>,
     status: watch::Sender<EngineStatus>,
@@ -38,9 +50,16 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(paths: AppPaths) -> Arc<Self> {
+        Self::with_model(paths, DEFAULT_CHAT_MODEL, Advanced::default())
+    }
+
+    pub fn with_model(paths: AppPaths, model: &str, advanced: Advanced) -> Arc<Self> {
         Arc::new(Self {
             paths,
-            model: DEFAULT_CHAT_MODEL.to_owned(),
+            model: RwLock::new(model.to_owned()),
+            advanced: RwLock::new(advanced),
+            installed: RwLock::new(Vec::new()),
+            thinkers: RwLock::new(Vec::new()),
             sidecar: Mutex::new(None),
             client: watch::channel(None).0,
             status: watch::channel(EngineStatus::Starting).0,
@@ -48,8 +67,112 @@ impl Engine {
         })
     }
 
-    pub fn model(&self) -> &str {
-        &self.model
+    pub fn model(&self) -> String {
+        self.model.read().map(|m| m.clone()).unwrap_or_default()
+    }
+
+    pub fn paths(&self) -> &AppPaths {
+        &self.paths
+    }
+
+    pub fn advanced(&self) -> Advanced {
+        self.advanced.read().map(|a| a.clone()).unwrap_or_default()
+    }
+
+    pub fn set_advanced(&self, advanced: Advanced) {
+        if let Ok(mut slot) = self.advanced.write() {
+            *slot = advanced;
+        }
+    }
+
+    /// The sampler and prompt settings for one model: the catalog entry, then
+    /// the user's advanced settings on top.
+    pub fn tuning_for(&self, model: &str) -> Tuning {
+        let mut tuning = catalog::tuning(model);
+        if catalog::entry(model).is_none() && self.can_think(model) {
+            tuning.think = Some(false);
+        }
+        tuning.with_advanced(&self.advanced())
+    }
+
+    /// True for a model that can think: from the catalog, or from the engine
+    /// for a model outside it.
+    pub fn can_think(&self, model: &str) -> bool {
+        match catalog::entry(model) {
+            Some(entry) => entry.tuning.think.is_some(),
+            None => self
+                .thinkers
+                .read()
+                .is_ok_and(|list| list.iter().any(|m| catalog::same_tag(m, model))),
+        }
+    }
+
+    /// Asks the engine which models outside the catalog can think.
+    async fn learn_thinkers(&self, client: &Client, list: &[Installed]) {
+        let mut found = Vec::new();
+        for m in list.iter().filter(|m| catalog::entry(&m.name).is_none()) {
+            match client.info(&m.name).await {
+                Ok(info) if info.can_think() => found.push(m.name.clone()),
+                Ok(_) => {}
+                Err(e) => log::warn!("could not read the capabilities of {}: {e}", m.name),
+            }
+        }
+        if let Ok(mut slot) = self.thinkers.write() {
+            *slot = found;
+        }
+    }
+
+    /// Makes `model` the default and loads it. The caller checks that it is installed.
+    pub async fn set_model(&self, model: &str) -> Result<()> {
+        let client = self.running_client()?;
+        if let Ok(mut slot) = self.model.write() {
+            model.clone_into(&mut slot);
+        }
+        self.status.send_replace(EngineStatus::LoadingModel {
+            model: model.to_owned(),
+        });
+        if let Err(e) = client.load(model, KEEP_ALIVE).await {
+            self.set_error(&e);
+            return Err(e);
+        }
+        self.status.send_replace(EngineStatus::Ready {
+            model: model.to_owned(),
+        });
+        Ok(())
+    }
+
+    pub fn is_installed(&self, model: &str) -> bool {
+        self.installed
+            .read()
+            .is_ok_and(|list| list.iter().any(|m| catalog::same_tag(m, model)))
+    }
+
+    /// Reads the model list from the engine and keeps the names.
+    pub async fn refresh_installed(&self) -> Result<Vec<Installed>> {
+        let client = self.running_client()?;
+        let list = client.installed().await?;
+        self.store_installed(&list);
+        self.learn_thinkers(&client, &list).await;
+        Ok(list)
+    }
+
+    fn store_installed(&self, list: &[Installed]) {
+        if let Ok(mut slot) = self.installed.write() {
+            *slot = list.iter().map(|m| m.name.clone()).collect();
+        }
+    }
+
+    /// After a download or a removal: if there was no model, try the default again.
+    pub async fn model_list_changed(&self) {
+        let _ = self.refresh_installed().await;
+        if matches!(self.status(), EngineStatus::NoModel { .. }) {
+            let model = self.model();
+            if let Ok(client) = self.running_client()
+                && client.has_model(&model).await.unwrap_or(false)
+            {
+                let _ = self.set_model(&model).await;
+            }
+        }
     }
 
     pub fn status(&self) -> EngineStatus {
@@ -64,6 +187,20 @@ impl Engine {
     pub fn client(&self) -> Result<Client> {
         match (&*self.status.borrow(), &*self.client.borrow()) {
             (EngineStatus::Ready { .. }, Some(client)) => Ok(client.clone()),
+            _ => Err(Error::NotReady),
+        }
+    }
+
+    /// The client whenever the engine process runs, also with no model.
+    /// Downloads and the model list use it.
+    pub fn running_client(&self) -> Result<Client> {
+        match (&*self.status.borrow(), &*self.client.borrow()) {
+            (
+                EngineStatus::Ready { .. }
+                | EngineStatus::NoModel { .. }
+                | EngineStatus::LoadingModel { .. },
+                Some(client),
+            ) => Ok(client.clone()),
             _ => Err(Error::NotReady),
         }
     }
@@ -104,23 +241,23 @@ impl Engine {
         let client = Client::new(sidecar.port())?;
         *self.sidecar.lock().await = Some(sidecar);
         self.wait_ready(&client).await?;
+        self.client.send_replace(Some(client.clone()));
 
-        if !client.has_model(&self.model).await? {
+        let model = self.model();
+        let list = client.installed().await?;
+        self.store_installed(&list);
+        self.learn_thinkers(&client, &list).await;
+        if !self.is_installed(&model) {
             let (folder, _) = sidecar::models_folder(&self.paths);
-            return Err(Error::Engine(format!(
-                "the chat model {} is not in {}",
-                self.model,
-                folder.display()
-            )));
+            log::warn!("the chat model {model} is not in {}", folder.display());
+            self.status.send_replace(EngineStatus::NoModel { model });
+            return Ok(());
         }
         self.status.send_replace(EngineStatus::LoadingModel {
-            model: self.model.clone(),
+            model: model.clone(),
         });
-        client.load(&self.model, KEEP_ALIVE).await?;
-        self.client.send_replace(Some(client));
-        self.status.send_replace(EngineStatus::Ready {
-            model: self.model.clone(),
-        });
+        client.load(&model, KEEP_ALIVE).await?;
+        self.status.send_replace(EngineStatus::Ready { model });
         Ok(())
     }
 

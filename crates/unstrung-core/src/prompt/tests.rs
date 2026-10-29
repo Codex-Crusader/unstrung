@@ -59,8 +59,12 @@ fn input<'a>(c: &'a Character, p: Option<&'a Persona>, history: &'a [Message]) -
         push_character: false,
         extra_reminder: None,
         continuation: false,
+        tuning: &DEFAULT_TUNING,
     }
 }
+
+static DEFAULT_TUNING: std::sync::LazyLock<crate::catalog::Tuning> =
+    std::sync::LazyLock::new(crate::catalog::Tuning::default);
 
 #[test]
 fn order_is_rules_card_persona_history_reminder() {
