@@ -11,7 +11,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 9;
+pub const PROMPT_VERSION: i64 = 10;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -306,7 +306,13 @@ fn last_ended_with_question(history: &[Message]) -> bool {
 
 /// The first words of the character's last reply.
 fn last_opening(history: &[Message]) -> Option<String> {
-    let last = history.iter().rev().find(|m| m.role == "character")?;
+    let at = history.iter().rposition(|m| m.role == "character")?;
+    // The greeting is not quoted: on the first reply, small models copy the
+    // quoted greeting instead of starting with something new.
+    if !history[..at].iter().any(|m| m.role == "user") {
+        return None;
+    }
+    let last = &history[at];
     let words: Vec<&str> = last
         .content
         .split_whitespace()
@@ -355,12 +361,21 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
                 ("Appearance", &p.appearance_tags),
             ],
         ),
+        // With no persona, "User" is a placeholder, and small models make up
+        // a name for it, which the guard then cannot see.
         None => section(
             "The person you talk to: {{user}}",
-            &[(
-                "",
-                "{{user}} is another person. Their traits are not yours.",
-            )],
+            &[
+                (
+                    "",
+                    "{{user}} is another person. Their traits are not yours.",
+                ),
+                (
+                    "",
+                    "{{user}} did not tell {{char}} a name. {{char}} does not make up a name, \
+                     title or rank for {{user}}, and in speech calls {{user}} \"you\".",
+                ),
+            ],
         ),
     };
     let system = names.fill(SYSTEM_RULES)

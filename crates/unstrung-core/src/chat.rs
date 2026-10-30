@@ -1020,11 +1020,14 @@ impl ChatService {
                 continuation: false,
                 tuning: &tuning,
             });
-            let outcome = stream_reply(
+            // The last try is kept even when it repeats, so it streams freely.
+            let watch: &[&str] = if extra.is_none() { &recent } else { &[] };
+            let (outcome, repeated) = stream_reply(
                 &client,
                 &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                 cancel,
                 &prompt.user_name,
+                watch,
                 &mut progress,
             )
             .await?;
@@ -1038,6 +1041,8 @@ impl ChatService {
             );
             let problem = if outcome.stopped {
                 None
+            } else if repeated {
+                Some(Problem::Repetition)
             } else if content.is_empty() {
                 Some(Problem::CharacterBreak)
             } else {
@@ -1045,7 +1050,7 @@ impl ChatService {
             };
             match (problem, extra.is_some()) {
                 (Some(p), false) => {
-                    log::info!("silent regenerate: {p:?}");
+                    log::info!("silent regenerate: {p:?}{}", if repeated { " (at the start)" } else { "" });
                     progress(Progress::Restart);
                     extra = Some(p.reminder().replace("{{char}}", &character.name));
                 }
@@ -1092,33 +1097,38 @@ impl ChatService {
 /// Streams a reply and stops it where the model starts to write the user's
 /// part. That line never reaches the screen, so the text on the screen is
 /// the text that the guard keeps, and the engine does not write what the
-/// guard throws away. `stopped` stays true only when the user stopped it.
+/// guard throws away. With `recent` replies, the start of the reply also
+/// waits for the repeat check, and a copied opening stops the stream before
+/// it shows. The second value is true then. `stopped` stays true only when
+/// the user stopped the reply.
 async fn stream_reply(
     client: &crate::ollama::Client,
     params: &ChatParams<'_>,
     cancel: &CancellationToken,
     user_name: &str,
+    recent: &[&str],
     progress: &mut impl FnMut(Progress<'_>),
-) -> Result<crate::ollama::ChatOutcome> {
+) -> Result<(crate::ollama::ChatOutcome, bool)> {
     let stop = cancel.child_token();
     let mut live = guard::LiveCut::new(user_name);
+    let mut start = guard::StartWatch::new(recent);
     let mut outcome = client
         .chat(params, REPLY_TIMEOUT, &stop, |t| {
-            let shown = live.push(t);
+            let shown = start.push(&live.push(t));
             if !shown.is_empty() {
                 progress(Progress::Text(&shown));
             }
-            if live.cut {
+            if live.cut || start.repeated {
                 stop.cancel();
             }
         })
         .await?;
-    let rest = live.finish();
+    let rest = start.push(&live.finish()) + &start.finish();
     if !rest.is_empty() {
         progress(Progress::Text(&rest));
     }
     outcome.stopped = cancel.is_cancelled();
-    Ok(outcome)
+    Ok((outcome, start.repeated))
 }
 
 fn chat_params<'a>(

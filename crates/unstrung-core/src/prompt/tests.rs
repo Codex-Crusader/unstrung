@@ -87,7 +87,11 @@ fn order_is_rules_card_persona_history_reminder() {
     let last = &p.messages[2].content;
     assert!(last.starts_with("Hello\n\n[Reply guide for Ren Kagami. Not part of the story.]"));
     assert!(last.contains("Voice of Ren Kagami: Short, dry sentences."));
-    assert!(last.contains("Your last reply began with \"Sit.\". Begin this one"));
+    // The greeting is not quoted, because small models copy it.
+    assert!(!last.contains("Your last reply began with"));
+    let later = [msg("character", "Sit."), msg("user", "Hello"), msg("character", "Talk."), msg("user", "Fine")];
+    let p = build(&input(&c, Some(&k), &later));
+    assert!(p.messages.last().unwrap().content.contains("Your last reply began with \"Talk.\". Begin this one"));
     assert!(last.ends_with("Reply as Ren Kagami only."));
     assert_eq!(p.options.num_predict, 250);
     assert_eq!(p.options.stop, ["\nKai:", "Kai:"]);
@@ -101,6 +105,8 @@ fn hostile_card_text_stays_in_its_section() {
     let history = [msg("user", "Hi")];
     let p = build(&input(&c, None, &history));
     let system = &p.messages[0].content;
+    // With no persona, the character does not make up a name for the user.
+    assert!(system.contains("User did not tell Ren Kagami a name."));
     // The rules come first, and the card text only after its own heading.
     assert!(system.starts_with("You write one side of a roleplay chat."));
     let heading = system.find("## You are Ren Kagami").unwrap();

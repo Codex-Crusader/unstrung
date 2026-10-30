@@ -93,16 +93,86 @@ pub fn check(text: &str, recent: &[&str]) -> Option<Problem> {
         return Some(Problem::CharacterBreak);
     }
     let words = words(&lower);
-    for earlier in recent.iter().rev().take(3) {
-        let other = words_of(earlier);
-        if words.len() >= 5 && other.len() >= 5 && words[..5] == other[..5] {
-            return Some(Problem::Repetition);
-        }
-        if shares_run(&words, &other, 10) {
-            return Some(Problem::Repetition);
+    let others: Vec<Vec<String>> = recent.iter().rev().take(3).map(|e| words_of(e)).collect();
+    // The start of a reply gets the strict rule, the same as `StartWatch`.
+    // Further in, one sentence said again is not worth a new reply, so only
+    // a long copied run counts.
+    let start = &words[..words.len().min(START_WORDS)];
+    let copied = others.iter().any(|o| shares_run(&words, o, LONG_RUN));
+    (repeats(start, &others) || copied).then_some(Problem::Repetition)
+}
+
+/// A run of words that counts as a copy anywhere in a reply.
+const LONG_RUN: usize = 20;
+
+/// True when `words` start like one of `others`, or share a run of 10 words
+/// with one of them.
+fn repeats(words: &[String], others: &[Vec<String>]) -> bool {
+    others.iter().any(|other| {
+        (words.len() >= 5 && other.len() >= 5 && words[..5] == other[..5])
+            || shares_run(words, other, 10)
+    })
+}
+
+/// Words at the start of a reply that wait for the repeat check.
+const START_WORDS: usize = 20;
+
+/// Watches the start of a streaming reply for a copy of a recent reply, with
+/// the same rule as `check`. The first words wait until the check clears, so
+/// a copied opening never reaches the screen, and the caller can stop and
+/// write the reply again before the user sees anything.
+pub struct StartWatch {
+    others: Vec<Vec<String>>,
+    held: String,
+    open: bool,
+    pub repeated: bool,
+}
+
+impl StartWatch {
+    /// With no `recent` replies, all text passes at once.
+    pub fn new(recent: &[&str]) -> Self {
+        Self {
+            others: recent.iter().take(3).map(|e| words_of(e)).collect(),
+            held: String::new(),
+            open: recent.is_empty(),
+            repeated: false,
         }
     }
-    None
+
+    /// Adds streamed text and returns the text to show now.
+    pub fn push(&mut self, piece: &str) -> String {
+        if self.open {
+            return piece.to_owned();
+        }
+        if self.repeated {
+            return String::new();
+        }
+        self.held.push_str(piece);
+        let words = words_of(&self.held);
+        let ended = self.held.ends_with(|c: char| !c.is_alphanumeric() && c != '\'');
+        let complete = if ended { words.len() } else { words.len().saturating_sub(1) };
+        if repeats(&words[..complete], &self.others) {
+            self.repeated = true;
+            return String::new();
+        }
+        if complete >= START_WORDS {
+            self.open = true;
+            return std::mem::take(&mut self.held);
+        }
+        String::new()
+    }
+
+    /// The held-back start, when the stream ends before it is long enough.
+    pub fn finish(&mut self) -> String {
+        if self.open || self.repeated {
+            return String::new();
+        }
+        if repeats(&words_of(&self.held), &self.others) {
+            self.repeated = true;
+            return String::new();
+        }
+        std::mem::take(&mut self.held)
+    }
 }
 
 fn words(lower: &str) -> Vec<String> {
@@ -414,6 +484,17 @@ mod tests {
             Some(Problem::Repetition)
         );
         assert_eq!(check("Fine. Sit down.", &["Talk to me, kid."]), None);
+        // Later in a long reply, one sentence said again is fine, but a
+        // copied paragraph is not.
+        let filler = "she checks the gauges and the hull groans around them both ".repeat(3);
+        let order = "stay here and keep an eye on the engine she orders";
+        let earlier = format!("Mara nods. {order}.");
+        assert_eq!(check(&format!("{filler} {order}."), &[&earlier]), None);
+        let paragraph = format!("{order} and do not touch the red valve until I come back with the torch");
+        assert_eq!(
+            check(&format!("{filler} {paragraph}."), &[&format!("Mara nods. {paragraph}.")]),
+            Some(Problem::Repetition)
+        );
     }
 
     #[test]
@@ -441,6 +522,48 @@ mod tests {
         }
         shown.push_str(&live.finish());
         (shown, false)
+    }
+
+    #[test]
+    fn start_watch_holds_a_copied_opening() {
+        let greeting = "Welcome aboard. The engine is dead, the coffee is worse, and you are the first good news I have had all week.";
+        let feed = |watch: &mut StartWatch, text: &str| {
+            let mut shown = String::new();
+            for word in text.split_inclusive(' ') {
+                shown.push_str(&watch.push(word));
+                if watch.repeated {
+                    break;
+                }
+            }
+            shown + &watch.finish()
+        };
+        // A copy of the greeting never shows.
+        let mut watch = StartWatch::new(&[greeting]);
+        assert_eq!(feed(&mut watch, "Welcome aboard. The engine is dead, and more."), "");
+        assert!(watch.repeated);
+        // A copy that starts with other words is found by the 10-word run.
+        let mut watch = StartWatch::new(&[greeting]);
+        feed(&mut watch, "Welcome aboard, Commander Stone. The engine is dead, the coffee is worse, and you are the first");
+        assert!(watch.repeated);
+        // A new reply shows in full, after its first 20 words.
+        let mut watch = StartWatch::new(&[greeting]);
+        let fresh = "Mara wipes her hands on a rag and points at the coupling. That part cracked two jumps ago, and nobody here can weld. Can you?";
+        let mut shown = String::new();
+        let words: Vec<&str> = fresh.split_inclusive(' ').collect();
+        for (i, w) in words.iter().enumerate() {
+            shown.push_str(&watch.push(w));
+            if i < 19 {
+                assert_eq!(shown, "", "word {i}");
+            }
+        }
+        assert_eq!(shown + &watch.finish(), fresh);
+        assert!(!watch.repeated);
+        // A short reply shows when the stream ends.
+        let mut watch = StartWatch::new(&[greeting]);
+        assert_eq!(feed(&mut watch, "Fine. Sit."), "Fine. Sit.");
+        // With no recent replies, nothing waits.
+        let mut watch = StartWatch::new(&[]);
+        assert_eq!(watch.push("Welcome"), "Welcome");
     }
 
     #[test]

@@ -80,6 +80,8 @@ struct CardText {
 
 #[derive(Debug, Default)]
 struct Options {
+    /// Start each chat with no persona, as a user who never set one.
+    no_persona: bool,
     characters: Vec<String>,
     styles: Vec<String>,
     turns: Option<usize>,
@@ -113,6 +115,7 @@ fn options() -> Result<Options, Fail> {
             "--turns" => o.turns = Some(args.next().ok_or("--turns needs a number")?.parse()?),
             "--script" => o.script = Some(args.next().ok_or("--script needs a file")?.into()),
             "--skip-chats" => o.skip_chats = true,
+            "--no-persona" => o.no_persona = true,
             "--skip-injection" => o.skip_injection = true,
             "--label" => {
                 o.label = args
@@ -293,6 +296,7 @@ async fn main() -> Result<(), Fail> {
                     first,
                     personas: &personas,
                     limit: o.turns,
+                    no_persona: o.no_persona,
                 };
                 if let Err(e) = run.go(&mut replies).await {
                     eprintln!("  stopped: {e}");
@@ -359,6 +363,7 @@ struct Run<'a> {
     first: &'a Persona,
     personas: &'a [Persona],
     limit: Option<usize>,
+    no_persona: bool,
 }
 
 impl Run<'_> {
@@ -366,7 +371,7 @@ impl Run<'_> {
         let db = self.service.db();
         let chat = self
             .service
-            .new_chat(self.character.id, Some(self.first.id))
+            .new_chat(self.character.id, (!self.no_persona).then_some(self.first.id))
             .await?
             .chat
             .id;
@@ -392,16 +397,20 @@ impl Run<'_> {
                     said += 1;
                     let start = Instant::now();
                     let mut restarts = 0;
+                    let mut draft = String::new();
                     let result = self
                         .service
                         .send(
                             chat,
                             say,
                             |_| {},
-                            |p| {
-                                if matches!(p, Progress::Restart) {
+                            |p| match p {
+                                Progress::Restart => {
                                     restarts += 1;
+                                    eprintln!("dropped draft ({} words): {draft}", draft.split_whitespace().count());
+                                    draft.clear();
                                 }
+                                Progress::Text(t) => draft.push_str(t),
                             },
                         )
                         .await?;
@@ -430,7 +439,11 @@ impl Run<'_> {
                         &last,
                         &Context {
                             character: &self.character.name,
-                            persona: &persona.name,
+                            persona: if self.no_persona {
+                                unstrung_core::prompt::NO_PERSONA_NAME
+                            } else {
+                                &persona.name
+                            },
                             other_persona: other,
                             traits: traits_of(&persona.name),
                             range,
