@@ -163,6 +163,23 @@ fn strip_name_prefix<'a>(text: &'a str, char_name: &str) -> &'a str {
 /// lines at the start are dropped, and the first one after a kept line cuts
 /// the reply there. If nothing is left, the reply loop makes the reply again.
 /// Lines where the character only names the user (`Kai, sit down.`) stay.
+/// True when a sentence starts with the persona acting ("Kai nods") or with
+/// the persona's body or things ("Kai's hands shake"). The quality check
+/// uses it on every sentence, the guard on line starts.
+pub fn narrates_user(sentence: &str, persona: &str) -> bool {
+    let mut words = sentence.trim_start().trim_start_matches('*').split_whitespace();
+    let (Some(first), Some(second)) = (words.next(), words.next()) else {
+        return false;
+    };
+    let first = first.replace('\u{2019}', "'");
+    let second = second.trim_matches(|c: char| !c.is_alphabetic());
+    (first == persona
+        && second.ends_with('s')
+        && second.len() > 2
+        && second.starts_with(|c: char| c.is_lowercase()))
+        || first == format!("{persona}'s")
+}
+
 fn cut_at_user_line(text: &str, user_name: &str, keep_first: bool) -> String {
     if user_name.trim().is_empty() {
         return text.to_owned();
@@ -172,7 +189,8 @@ fn cut_at_user_line(text: &str, user_name: &str, keep_first: bool) -> String {
     let mut kept: Vec<&str> = Vec::new();
     for (i, line) in text.lines().enumerate() {
         let t = line.trim_start();
-        if !(keep_first && i == 0) && (t.starts_with(&speaks) || t.starts_with(&acts)) {
+        let for_user = t.starts_with(&speaks) || t.starts_with(&acts) || narrates_user(t, user_name);
+        if !(keep_first && i == 0) && for_user {
             if kept.iter().any(|k| !k.trim().is_empty()) {
                 break;
             }
@@ -277,5 +295,18 @@ mod tests {
             Some(Problem::Repetition)
         );
         assert_eq!(check("Fine. Sit down.", &["Talk to me, kid."]), None);
+    }
+
+    #[test]
+    fn cuts_lines_that_narrate_the_user() {
+        let reply = "*Ren leans back.* What makes you think I can do better?\n\n\
+                     User nods, pulling out a file. \"The guy's name is Akira Sato.\"\n\n\
+                     Ren raises an eyebrow.";
+        assert_eq!(cut_at_user_line(reply, "User", false), "*Ren leans back.* What makes you think I can do better?");
+        assert!(narrates_user("Kai's hands shake.", "Kai"));
+        assert!(narrates_user("*Kai takes the glass.*", "Kai"));
+        assert!(!narrates_user("\"Kai takes too long,\" Ash says.", "Kai"));
+        assert!(!narrates_user("Kai, sit down.", "Kai"));
+        assert!(!narrates_user("Kai Tanaka was my partner.", "Kai"));
     }
 }

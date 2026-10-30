@@ -154,21 +154,9 @@ pub fn narrates_user(text: &str, persona: &str) -> bool {
             _ => {}
         }
     }
-    let possessive = format!("{persona}'s");
     narration
         .split(['.', '!', '?', '*', '\n', ';'])
-        .map(str::trim)
-        .any(|sentence| {
-            let mut words = sentence.split_whitespace();
-            match (words.next(), words.next()) {
-                (Some(first), Some(second)) => {
-                    let second = second.trim_matches(|c: char| !c.is_alphabetic());
-                    (first == persona && second.ends_with('s') && second.len() > 2)
-                        || first == possessive
-                }
-                _ => false,
-            }
-        })
+        .any(|sentence| guard::narrates_user(sentence, persona))
 }
 
 /// Spoken words. With quotes, the words inside them. With `*actions*` and no

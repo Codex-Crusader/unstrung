@@ -233,6 +233,11 @@ fn conversation_moves_rotate_and_respect_follow_me() {
     assert!(!first.contains("ended with a question"));
     let stall = [msg("user", "ok"), msg("character", "Sit."), msg("user", "hm")];
     assert!(reminder(&stall, "conversational").contains("The talk is slowing down."));
+    // A short message ends with an easy question for the user, which beats
+    // the rule about alternating endings.
+    assert!(short.contains("Then end the reply by asking Kai "), "{short}");
+    let quiet = reminder(&[msg("character", "*Ren waits.* \"Well?\""), msg("user", "ok")], "conversational");
+    assert!(quiet.contains("end the reply by asking Kai") && !quiet.contains("ended with a question"));
     // Follow me asked for no new events.
     let custom = r#"{"length":"short","talk":"mixed","description":"some","initiative":"follow_me","perspective":"third","actions":"asterisks"}"#;
     let mut i = input(&c, Some(&k), &stall);

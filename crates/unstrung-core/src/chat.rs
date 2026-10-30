@@ -22,6 +22,8 @@ pub const MAX_MESSAGE_CHARS: usize = 8000;
 pub const REPLY_TIMEOUT: Duration = Duration::from_secs(60);
 /// The open-thread question is short. A slow answer is skipped.
 const THREAD_TIMEOUT: Duration = Duration::from_secs(20);
+/// The open thread shows only after a user message this short or shorter.
+const THREAD_SHORT_WORDS: usize = 8;
 /// Open-thread answers kept in memory before the cache starts again.
 const THREAD_CACHE: usize = 1000;
 /// The end-reminder line for "Continue".
@@ -859,10 +861,20 @@ impl ChatService {
         user_name: &str,
         history: &[Message],
     ) -> Option<String> {
-        let newest = history.last()?.id;
+        let newest_message = history.last()?;
+        let newest = newest_message.id;
         let cached = |id: i64| self.threads.lock().ok().and_then(|t| t.get(&id).cloned());
         if let Some(hit) = cached(newest) {
             return hit;
+        }
+        // A full message means the user leads, so the character follows it.
+        // Storing "nothing" also ends the chain of notes, so a wrong note
+        // from the model cannot come back again and again.
+        if newest_message.content.split_whitespace().count() > THREAD_SHORT_WORDS {
+            if let Ok(mut t) = self.threads.lock() {
+                t.insert(newest, None);
+            }
+            return None;
         }
         let previous = history
             .iter()

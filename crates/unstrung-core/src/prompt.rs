@@ -11,7 +11,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 8;
+pub const PROMPT_VERSION: i64 = 9;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -171,6 +171,22 @@ const MOVES: [&str; 8] = [
     "{{char}} hints at a secret or a problem, without explaining all of it.",
     "{{char}} gives {{user}} a choice between two things.",
 ];
+
+/// Easy questions that give a quiet user something to talk about. They
+/// rotate, so the chat does not turn into the same question again.
+const USER_QUESTIONS: [&str; 5] = [
+    "which of two things {{user}} would choose",
+    "what {{user}} thinks about something that {{char}} just said or did",
+    "about a small memory from {{user}}'s own life that fits the talk",
+    "what {{user}} would do in {{char}}'s place",
+    "about {{user}}'s day, or why {{user}} came here",
+];
+
+/// The easy question for this reply.
+fn user_question(history: &[Message]) -> &'static str {
+    let replies = history.iter().filter(|m| m.role == "character").count();
+    USER_QUESTIONS[replies % USER_QUESTIONS.len()]
+}
 
 /// The move for this reply. It changes with each character reply. A short
 /// message has no word worth asking about, so it skips the first move.
@@ -384,19 +400,29 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         }
         let short = short_user_turns(input.history);
         let idea = next_move(input.history, short > 0);
+        // A short message gives the character little, so the reply ends with
+        // an easy question that gives the user something to talk about.
+        let ask = user_question(input.history);
         match short {
             0 => {}
-            1 => reminder.push_str(&format!(
-                "{{{{user}}}}'s message is short, so do not only agree. In this reply, {idea}\n"
+            // With an open thread, coming back to it is the move.
+            1 if input.open_thread.is_some() => reminder.push_str(&format!(
+                "{{{{user}}}}'s message is short. End the reply by asking {{{{user}}}} {ask}.\n"
             )),
-            _ => reminder.push_str(
-                "The talk is slowing down. {{char}} now brings in something new and concrete: \
-                 an event, a person, a discovery or a secret of {{char}}'s.\n",
-            ),
+            1 => reminder.push_str(&format!(
+                "{{{{user}}}}'s message is short, so do not only agree. In this reply, {idea} \
+                 Then end the reply by asking {{{{user}}}} {ask}.\n"
+            )),
+            _ => reminder.push_str(&format!(
+                "The talk is slowing down. {{{{char}}}} now brings in something new and concrete: \
+                 an event, a person, a discovery or a secret of {{{{char}}}}'s. Then end the reply \
+                 by asking {{{{user}}}} {ask}.\n"
+            )),
         }
         // Small models end almost every reply with a question, and the chat
-        // starts to feel like an interview. This makes the endings alternate.
-        if last_ended_with_question(input.history) {
+        // starts to feel like an interview. This makes the endings alternate,
+        // except after a short message, where the question is the point.
+        if short == 0 && last_ended_with_question(input.history) {
             reminder.push_str(
                 "Your last reply ended with a question. End this one on an action or a statement.\n",
             );
