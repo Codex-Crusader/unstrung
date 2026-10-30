@@ -180,17 +180,136 @@ pub fn narrates_user(sentence: &str, persona: &str) -> bool {
         || first == format!("{persona}'s")
 }
 
+/// True when a line is the user's part: "Kai: ...", "*Kai ..." or a line
+/// that narrates Kai.
+fn is_user_line(line: &str, user_name: &str) -> bool {
+    let t = line.trim_start();
+    !user_name.trim().is_empty()
+        && (t.starts_with(&format!("{user_name}:"))
+            || t.starts_with(&format!("*{user_name} "))
+            || narrates_user(t, user_name))
+}
+
+/// Watches a reply while it streams, with the same rule as `cut_at_user_line`.
+/// The start of each line waits until its first words show whose line it is,
+/// so a line that the guard cuts never reaches the screen. When the model
+/// starts to write the user's part after some text, `cut` turns true and the
+/// caller stops the stream.
+pub struct LiveCut<'a> {
+    user_name: &'a str,
+    text: String,
+    shown: usize,
+    line_start: usize,
+    decided: bool,
+    skip: bool,
+    kept_any: bool,
+    pub cut: bool,
+}
+
+impl<'a> LiveCut<'a> {
+    pub fn new(user_name: &'a str) -> Self {
+        Self {
+            user_name,
+            text: String::new(),
+            shown: 0,
+            line_start: 0,
+            decided: false,
+            skip: false,
+            kept_any: false,
+            cut: false,
+        }
+    }
+
+    /// Adds streamed text and returns the text to show now.
+    pub fn push(&mut self, piece: &str) -> String {
+        let mut out = String::new();
+        if self.cut {
+            return out;
+        }
+        self.text.push_str(piece);
+        loop {
+            let rest = &self.text[self.line_start..];
+            let end = rest.find('\n');
+            if !self.decided {
+                let head = end.map_or(rest, |e| &rest[..e]);
+                if end.is_none() && !self.knows_owner(head) {
+                    break;
+                }
+                self.decide(head.to_owned());
+                if self.cut {
+                    return out;
+                }
+            }
+            let upto = end.map_or(self.text.len(), |e| self.line_start + e + 1);
+            self.show(upto, &mut out);
+            match end {
+                Some(_) => {
+                    self.line_start = upto;
+                    self.decided = false;
+                    self.skip = false;
+                }
+                None => break,
+            }
+        }
+        out
+    }
+
+    /// The held-back end of the reply, when the stream is over.
+    pub fn finish(&mut self) -> String {
+        let mut out = String::new();
+        if self.cut {
+            return out;
+        }
+        if !self.decided {
+            let head = self.text[self.line_start..].to_owned();
+            self.decide(head);
+            if self.cut {
+                return out;
+            }
+        }
+        self.show(self.text.len(), &mut out);
+        out
+    }
+
+    /// A line shows its owner when it has the user's name and one more
+    /// word, or when it is long enough that it cannot be a short name line.
+    fn knows_owner(&self, head: &str) -> bool {
+        let head = head.trim_start();
+        let mut words = head.split_whitespace().count();
+        if !head.ends_with(char::is_whitespace) {
+            words = words.saturating_sub(1);
+        }
+        words > self.user_name.split_whitespace().count() || head.len() >= 80
+    }
+
+    fn decide(&mut self, head: String) {
+        self.decided = true;
+        if is_user_line(&head, self.user_name) {
+            if self.kept_any {
+                self.cut = true;
+            } else {
+                self.skip = true;
+            }
+        }
+    }
+
+    fn show(&mut self, upto: usize, out: &mut String) {
+        let piece = &self.text[self.shown..upto];
+        if !self.skip {
+            self.kept_any |= !piece.trim().is_empty();
+            out.push_str(piece);
+        }
+        self.shown = upto;
+    }
+}
+
 fn cut_at_user_line(text: &str, user_name: &str, keep_first: bool) -> String {
     if user_name.trim().is_empty() {
         return text.to_owned();
     }
-    let speaks = format!("{user_name}:");
-    let acts = format!("*{user_name} ");
     let mut kept: Vec<&str> = Vec::new();
     for (i, line) in text.lines().enumerate() {
-        let t = line.trim_start();
-        let for_user = t.starts_with(&speaks) || t.starts_with(&acts) || narrates_user(t, user_name);
-        if !(keep_first && i == 0) && for_user {
+        if !(keep_first && i == 0) && is_user_line(line, user_name) {
             if kept.iter().any(|k| !k.trim().is_empty()) {
                 break;
             }
@@ -308,5 +427,41 @@ mod tests {
         assert!(!narrates_user("\"Kai takes too long,\" Ash says.", "Kai"));
         assert!(!narrates_user("Kai, sit down.", "Kai"));
         assert!(!narrates_user("Kai Tanaka was my partner.", "Kai"));
+    }
+
+    /// Streams `pieces` through a `LiveCut` and returns what the screen got.
+    fn stream(pieces: &[&str]) -> (String, bool) {
+        let mut live = LiveCut::new("Kai");
+        let mut shown = String::new();
+        for p in pieces {
+            shown.push_str(&live.push(p));
+            if live.cut {
+                return (shown, true);
+            }
+        }
+        shown.push_str(&live.finish());
+        (shown, false)
+    }
+
+    #[test]
+    fn live_cut_stops_before_the_user_line() {
+        // The user's line never shows, not even its first word.
+        let (shown, cut) = stream(&["Ren sits.", "\n\nKai", "'s jaw", " tightened.", "\nRen waits."]);
+        assert_eq!((shown.as_str(), cut), ("Ren sits.\n\n", true));
+        let (shown, cut) = stream(&["Ren sits.\n", "Kai: ", "Thanks.\n"]);
+        assert_eq!((shown.as_str(), cut), ("Ren sits.\n", true));
+        // Lines of the character stream as they come.
+        let (shown, cut) = stream(&["Ren", " sits", " down.", "\nKai, he", " says, sit."]);
+        assert_eq!((shown.as_str(), cut), ("Ren sits down.\nKai, he says, sit.", false));
+        // At the start, the guard drops the user's line and keeps the rest.
+        let (shown, cut) = stream(&["*Kai nods.*\n", "Ren lights a match."]);
+        assert_eq!((shown.as_str(), cut), ("Ren lights a match.", false));
+        // A short last line still shows when the stream ends.
+        assert_eq!(stream(&["Ren sits.\n", "Go."]).0, "Ren sits.\nGo.");
+        // The screen gets the same text that the guard keeps.
+        let raw = "*Ren leans back.* Talk.\n\nKai nods, pulling out a file.\n\nRen reads it.";
+        let pieces: Vec<String> = raw.chars().map(String::from).collect();
+        let refs: Vec<&str> = pieces.iter().map(String::as_str).collect();
+        assert_eq!(stream(&refs).0.trim(), cut_at_user_line(raw, "Kai", false));
     }
 }

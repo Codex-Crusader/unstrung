@@ -1020,14 +1020,14 @@ impl ChatService {
                 continuation: false,
                 tuning: &tuning,
             });
-            let outcome = client
-                .chat(
-                    &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
-                    REPLY_TIMEOUT,
-                    cancel,
-                    |t| progress(Progress::Text(t)),
-                )
-                .await?;
+            let outcome = stream_reply(
+                &client,
+                &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
+                cancel,
+                &prompt.user_name,
+                &mut progress,
+            )
+            .await?;
             log_tokens(&prompt.messages, outcome.prompt_eval_count);
             let content = guard::clean(
                 &outcome.text,
@@ -1087,6 +1087,38 @@ impl ChatService {
             hint,
         })
     }
+}
+
+/// Streams a reply and stops it where the model starts to write the user's
+/// part. That line never reaches the screen, so the text on the screen is
+/// the text that the guard keeps, and the engine does not write what the
+/// guard throws away. `stopped` stays true only when the user stopped it.
+async fn stream_reply(
+    client: &crate::ollama::Client,
+    params: &ChatParams<'_>,
+    cancel: &CancellationToken,
+    user_name: &str,
+    progress: &mut impl FnMut(Progress<'_>),
+) -> Result<crate::ollama::ChatOutcome> {
+    let stop = cancel.child_token();
+    let mut live = guard::LiveCut::new(user_name);
+    let mut outcome = client
+        .chat(params, REPLY_TIMEOUT, &stop, |t| {
+            let shown = live.push(t);
+            if !shown.is_empty() {
+                progress(Progress::Text(&shown));
+            }
+            if live.cut {
+                stop.cancel();
+            }
+        })
+        .await?;
+    let rest = live.finish();
+    if !rest.is_empty() {
+        progress(Progress::Text(&rest));
+    }
+    outcome.stopped = cancel.is_cancelled();
+    Ok(outcome)
 }
 
 fn chat_params<'a>(
