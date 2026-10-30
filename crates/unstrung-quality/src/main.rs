@@ -196,7 +196,7 @@ impl log::Log for ThreadLog {
 
     fn log(&self, record: &log::Record<'_>) {
         let text = record.args().to_string();
-        if text.starts_with("open thread") {
+        if text.starts_with("open thread") || text.starts_with("prompt tokens") || text.starts_with("silent regenerate") {
             eprintln!("{text}");
         }
     }

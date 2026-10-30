@@ -286,3 +286,77 @@ fn open_thread_question_and_answer() {
     let long = "Request: one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen";
     assert_eq!(clean_open_thread(long).unwrap().split_whitespace().count(), 15);
 }
+
+/// The full prompt for a set of typical turns, compared with a saved copy.
+/// A change to the prompt text must update the copy on purpose: run the
+/// tests with UNSTRUNG_UPDATE_GOLDEN=1 and read the diff.
+#[test]
+fn golden_prompts() {
+    let (c, k) = (ren(), kai());
+    let long = "I came here because the rain would not stop and I need a place to think.";
+    let follow = r#"{"length":"short","talk":"mixed","description":"some","initiative":"follow_me","perspective":"third","actions":"asterisks"}"#;
+    let greet = || msg("character", "Door was unlocked. Sit. Talk.");
+    // name, history, style, custom, persona, push, open thread, extra, continuation
+    type Case<'a> = (&'a str, Vec<Message>, &'a str, &'a str, bool, bool, Option<&'a str>, Option<&'a str>, bool);
+    let cases: Vec<Case> = vec![
+        ("first full", vec![greet(), msg("user", long)], "conversational", "", true, false, None, None, false),
+        ("first short", vec![greet(), msg("user", "ok")], "conversational", "", true, false, None, None, false),
+        ("no persona", vec![greet(), msg("user", long)], "conversational", "", false, false, None, None, false),
+        ("stall", vec![greet(), msg("user", "ok"), msg("character", "*Ren shrugs.* Fine."), msg("user", "hm")], "conversational", "", true, false, None, None, false),
+        ("ended with question", vec![greet(), msg("user", long), msg("character", "*Ren waits.* Well?"), msg("user", long)], "conversational", "", true, false, None, None, false),
+        ("short after question", vec![greet(), msg("user", long), msg("character", "*Ren waits.* Well?"), msg("user", "ok")], "conversational", "", true, false, None, None, false),
+        ("open thread full", vec![greet(), msg("user", "Find my book."), msg("character", "*Ren nods.* Sure."), msg("user", long)], "storyteller", "", true, false, Some("the red book"), None, false),
+        ("open thread short", vec![greet(), msg("user", "Find my book."), msg("character", "*Ren nods.* Sure."), msg("user", "nice")], "storyteller", "", true, false, Some("the red book"), None, false),
+        ("texting", vec![greet(), msg("user", long)], "texting", "", true, false, None, None, false),
+        ("novel", vec![greet(), msg("user", long)], "novel", "", true, false, None, None, false),
+        ("follow me", vec![greet(), msg("user", "ok"), msg("character", "Fine."), msg("user", "hm")], "custom", follow, true, false, None, None, false),
+        ("push character", vec![greet(), msg("user", long)], "conversational", "", true, true, None, None, false),
+        ("regenerate note", vec![greet(), msg("user", long)], "conversational", "", true, false, None, Some("Do not repeat your last reply."), false),
+        ("continuation", vec![greet(), msg("user", long), msg("character", "The case started")], "conversational", "", true, false, None, None, true),
+        ("ooc and system", vec![greet(), msg("ooc", "make it darker"), msg("system", "User is now Nora."), msg("user", long)], "storyteller", "", false, false, None, None, false),
+    ];
+    let mut out = String::new();
+    for (name, history, style, custom, persona, push, thread, extra, cont) in &cases {
+        let mut i = input(&c, persona.then_some(&k), history);
+        i.style = StyleSettings::of(style, custom);
+        i.push_character = *push;
+        i.open_thread = *thread;
+        i.extra_reminder = *extra;
+        i.continuation = *cont;
+        let p = build(&i);
+        out.push_str(&format!("=== {name}\n"));
+        for m in &p.messages {
+            out.push_str(&format!("[{}]\n{}\n", m.role, m.content));
+        }
+        out.push_str(&format!("[options] {:?}\n\n", p.options));
+    }
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/prompt/golden.txt");
+    if std::env::var_os("UNSTRUNG_UPDATE_GOLDEN").is_some() {
+        std::fs::write(path, &out).unwrap();
+    }
+    let saved = std::fs::read_to_string(path).unwrap_or_default().replace("\r\n", "\n");
+    if saved != out {
+        let at = saved.lines().zip(out.lines()).position(|(a, b)| a != b).unwrap_or(0);
+        panic!(
+            "the prompt changed at line {}:\nsaved: {:?}\nnow:   {:?}",
+            at + 1,
+            saved.lines().nth(at),
+            out.lines().nth(at)
+        );
+    }
+}
+
+/// Each guide rule prevents one failure, and no failure has two rules.
+#[test]
+fn guide_rules_map_to_failures() {
+    use guide::Failure::*;
+    let all = [
+        GenericVoice, IgnoresStyle, Repeats, DropsRequest, Passive, Interview, WrongName,
+        ModelQuirk, FailedCheck, SpeaksForUser,
+    ];
+    for failure in all {
+        let rules = guide::RULES.iter().filter(|r| r.fixes == failure).count();
+        assert_eq!(rules, 1, "{failure:?}");
+    }
+    assert_eq!(guide::RULES.len(), all.len());
+}

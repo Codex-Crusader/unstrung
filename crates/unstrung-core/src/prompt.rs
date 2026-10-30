@@ -42,9 +42,6 @@ If a scene goes there, {{char}} steers it away, in character.";
 /// The first line of the end reminder. The guard removes it if a reply copies it.
 pub const REMINDER_HEAD: &str = "[Reply guide for {{char}}. Not part of the story.]";
 const STORY_NOTE: &str = "Story note, not said by anyone:";
-const OPENING_WORDS: usize = 5;
-/// A user message with this many words or fewer gives the character little to answer.
-const SHORT_MESSAGE_WORDS: usize = 4;
 /// Messages that the open-thread question shows, and words kept from each.
 const THREAD_MESSAGES: usize = 8;
 const THREAD_MESSAGE_WORDS: usize = 80;
@@ -159,54 +156,6 @@ fn push_merged(messages: &mut Vec<ChatMessage>, role: &'static str, content: Str
     }
 }
 
-/// Ways to keep a conversation going. The reminder offers one per reply, in
-/// turn, so the character does not use the same trick every time.
-const MOVES: [&str; 8] = [
-    "pick up a word or detail from {{user}}'s message and ask about it.",
-    "{{char}} shares a short memory or opinion that ties to the talk.",
-    "something small happens near {{char}}: a sound, a call, a visitor or an object.",
-    "{{char}} makes an offer, or suggests something to do together.",
-    "{{char}} teases, challenges or disagrees with {{user}} a little, in character.",
-    "{{char}} brings back something that {{user}} said earlier in the chat.",
-    "{{char}} hints at a secret or a problem, without explaining all of it.",
-    "{{char}} gives {{user}} a choice between two things.",
-];
-
-/// Easy questions that give a quiet user something to talk about. They
-/// rotate, so the chat does not turn into the same question again.
-const USER_QUESTIONS: [&str; 5] = [
-    "which of two things {{user}} would choose",
-    "what {{user}} thinks about something that {{char}} just said or did",
-    "about a small memory from {{user}}'s own life that fits the talk",
-    "what {{user}} would do in {{char}}'s place",
-    "about {{user}}'s day, or why {{user}} came here",
-];
-
-/// The easy question for this reply.
-fn user_question(history: &[Message]) -> &'static str {
-    let replies = history.iter().filter(|m| m.role == "character").count();
-    USER_QUESTIONS[replies % USER_QUESTIONS.len()]
-}
-
-/// The move for this reply. It changes with each character reply. A short
-/// message has no word worth asking about, so it skips the first move.
-fn next_move(history: &[Message], short: bool) -> &'static str {
-    let replies = history.iter().filter(|m| m.role == "character").count();
-    let moves = if short { &MOVES[1..] } else { &MOVES[..] };
-    moves[replies % moves.len()]
-}
-
-/// How many of the user's last messages in a row are short, up to 2.
-fn short_user_turns(history: &[Message]) -> usize {
-    history
-        .iter()
-        .rev()
-        .filter(|m| m.role == "user")
-        .take(2)
-        .take_while(|m| m.content.split_whitespace().count() <= SHORT_MESSAGE_WORDS)
-        .count()
-}
-
 /// The question that finds what the user still waits for, from the messages
 /// before the newest one. The newest message gets its own answer in the
 /// reply. `previous` is the answer of the check before, so a request that was
@@ -290,37 +239,6 @@ pub fn clean_open_thread(answer: &str) -> Option<String> {
     Some(text)
 }
 
-/// True when the character's last reply ended with a question.
-fn last_ended_with_question(history: &[Message]) -> bool {
-    history
-        .iter()
-        .rev()
-        .find(|m| m.role == "character")
-        .is_some_and(|m| {
-            m.content
-                .trim_end()
-                .trim_end_matches(['*', '"', '\u{201d}', '_', ' '])
-                .ends_with('?')
-        })
-}
-
-/// The first words of the character's last reply.
-fn last_opening(history: &[Message]) -> Option<String> {
-    let at = history.iter().rposition(|m| m.role == "character")?;
-    // The greeting is not quoted: on the first reply, small models copy the
-    // quoted greeting instead of starting with something new.
-    if !history[..at].iter().any(|m| m.role == "user") {
-        return None;
-    }
-    let last = &history[at];
-    let words: Vec<&str> = last
-        .content
-        .split_whitespace()
-        .take(OPENING_WORDS)
-        .collect();
-    (!words.is_empty()).then(|| words.join(" ").replace('"', "'"))
-}
-
 pub fn build(input: &PromptInput<'_>) -> Prompt {
     let character = input.character;
     let user_name = input.persona.map_or(NO_PERSONA_NAME, |p| p.name.as_str());
@@ -384,82 +302,24 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
 
     // 9: end reminder. It goes in the user role, because chat templates move
     // every system message to the top of the prompt.
-    let mut reminder = String::from(REMINDER_HEAD);
-    reminder.push('\n');
-    let anchor = character.voice_anchor.trim();
-    if !anchor.is_empty() {
-        reminder.push_str(&format!("Voice of {{{{char}}}}: {anchor}\n"));
-        if input.push_character {
-            reminder.push_str("Stay true to this voice in every line.\n");
-        }
-    }
-    reminder.push_str(&format!(
-        "Tone: {tone_text}\nReply style: {}\n",
-        style.instruction()
-    ));
-    if let Some(opening) = last_opening(input.history) {
-        reminder.push_str(&format!(
-            "Your last reply began with \"{opening}\". Begin this one with something new that {{{{char}}}} does or says.\n"
-        ));
-    }
-    // A short user message gives the character nothing to work with, so the
-    // reminder offers one idea to keep the talk going. A full message gets no
-    // idea: small models then answer the idea and ignore the message.
-    // Not for Follow me, where the user asked for no new events.
-    if !input.continuation && style.initiative != Initiative::FollowMe {
-        if let Some(thread) = input.open_thread {
-            reminder.push_str(&format!(
-                "Still open from earlier in the story: {thread}. Answer {{{{user}}}}'s new message first. \
-                 Then, if it fits, {{{{char}}}} comes back to it.\n"
-            ));
-        }
-        let short = short_user_turns(input.history);
-        let idea = next_move(input.history, short > 0);
-        // A short message gives the character little, so the reply ends with
-        // an easy question that gives the user something to talk about.
-        let ask = user_question(input.history);
-        match short {
-            0 => {}
-            // With an open thread, coming back to it is the move.
-            1 if input.open_thread.is_some() => reminder.push_str(&format!(
-                "{{{{user}}}}'s message is short. End the reply by asking {{{{user}}}} {ask}.\n"
-            )),
-            1 => reminder.push_str(&format!(
-                "{{{{user}}}}'s message is short, so do not only agree. In this reply, {idea} \
-                 Then end the reply by asking {{{{user}}}} {ask}.\n"
-            )),
-            _ => reminder.push_str(&format!(
-                "The talk is slowing down. {{{{char}}}} now brings in something new and concrete: \
-                 an event, a person, a discovery or a secret of {{{{char}}}}'s. Then end the reply \
-                 by asking {{{{user}}}} {ask}.\n"
-            )),
-        }
-        // Small models end almost every reply with a question, and the chat
-        // starts to feel like an interview. This makes the endings alternate,
-        // except after a short message, where the question is the point.
-        if short == 0 && last_ended_with_question(input.history) {
-            reminder.push_str(
-                "Your last reply ended with a question. End this one on an action or a statement.\n",
-            );
-        }
-    }
-    // After a persona change, the history is full of the old name. This line
-    // names the person now, so the character does not keep the old name.
-    if input.persona.is_some() {
-        reminder.push_str("The person you talk to is named {{user}}.\n");
-    }
-    if !tuning.reminder_extra.is_empty() {
-        reminder.push_str(&tuning.reminder_extra);
-        reminder.push('\n');
-    }
-    if let Some(extra) = input.extra_reminder {
-        reminder.push_str(extra);
-        reminder.push('\n');
-    }
-    reminder.push_str(
-        "Do not write what {{user}} says, does or feels. Stop when it is {{user}}'s turn.\n\
-         Reply as {{char}} only.",
-    );
+    let short = guide::short_user_turns(input.history);
+    let turn = guide::Turn {
+        anchor: &character.voice_anchor,
+        push_character: input.push_character,
+        tone: tone_text,
+        style: style.instruction(),
+        opening: guide::last_opening(input.history),
+        leads: !input.continuation && style.initiative != Initiative::FollowMe,
+        short,
+        ended_with_question: guide::last_ended_with_question(input.history),
+        open_thread: input.open_thread,
+        idea: guide::next_move(input.history, short > 0),
+        ask: guide::user_question(input.history),
+        persona: input.persona.is_some(),
+        model_extra: &tuning.reminder_extra,
+        regenerate_note: input.extra_reminder,
+    };
+    let reminder = guide::reminder(REMINDER_HEAD, &turn);
     let reminder = names.fill(&reminder);
 
     // 7: example dialogue.
@@ -572,5 +432,6 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     }
 }
 
+mod guide;
 #[cfg(test)]
 mod tests;
