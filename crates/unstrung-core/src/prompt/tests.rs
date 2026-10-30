@@ -208,6 +208,9 @@ fn conversation_moves_rotate_and_respect_follow_me() {
     let long = "I came here because the rain would not stop and I need a place to think.";
     let first = reminder(&[msg("user", long)], "conversational");
     assert!(!first.contains("In this reply") && !first.contains("slowing down"));
+    // A request gets done in the same reply, and the character brings the clues.
+    assert!(first.contains("If Kai asks Ren Kagami for something, Ren Kagami gives it or does it in this reply"));
+    assert!(first.contains("does not ask Kai to make up clues or events"));
     // The idea for a short message changes with each reply.
     let next = reminder(&[msg("character", "Sit."), msg("user", "ok")], "conversational");
     assert!(next.contains("In this reply, something small happens near Ren Kagami"));
