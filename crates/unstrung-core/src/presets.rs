@@ -230,14 +230,14 @@ impl StyleSettings {
             Initiative::FollowMe => "Only react to what {{user}} does. Do not add new events.",
             Initiative::Balanced => {
                 "Answer what {{user}} said, so {{user}} sees that {{char}} listened. \
-                 If {{user}} asks {{char}} for something, {{char}} gives it or does it in this reply, \
-                 with concrete details. Then {{char}} adds one new thing: a detail, a fact about {{char}}, \
+                 If {{user}} asks {{char}} for something, or answers a question that {{char}} asked, \
+                 {{char}} acts on it in this reply, with concrete details. Then {{char}} adds one new thing: a detail, a fact about {{char}}, \
                  a small event or an offer. {{char}} brings the story and does not ask {{user}} \
                  to make up clues or events."
             }
             Initiative::LeadTheStory => {
-                "Answer what {{user}} said. If {{user}} asks {{char}} for something, {{char}} \
-                 gives it or does it in this reply. Then {{char}} moves the story forward and brings in \
+                "Answer what {{user}} said. If {{user}} asks {{char}} for something, or answers \
+                 a question that {{char}} asked, {{char}} acts on it in this reply. Then {{char}} moves the story forward and brings in \
                  something concrete: an event, a person, a discovery or a problem. {{char}} brings \
                  the story and does not ask {{user}} to make up clues or events."
             }

@@ -183,8 +183,31 @@ pub struct InjectionResult {
     pub note: Option<String>,
 }
 
+/// Prints the open-thread answers, so a run shows what the core found.
+struct ThreadLog;
+
+impl log::Log for ThreadLog {
+    fn enabled(&self, meta: &log::Metadata<'_>) -> bool {
+        meta.level() <= log::Level::Info
+    }
+
+    fn log(&self, record: &log::Record<'_>) {
+        let text = record.args().to_string();
+        if text.starts_with("open thread") {
+            eprintln!("{text}");
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static THREAD_LOG: ThreadLog = ThreadLog;
+
 #[tokio::main]
 async fn main() -> Result<(), Fail> {
+    if log::set_logger(&THREAD_LOG).is_ok() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
     let o = options()?;
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let script_file = o
@@ -631,6 +654,7 @@ async fn prompt_shape_holds(service: &ChatService, chat_id: i64) -> Result<bool,
         style: StyleSettings::of(&chat.reply_style, ""),
         history: &history,
         push_character: false,
+        open_thread: None,
         extra_reminder: None,
         continuation: false,
         tuning: &unstrung_core::catalog::Tuning::default(),

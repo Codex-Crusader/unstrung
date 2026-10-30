@@ -11,7 +11,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 7;
+pub const PROMPT_VERSION: i64 = 8;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -45,6 +45,17 @@ const STORY_NOTE: &str = "Story note, not said by anyone:";
 const OPENING_WORDS: usize = 5;
 /// A user message with this many words or fewer gives the character little to answer.
 const SHORT_MESSAGE_WORDS: usize = 4;
+/// Messages that the open-thread question shows, and words kept from each.
+const THREAD_MESSAGES: usize = 8;
+const THREAD_MESSAGE_WORDS: usize = 80;
+/// Most words kept from the open-thread answer.
+const THREAD_WORDS: usize = 15;
+/// An open thread with one of these words is about the AI, not the story.
+/// Keeping it would make the character come back to that question.
+const THREAD_OFF_STORY: [&str; 11] = [
+    "ai", "artificial", "model", "assistant", "chatbot", "bot", "prompt", "prompts", "rules",
+    "instructions", "system",
+];
 
 const OOC_NOTE: &str = "(Note from {{user}}, not part of the story: {{note}}\n\
 Follow it, and continue the story in character.)";
@@ -59,6 +70,9 @@ pub struct PromptInput<'a> {
     pub history: &'a [Message],
     /// "More in character": the anchor is repeated and the examples are always in.
     pub push_character: bool,
+    /// Something from earlier that the user still waits for, found by
+    /// `open_thread_question`. Small models drop a request after a few turns.
+    pub open_thread: Option<&'a str>,
     /// An extra line for the end reminder, for a silent regenerate.
     pub extra_reminder: Option<&'a str>,
     /// Continue the last message of `history` instead of writing a new one.
@@ -177,6 +191,89 @@ fn short_user_turns(history: &[Message]) -> usize {
         .count()
 }
 
+/// The question that finds what the user still waits for, from the messages
+/// before the newest one. The newest message gets its own answer in the
+/// reply. `previous` is the answer of the check before, so a request that was
+/// found once is not lost. `None` when no earlier user message exists.
+pub fn open_thread_question(
+    char_name: &str,
+    user_name: &str,
+    history: &[Message],
+    previous: Option<&str>,
+) -> Option<String> {
+    let earlier = &history[..history.len().saturating_sub(1)];
+    if !earlier.iter().any(|m| m.role == "user") {
+        return None;
+    }
+    let lines: Vec<String> = earlier
+        .iter()
+        .filter(|m| m.role == "user" || m.role == "character")
+        .rev()
+        .take(THREAD_MESSAGES)
+        .map(|m| {
+            let name = if m.role == "user" { user_name } else { char_name };
+            let words: Vec<&str> = m.content.split_whitespace().take(THREAD_MESSAGE_WORDS).collect();
+            format!("{name}: {}", words.join(" "))
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    let note = previous.map_or_else(String::new, |p| {
+        format!("A note from earlier says that {user_name} was waiting for: {p}.\n\n")
+    });
+    Some(format!(
+        "Here is the end of a roleplay chat between {char_name} and {user_name}.\n\n{}\n\n{note}\
+         Find what {user_name} wants from {char_name}: an object, an action, help or an answer. \
+         Small talk does not count. Then decide if {char_name} already fully gave it or did it \
+         in the chat.\n\
+         Answer in exactly two lines:\n\
+         Request: <what {user_name} wants, in at most 12 words, or none>\n\
+         Done: <yes or no>",
+        lines.join("\n")
+    ))
+}
+
+/// The request from the "Request:" and "Done:" lines, or `None` when there is
+/// no request or it is done. It is model text that came from user text, so
+/// it loses brackets, quotes and length before it goes into the reply guide.
+pub fn clean_open_thread(answer: &str) -> Option<String> {
+    let field = |name: &str| {
+        answer.lines().find_map(|l| {
+            let l = l.trim().trim_start_matches(['*', '-', ' ']);
+            let head = l.get(..name.len())?;
+            head.eq_ignore_ascii_case(name).then(|| l[name.len()..].trim().to_owned())
+        })
+    };
+    let done = field("done:").unwrap_or_default().to_lowercase();
+    if done.trim_start_matches(['*', ' ']).starts_with("yes") {
+        return None;
+    }
+    let line = field("request:")?;
+    let cleaned: String = line
+        .chars()
+        .filter(|c| !matches!(c, '{' | '}' | '[' | ']' | '<' | '>' | '*' | '"' | '`' | '\u{201c}' | '\u{201d}'))
+        .collect();
+    let mut words: Vec<&str> = cleaned.split_whitespace().collect();
+    if words
+        .first()
+        .is_some_and(|w| matches!(w.to_lowercase().trim_end_matches([',', ':', '.']), "yes" | "answer"))
+    {
+        words.remove(0);
+    }
+    let text = words.into_iter().take(THREAD_WORDS).collect::<Vec<_>>().join(" ");
+    let text = text.trim_end_matches(['.', ',', ';', ':']).trim().to_owned();
+    let lower = text.to_lowercase();
+    let empty = ["nothing", "none", "no", "n/a"];
+    let off_story = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| THREAD_OFF_STORY.contains(&w));
+    if off_story || text.is_empty() || empty.iter().any(|e| lower == *e || lower.starts_with(&format!("{e} ")) || lower.starts_with(&format!("{e},")) || lower.starts_with(&format!("{e}."))) {
+        return None;
+    }
+    Some(text)
+}
+
 /// True when the character's last reply ended with a question.
 fn last_ended_with_question(history: &[Message]) -> bool {
     history
@@ -279,6 +376,12 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     // idea: small models then answer the idea and ignore the message.
     // Not for Follow me, where the user asked for no new events.
     if !input.continuation && style.initiative != Initiative::FollowMe {
+        if let Some(thread) = input.open_thread {
+            reminder.push_str(&format!(
+                "Still open from earlier in the story: {thread}. Answer {{{{user}}}}'s new message first. \
+                 Then, if it fits, {{{{char}}}} comes back to it.\n"
+            ));
+        }
         let short = short_user_turns(input.history);
         let idea = next_move(input.history, short > 0);
         match short {

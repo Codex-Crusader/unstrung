@@ -20,6 +20,10 @@ use tokio_util::sync::CancellationToken;
 pub const MAX_MESSAGE_CHARS: usize = 8000;
 /// "No reply after 60 seconds."
 pub const REPLY_TIMEOUT: Duration = Duration::from_secs(60);
+/// The open-thread question is short. A slow answer is skipped.
+const THREAD_TIMEOUT: Duration = Duration::from_secs(20);
+/// Open-thread answers kept in memory before the cache starts again.
+const THREAD_CACHE: usize = 1000;
 /// The end-reminder line for "Continue".
 const CONTINUE_REMINDER: &str =
     "Continue your last reply with one more paragraph. Do not repeat what you already wrote.";
@@ -99,6 +103,9 @@ pub struct ChatService {
     engine: Arc<Engine>,
     // One reply at a time. Holds the token that stops it.
     current: Mutex<Option<CancellationToken>>,
+    // Open-thread answers by the id of the user message they came before. A
+    // regenerate reuses one, and the next check reads it as the earlier note.
+    threads: Mutex<HashMap<i64, Option<String>>>,
 }
 
 /// Clears the "reply in progress" slot when the reply ends in any way.
@@ -125,6 +132,7 @@ impl ChatService {
             db,
             engine,
             current: Mutex::new(None),
+            threads: Mutex::new(HashMap::new()),
         }
     }
 
@@ -603,6 +611,7 @@ impl ChatService {
                 style,
                 history: std::slice::from_ref(&request),
                 push_character: plan.push_character,
+                open_thread: None,
                 extra_reminder: Some(&extra),
                 continuation: false,
                 tuning: &tuning,
@@ -709,6 +718,7 @@ impl ChatService {
             style: StyleSettings::of(&chat.reply_style, &chat.reply_custom),
             history: &history,
             push_character: false,
+            open_thread: None,
             extra_reminder: Some(CONTINUE_REMINDER),
             continuation: mid_sentence,
             tuning: &tuning,
@@ -772,6 +782,7 @@ impl ChatService {
             ),
             history,
             push_character: false,
+            open_thread: None,
             extra_reminder: None,
             continuation: false,
             tuning: &tuning,
@@ -835,6 +846,77 @@ impl ChatService {
             .complete(&chat_params(&model, &messages, &options, think), REPLY_TIMEOUT)
             .await?;
         Ok(clean_line(text.trim().trim_matches('"'), 400))
+    }
+
+    /// Asks the model what the user still waits for from earlier in the chat.
+    /// A failure only costs the hint, so it is logged and skipped.
+    async fn open_thread(
+        &self,
+        client: &crate::ollama::Client,
+        model: &str,
+        tuning: &crate::catalog::Tuning,
+        char_name: &str,
+        user_name: &str,
+        history: &[Message],
+    ) -> Option<String> {
+        let newest = history.last()?.id;
+        let cached = |id: i64| self.threads.lock().ok().and_then(|t| t.get(&id).cloned());
+        if let Some(hit) = cached(newest) {
+            return hit;
+        }
+        let previous = history
+            .iter()
+            .rev()
+            .filter(|m| m.role == "user")
+            .nth(1)
+            .and_then(|m| cached(m.id))
+            .flatten();
+        let question = prompt::open_thread_question(char_name, user_name, history, previous.as_deref())?;
+        let messages = [
+            ChatMessage {
+                role: "system",
+                content: "You read a roleplay chat and answer one question about it. Answer with plain text only."
+                    .into(),
+            },
+            ChatMessage {
+                role: "user",
+                content: question,
+            },
+        ];
+        let options = Options {
+            temperature: 0.0,
+            min_p: 0.0,
+            top_p: 1.0,
+            top_k: 1,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.0,
+            repeat_last_n: 64,
+            // The chat's own size: another size makes the engine load the model again.
+            num_ctx: tuning.context,
+            num_predict: 40,
+            stop: Vec::new(),
+        };
+        let started = std::time::Instant::now();
+        let answer = client
+            .complete(&chat_params(model, &messages, &options, tuning.think.map(|_| false)), THREAD_TIMEOUT)
+            .await;
+        match answer {
+            Ok(text) => {
+                let thread = prompt::clean_open_thread(&text);
+                log::info!("open thread in {} ms: {thread:?}", started.elapsed().as_millis());
+                if let Ok(mut t) = self.threads.lock() {
+                    if t.len() > THREAD_CACHE {
+                        t.clear();
+                    }
+                    t.insert(newest, thread.clone());
+                }
+                thread
+            }
+            Err(e) => {
+                log::warn!("open thread skipped: {e}");
+                None
+            }
+        }
     }
 
     fn begin(&self) -> Result<CancellationToken> {
@@ -903,6 +985,13 @@ impl ChatService {
             .map(|m| m.content.as_str())
             .collect();
 
+        let user_name = persona.as_ref().map_or(prompt::NO_PERSONA_NAME, |p| p.name.as_str());
+        let open_thread = if style.initiative == presets::Initiative::FollowMe {
+            None
+        } else {
+            self.open_thread(&client, &model, &tuning, &character.name, user_name, history)
+                .await
+        };
         let mut extra: Option<String> = None;
         let mut hint = None;
         let (outcome, content, prompt) = loop {
@@ -914,6 +1003,7 @@ impl ChatService {
                 style,
                 history,
                 push_character: plan.push_character,
+                open_thread: open_thread.as_deref(),
                 extra_reminder: extra.as_deref(),
                 continuation: false,
                 tuning: &tuning,
