@@ -22,6 +22,23 @@ pub enum SafeReason {
     DataDidNotOpen,
 }
 
+/// Locks the app folder for this process, so two Unstrung processes never
+/// open the same database. Keep the file open until the process ends. Windows
+/// frees the lock when the process ends, also after a crash, so a lock is
+/// never left behind. `Ok(None)` means another process holds the folder.
+pub fn lock(paths: &AppPaths) -> Result<Option<std::fs::File>> {
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(paths.lock_file())?;
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(e)) => Err(e.into()),
+    }
+}
+
 /// The starts in a row that did not load. A missing or damaged file counts as 0.
 pub fn attempts(paths: &AppPaths) -> u32 {
     std::fs::read_to_string(paths.start_attempts())
@@ -76,6 +93,17 @@ mod tests {
         clear(&paths).unwrap();
         clear(&paths).unwrap();
         assert_eq!(attempts(&paths), 0);
+    }
+
+    #[test]
+    fn only_one_holder_of_the_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        let first = lock(&paths).unwrap();
+        assert!(first.is_some());
+        assert!(lock(&paths).unwrap().is_none());
+        drop(first);
+        assert!(lock(&paths).unwrap().is_some());
     }
 
     #[test]

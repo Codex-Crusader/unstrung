@@ -53,7 +53,8 @@ pub fn start_normally(app: tauri::AppHandle, info: State<'_, StartInfo>) -> CmdR
     // A restart keeps the arguments, and `--safe-start` would come back.
     let args: Vec<String> = std::env::args()
         .skip(1)
-        .filter(|a| a != SAFE_START_ARG)
+        .filter(|a| a != SAFE_START_ARG && a != crate::instance::RESTART_ARG)
+        .chain([crate::instance::RESTART_ARG.to_owned()])
         .collect();
     let exe = std::env::current_exe().map_err(unstrung_core::Error::from)?;
     std::process::Command::new(exe)

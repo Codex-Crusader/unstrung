@@ -72,6 +72,11 @@ impl AppPaths {
         self.root.join("engines")
     }
 
+    /// Held locked while an Unstrung process uses this folder (see `start::lock`).
+    pub fn lock_file(&self) -> PathBuf {
+        self.root.join("app.lock")
+    }
+
     /// The count of starts in a row that did not load (see `start`).
     pub fn start_attempts(&self) -> PathBuf {
         self.root.join("start-attempts.txt")

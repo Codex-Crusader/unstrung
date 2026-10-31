@@ -6,6 +6,7 @@
 
 mod commands;
 mod creator;
+mod instance;
 mod logfile;
 mod safe;
 mod selftest;
@@ -46,6 +47,21 @@ fn main() {
             paths.root().display()
         ));
     }
+    // The lock comes first: a second process must not write the log or count
+    // a start. Windows frees the lock when the process ends, also after a crash.
+    let restart = args.iter().any(|a| a == instance::RESTART_ARG);
+    let folder_lock = match instance::claim(&paths, restart) {
+        instance::Claim::First(lock) => lock,
+        instance::Claim::Second => {
+            if instance::wake_first(&paths) {
+                std::process::exit(0);
+            }
+            fail(&format!(
+                "Unstrung is already open with the app folder {}, but its window does not answer",
+                paths.root().display()
+            ));
+        }
+    };
     if let Err(e) = logfile::init(&paths.logs().join("app.log")) {
         eprintln!("no log file: {e}");
     }
@@ -139,6 +155,9 @@ fn main() {
             safe::repair_fix,
         ])
         .setup(move |app| {
+            // Held until the process ends.
+            std::mem::forget(folder_lock);
+            instance::serve(app.handle(), &paths);
             let mut info = StartInfo {
                 paths: paths.clone(),
                 safe: safe_reason,
