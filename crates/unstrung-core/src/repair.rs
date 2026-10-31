@@ -1,6 +1,7 @@
-//! Quick repair for safe start. `check` only looks. `fix` checks again and
-//! fixes what it can, so it never acts on an old list. Neither one touches
-//! chats, characters, personas or pictures.
+//! Quick and full repair for safe start. `check` changes nothing, except a
+//! write test in each storage folder (an empty file that it deletes at once).
+//! `fix` checks again and fixes what it can, so it never acts on an old list.
+//! Neither one touches chats, characters, personas or pictures.
 
 use crate::avatar::STAGING;
 use crate::db::Db;

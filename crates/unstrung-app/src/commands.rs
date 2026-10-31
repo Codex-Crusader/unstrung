@@ -539,10 +539,14 @@ pub async fn download_model(state: State<'_, AppState>, model: String) -> CmdRes
 /// The path comes only from the picker, never from the page. `None` when the
 /// user closes the picker; otherwise the new model's name.
 #[tauri::command]
-pub async fn import_model_file(state: State<'_, AppState>) -> CmdResult<Option<String>> {
+pub async fn import_model_file(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> CmdResult<Option<String>> {
     #[cfg(windows)]
     {
         let Some(file) = rfd::AsyncFileDialog::new()
+            .set_parent(&window)
             .add_filter("GGUF model", &["gguf"])
             .pick_file()
             .await
@@ -555,7 +559,7 @@ pub async fn import_model_file(state: State<'_, AppState>) -> CmdResult<Option<S
     }
     #[cfg(not(windows))]
     {
-        let _ = state;
+        let _ = (window, state);
         Ok(None)
     }
 }

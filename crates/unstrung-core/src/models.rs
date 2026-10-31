@@ -409,14 +409,27 @@ impl ModelService {
             let path = path.to_owned();
             let show = show.clone();
             let cancel = cancel.clone();
-            tokio::task::spawn_blocking(move || {
+            // Its own loop, not `sha256_of`, so Stop ends a long hash at once.
+            tokio::task::spawn_blocking(move || -> Result<String> {
+                use sha2::Digest;
+                use std::io::Read;
+                let mut file = std::fs::File::open(&path)?;
+                let mut hasher = sha2::Sha256::new();
+                let mut buf = vec![0u8; 1 << 20];
                 let mut done = 0;
-                crate::download::sha256_of(&path, &mut |n| {
-                    done += n;
-                    if !cancel.is_cancelled() {
-                        show(done);
+                loop {
+                    if cancel.is_cancelled() {
+                        return Err(Error::Cancelled);
                     }
-                })
+                    let n = file.read(&mut buf)?;
+                    if n == 0 {
+                        break;
+                    }
+                    hasher.update(&buf[..n]);
+                    done += n as u64;
+                    show(done);
+                }
+                Ok(crate::download::hex(&hasher.finalize()))
             })
             .await
             .map_err(|e| Error::Engine(e.to_string()))??

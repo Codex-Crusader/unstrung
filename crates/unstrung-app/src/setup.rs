@@ -63,12 +63,13 @@ fn shown(path: PathBuf) -> String {
     path.to_string_lossy().into_owned()
 }
 
-/// The Windows folder picker. `None` when the user closes it.
+/// The Windows folder picker. `None` when the user closes it. The window is
+/// its parent, so the picker stays in front and blocks a second one.
 #[tauri::command]
-pub async fn pick_folder(start: Option<String>) -> Option<String> {
+pub async fn pick_folder(window: tauri::WebviewWindow, start: Option<String>) -> Option<String> {
     #[cfg(windows)]
     {
-        let mut dialog = rfd::AsyncFileDialog::new();
+        let mut dialog = rfd::AsyncFileDialog::new().set_parent(&window);
         if let Some(start) = start.filter(|s| !s.is_empty()) {
             dialog = dialog.set_directory(start);
         }
@@ -79,7 +80,7 @@ pub async fn pick_folder(start: Option<String>) -> Option<String> {
     }
     #[cfg(not(windows))]
     {
-        let _ = start;
+        let _ = (window, start);
         None
     }
 }
