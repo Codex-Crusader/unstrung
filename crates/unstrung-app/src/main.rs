@@ -50,16 +50,28 @@ fn main() {
     // The lock comes first: a second process must not write the log or count
     // a start. Windows frees the lock when the process ends, also after a crash.
     let restart = args.iter().any(|a| a == instance::RESTART_ARG);
+    let asked = args.iter().any(|a| a == safe::SAFE_START_ARG);
     let folder_lock = match instance::claim(&paths, restart) {
         instance::Claim::First(lock) => lock,
         instance::Claim::Second => {
-            if instance::wake_first(&paths) {
+            let log = paths.logs().join("app.log");
+            // A relaunch never sends a wish, so two processes cannot keep
+            // restarting each other.
+            let wish = if asked {
+                instance::Wish::Safe
+            } else {
+                instance::Wish::Show
+            };
+            if !restart && instance::send(&paths, wish) {
                 std::process::exit(0);
             }
-            fail(&format!(
-                "Unstrung is already open with the app folder {}, but its window does not answer",
-                paths.root().display()
-            ));
+            let message = if restart {
+                "the earlier Unstrung window did not close in time"
+            } else {
+                "Unstrung is already open with this app folder, but its window does not answer"
+            };
+            logfile::append_one(&log, log::Level::Error, "unstrung_app::instance", message);
+            fail(message);
         }
     };
     if let Err(e) = logfile::init(&paths.logs().join("app.log")) {
@@ -72,7 +84,6 @@ fn main() {
     );
     // The self-test never counts starts, so a killed test run cannot turn the
     // next one into a safe start. It opens safe start only when asked.
-    let asked = args.iter().any(|a| a == safe::SAFE_START_ARG);
     let safe_reason = if self_test {
         asked.then_some(SafeReason::Asked)
     } else {

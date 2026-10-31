@@ -19,16 +19,7 @@ impl log::Log for FileLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let secs = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or_default();
-        let line = format!(
-            "{secs} {} {}: {}\n",
-            record.level(),
-            record.target(),
-            record.args()
-        );
+        let line = line(record.level(), record.target(), record.args());
         if cfg!(debug_assertions) {
             eprint!("{line}");
         }
@@ -41,6 +32,22 @@ impl log::Log for FileLogger {
         if let Ok(mut file) = self.0.lock() {
             let _ = file.flush();
         }
+    }
+}
+
+fn line(level: log::Level, target: &str, message: impl std::fmt::Display) -> String {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_default();
+    format!("{secs} {level} {target}: {message}\n")
+}
+
+/// Adds one line for a process that must not start the logger, because
+/// another process owns the log (a second start). Never rotates the file.
+pub fn append_one(path: &Path, level: log::Level, target: &str, message: &str) {
+    if let Ok(mut file) = OpenOptions::new().append(true).open(path) {
+        let _ = file.write_all(line(level, target, message).as_bytes());
     }
 }
 

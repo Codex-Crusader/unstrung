@@ -109,8 +109,12 @@ fn temp_files(paths: &AppPaths, fix: bool) -> Finding {
     let mut files = Vec::new();
     let staging = paths.root().join(STAGING);
     let staging_bytes = folder_size(&staging);
-    // Half-written files from `starters::write_atomic`, which writes `*.tmp` first.
-    for dir in [paths.root(), paths.avatars().as_path()] {
+    // Half-written files from `files::write_atomic`, which writes `*.tmp` first.
+    for dir in [
+        paths.root(),
+        paths.avatars().as_path(),
+        paths.logs().as_path(),
+    ] {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
