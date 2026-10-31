@@ -222,8 +222,8 @@ impl ModelService {
     }
 
     /// Starts a download in the background. Progress goes to `subscribe`.
-    /// Call it inside a Tokio runtime.
     pub fn download(self: &Arc<Self>, model: &str) -> Result<()> {
+        let runtime = runtime()?;
         let model = catalog::check_tag(model)?;
         let client = self.engine.running_client()?;
         let cancel = CancellationToken::new();
@@ -251,7 +251,7 @@ impl ModelService {
             });
         }
         let service = Arc::clone(self);
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             let mut state = Progress::new(&model);
             service.progress.send_replace(Some(state.view()));
             let result = client
@@ -485,10 +485,27 @@ impl Progress {
     }
 }
 
+/// The Tokio runtime of the caller. A caller on a thread with no runtime
+/// (for example, a sync Tauri command on the main thread) gets an error
+/// instead of a panic, which would end the app.
+fn runtime() -> Result<tokio::runtime::Handle> {
+    tokio::runtime::Handle::try_current()
+        .map_err(|_| Error::Invalid("a download must start inside the async runtime".into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ollama::{InstalledDetails, PullLine};
+
+    #[test]
+    fn a_download_outside_the_runtime_is_an_error() {
+        assert!(super::runtime().is_err());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        assert!(rt.block_on(async { super::runtime() }).is_ok());
+    }
 
     #[test]
     fn progress_adds_files() {
