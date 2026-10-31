@@ -1,8 +1,16 @@
 import { useState } from "react";
 import type { Actions, Description, Initiative, Length, Perspective, StyleSettings, Talk } from "../api";
 import { strings } from "../strings";
+import { Icon, type IconName } from "./Icon";
 
 const PRESETS = ["texting", "conversational", "storyteller", "novel", "custom"] as const;
+const PRESET_ICONS = new Map<string, IconName>([
+  ["texting", "bubble"],
+  ["conversational", "chats"],
+  ["storyteller", "story"],
+  ["novel", "book"],
+  ["custom", "sliders"],
+]);
 
 const CONVERSATIONAL: StyleSettings = {
   length: "short",
@@ -139,7 +147,10 @@ export function StyleEditor({
                 onChange(p, PRESET_SETTINGS.get(p) ?? custom);
               }}
             />
-            <span className="preset-name">{strings.styles.get(p)}</span>
+            <span className="preset-name">
+              <Icon name={PRESET_ICONS.get(p) ?? "style"} />
+              {strings.styles.get(p)}
+            </span>
             <span className="preset-hint">{strings.styleHints.get(p)}</span>
           </label>
         ))}

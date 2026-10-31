@@ -768,7 +768,14 @@ textarea:focus-visible {
 }
 
 .preset-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+}
+
+.preset-name .icon {
+  color: var(--accent);
 }
 
 .preset-hint {

@@ -41,6 +41,32 @@ const ICONS = {
       <path d="M19 9.5a2 2 0 0 1 1 1.7v3.8a2 2 0 0 1-1 1.7V19l-3-2.3h-3.5a2.5 2.5 0 0 1-2.2-1.3" />
     </>
   ),
+  // The reply styles, from short to long.
+  bubble: (
+    <>
+      <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v5a2.5 2.5 0 0 1-2.5 2.5H10l-4 3.5V15a2.5 2.5 0 0 1-1-2z" />
+      {PIN(12, 10)}
+    </>
+  ),
+  story: (
+    <>
+      <path d="M7 3.5h7.5L18 7v12.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z" />
+      <path d="M9 11h6M9 14.5h6M9 18h3.5" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M12 6.5c-2-1.5-4.5-2-8-1.5v13c3.5-.5 6 0 8 1.5 2-1.5 4.5-2 8-1.5V5c-3.5-.5-6 0-8 1.5zM12 6.5V19.5" />
+    </>
+  ),
+  sliders: (
+    <>
+      <path d="M5 7h14M5 12h14M5 17h14" />
+      {PIN(9, 7)}
+      <circle cx={15} cy={12} r={1.9} className="icon-dot" />
+      <circle cx={8} cy={17} r={1.9} className="icon-dot" />
+    </>
+  ),
   tone: (
     <>
       <circle cx={12} cy={12} r={8} />

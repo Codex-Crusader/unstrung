@@ -1,15 +1,16 @@
-import { useState } from "react";
-import { restartEngine, type EngineStatus } from "../api";
+import { useEffect, useState } from "react";
+import { modelsPage, restartEngine, type EngineStatus } from "../api";
 import { strings } from "../strings";
 
-function label(status: EngineStatus): string {
+/** `name` turns a model tag into its catalog name. */
+function label(status: EngineStatus, name: (model: string) => string): string {
   switch (status.state) {
     case "starting":
       return strings.status.starting;
     case "loading_model":
-      return strings.status.loading(status.model);
+      return strings.status.loading(name(status.model));
     case "ready":
-      return `${strings.status.ready} · ${status.model}`;
+      return `${strings.status.ready} · ${name(status.model)}`;
     case "no_model":
       return strings.status.noModel(status.model);
     case "error":
@@ -19,10 +20,28 @@ function label(status: EngineStatus): string {
 
 export function StatusBar({ status, onOpenModels }: { status: EngineStatus; onOpenModels: () => void }) {
   const [showDetail, setShowDetail] = useState(false);
+  const [names, setNames] = useState(new Map<string, string>());
+  // The catalog names, as the header and the Models screen show them.
+  const ready = status.state === "ready";
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    modelsPage()
+      .then((p) => {
+        if (active) setNames(new Map(p.models.map((m) => [m.id, m.name])));
+      })
+      .catch(() => {
+        // Without the list, the bar shows the model tag.
+      });
+    return () => {
+      active = false;
+    };
+  }, [ready]);
+  const name = (model: string) => names.get(model) ?? model;
   return (
     <footer className="status-bar" role="status" aria-live="polite">
       <span className={`pin-dot pin-${status.state}`} aria-hidden="true" />
-      <span className="status-label">{label(status)}</span>
+      <span className="status-label">{label(status, name)}</span>
       {status.state === "no_model" && (
         <button type="button" className="link-button" onClick={onOpenModels}>
           {strings.status.openModels}
