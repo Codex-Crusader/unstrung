@@ -375,6 +375,8 @@ export const strings = {
     repair: "Quick repair",
     repairHint: "Quick repair checks first and shows what it found. It fixes nothing until you press Fix.",
     checking: "Checking...",
+    fullRepair: "Full repair",
+    checkingFull: "Checking every model file. This can take several minutes...",
     fixing: "Fixing...",
     fix: (n: number) => (n === 1 ? "Fix 1 problem" : `Fix ${String(n)} problems`),
     noProblems: "Quick repair found no problems.",

@@ -117,10 +117,13 @@ function QuickRepair() {
   const [busy, setBusy] = useState<"checking" | "fixing" | null>(null);
   const [findings, setFindings] = useState<Finding[] | null>(null);
   const [error, setError] = useState<UiError | null>(null);
-  const run = (step: "checking" | "fixing") => {
+  // Fix uses the same kind of repair as the check before it.
+  const [full, setFull] = useState(false);
+  const run = (step: "checking" | "fixing", deep = full) => {
     setBusy(step);
     setError(null);
-    (step === "checking" ? repairCheck() : repairFix())
+    setFull(deep);
+    (step === "checking" ? repairCheck(deep) : repairFix(deep))
       .then(setFindings)
       .catch((e: unknown) => {
         setError(toUiError(e));
@@ -141,11 +144,21 @@ function QuickRepair() {
           className="button button-quiet"
           disabled={busy !== null}
           onClick={() => {
-            run("checking");
+            run("checking", false);
           }}
         >
           <Icon name="check" />
-          {busy === "checking" ? s.checking : s.repair}
+          {busy === "checking" && !full ? s.checking : s.repair}
+        </button>
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={busy !== null}
+          onClick={() => {
+            run("checking", true);
+          }}
+        >
+          {busy === "checking" && full ? s.checkingFull : s.fullRepair}
         </button>
         {fixable > 0 && (
           <button

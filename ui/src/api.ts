@@ -540,9 +540,9 @@ export function onEngineSetupError(handler: (error: UiError) => void): Promise<U
 }
 
 /** Quick repair, step 1: looks and changes nothing. Safe start only. */
-export const repairCheck = () => invoke<Finding[]>("repair_check");
+export const repairCheck = (full = false) => invoke<Finding[]>("repair_check", { full });
 /** Quick repair, step 2: checks again and fixes. Safe start only. */
-export const repairFix = () => invoke<Finding[]>("repair_fix");
+export const repairFix = (full = false) => invoke<Finding[]>("repair_fix", { full });
 
 export interface SelfTestReport {
   ok: boolean;

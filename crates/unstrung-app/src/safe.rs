@@ -68,19 +68,25 @@ fn only_in_safe_start(info: &StartInfo) -> CmdResult<()> {
 
 /// Quick repair, step 1: look, and change nothing.
 #[tauri::command]
-pub async fn repair_check(info: State<'_, StartInfo>) -> CmdResult<Vec<Finding>> {
+pub async fn repair_check(info: State<'_, StartInfo>, full: bool) -> CmdResult<Vec<Finding>> {
     only_in_safe_start(&info)?;
-    let found = repair::check(&info.paths).await;
-    log::info!("quick repair check: {found:?}");
+    let found = repair::check(&info.paths, full).await;
+    log::info!(
+        "{} repair check: {found:?}",
+        if full { "full" } else { "quick" }
+    );
     Ok(found)
 }
 
 /// Quick repair, step 2, after the user confirms: check again and fix.
 #[tauri::command]
-pub async fn repair_fix(info: State<'_, StartInfo>) -> CmdResult<Vec<Finding>> {
+pub async fn repair_fix(info: State<'_, StartInfo>, full: bool) -> CmdResult<Vec<Finding>> {
     only_in_safe_start(&info)?;
-    let done = repair::fix(&info.paths).await;
-    log::info!("quick repair fix: {done:?}");
+    let done = repair::fix(&info.paths, full).await;
+    log::info!(
+        "{} repair fix: {done:?}",
+        if full { "full" } else { "quick" }
+    );
     Ok(done)
 }
 

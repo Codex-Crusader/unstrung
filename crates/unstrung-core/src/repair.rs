@@ -67,17 +67,18 @@ impl Finding {
     }
 }
 
-/// Looks for problems and changes nothing.
-pub async fn check(paths: &AppPaths) -> Vec<Finding> {
-    run(paths, false).await
+/// Looks for problems and changes nothing. `full` adds a hash check of
+/// every model file (Full repair), which takes minutes.
+pub async fn check(paths: &AppPaths, full: bool) -> Vec<Finding> {
+    run(paths, false, full).await
 }
 
 /// Checks again and fixes what it can.
-pub async fn fix(paths: &AppPaths) -> Vec<Finding> {
-    run(paths, true).await
+pub async fn fix(paths: &AppPaths, full: bool) -> Vec<Finding> {
+    run(paths, true, full).await
 }
 
-async fn run(paths: &AppPaths, fix: bool) -> Vec<Finding> {
+async fn run(paths: &AppPaths, fix: bool, full: bool) -> Vec<Finding> {
     // The file checks read gigabytes, so they run off the async threads,
     // while the database check runs here.
     let blocking = {
@@ -86,7 +87,7 @@ async fn run(paths: &AppPaths, fix: bool) -> Vec<Finding> {
             [
                 engine_files(&paths, fix),
                 location(&paths),
-                models(&paths, fix),
+                models(&paths, fix, full),
                 hardware(&paths),
                 temp_files(&paths, fix),
             ]
@@ -160,12 +161,23 @@ fn location(paths: &AppPaths) -> Finding {
     f
 }
 
-/// A model whose manifest names a file that is gone. The fix removes only
-/// that manifest, so the Models screen offers the model for download again.
+/// A model whose manifest names a file that is gone (with `full`: or whose
+/// file does not match its hash). The fix removes that manifest and the
+/// damaged files, so the Models screen offers the model for download again.
 /// A folder that Unstrung shares with another Ollama is only reported.
-fn models(paths: &AppPaths, fix: bool) -> Finding {
+fn models(paths: &AppPaths, fix: bool, full: bool) -> Finding {
     let (folder, shared) = sidecar::models_folder(paths);
-    let broken = broken_models(&folder);
+    let mut broken = broken_models(&folder);
+    let damaged = if full {
+        damaged_blobs(&folder, &broken)
+    } else {
+        Vec::new()
+    };
+    for (manifest, _) in &damaged {
+        if !broken.contains(manifest) {
+            broken.push(manifest.clone());
+        }
+    }
     if broken.is_empty() {
         return Finding::new(Area::Models, State::Ok);
     }
@@ -188,12 +200,16 @@ fn models(paths: &AppPaths, fix: bool) -> Finding {
     );
     f.detail = list(&names);
     if fix && !shared {
+        let mut blobs: Vec<&PathBuf> = damaged.iter().map(|(_, blob)| blob).collect();
+        blobs.dedup();
         let failed: Vec<String> = broken
             .iter()
-            .filter_map(|m| {
-                std::fs::remove_file(m)
+            .chain(blobs)
+            .filter(|p| p.exists())
+            .filter_map(|p| {
+                std::fs::remove_file(p)
                     .err()
-                    .map(|e| format!("{}: {e}", m.display()))
+                    .map(|e| format!("{}: {e}", p.display()))
             })
             .collect();
         f.state = if failed.is_empty() {
@@ -237,6 +253,47 @@ fn broken_models(folder: &Path) -> Vec<PathBuf> {
             })
         })
         .collect()
+}
+
+/// Full repair: (manifest, blob) pairs whose blob does not match the hash in
+/// its name. Each blob is hashed once. `skip` manifests are already broken.
+fn damaged_blobs(folder: &Path, skip: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
+    let mut manifests = Vec::new();
+    collect_files(&folder.join("manifests"), 3, &mut manifests);
+    let mut verdict: std::collections::HashMap<PathBuf, bool> = std::collections::HashMap::new();
+    let mut damaged = Vec::new();
+    for manifest in manifests.into_iter().filter(|m| !skip.contains(m)) {
+        let Some(json) = std::fs::read(&manifest)
+            .ok()
+            .and_then(|t| serde_json::from_slice::<serde_json::Value>(&t).ok())
+        else {
+            continue;
+        };
+        let config = json.get("config").into_iter();
+        let layers = json
+            .get("layers")
+            .and_then(|l| l.as_array())
+            .into_iter()
+            .flatten();
+        for layer in config.chain(layers) {
+            let Some(hex) = layer
+                .get("digest")
+                .and_then(|d| d.as_str())
+                .and_then(|d| d.strip_prefix("sha256:"))
+            else {
+                continue;
+            };
+            let blob = folder.join("blobs").join(format!("sha256-{hex}"));
+            let good = *verdict.entry(blob.clone()).or_insert_with(|| {
+                crate::download::sha256_of(&blob, &mut |_| {})
+                    .is_ok_and(|h| h.eq_ignore_ascii_case(hex))
+            });
+            if !good {
+                damaged.push((manifest.clone(), blob));
+            }
+        }
+    }
+    damaged
 }
 
 /// The files in the folders `depth` levels below `dir` (0: the files in `dir`).
@@ -452,8 +509,41 @@ mod tests {
     async fn a_clean_folder_passes() {
         let (_dir, paths) = paths();
         Db::open(&paths.database()).await.unwrap().close().await;
-        let found = check(&paths).await;
+        let found = check(&paths, false).await;
         assert!(found.iter().all(|f| f.state == State::Ok), "{found:?}");
+    }
+
+    #[test]
+    fn full_repair_finds_a_changed_model_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        let model = folder.join("manifests/registry.ollama.ai/library/m");
+        std::fs::create_dir_all(&model).unwrap();
+        std::fs::create_dir_all(folder.join("blobs")).unwrap();
+        let blob = |bytes: &[u8]| {
+            let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+            sha2::Digest::update(&mut hasher, bytes);
+            crate::download::hex(&sha2::Digest::finalize(hasher))
+        };
+        let good = blob(b"config");
+        let weights = blob(b"weights");
+        std::fs::write(folder.join(format!("blobs/sha256-{good}")), b"config").unwrap();
+        // The weights file changed after the download.
+        std::fs::write(folder.join(format!("blobs/sha256-{weights}")), b"weightz").unwrap();
+        let json = serde_json::json!({
+            "config": { "digest": format!("sha256:{good}") },
+            "layers": [{ "digest": format!("sha256:{weights}") }],
+        });
+        std::fs::write(model.join("1"), json.to_string()).unwrap();
+        assert!(broken_models(folder).is_empty());
+        let damaged = damaged_blobs(folder, &[]);
+        assert_eq!(
+            damaged,
+            [(
+                model.join("1"),
+                folder.join(format!("blobs/sha256-{weights}"))
+            )]
+        );
     }
 
     #[test]
