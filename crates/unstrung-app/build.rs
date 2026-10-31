@@ -6,6 +6,8 @@ const COMMANDS: &[&str] = &[
     "start_ok",
     "start_normally",
     "diagnostic_report",
+    "repair_check",
+    "repair_fix",
     "get_status",
     "list_characters",
     "list_personas",

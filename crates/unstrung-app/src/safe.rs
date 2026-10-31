@@ -4,7 +4,9 @@
 use crate::commands::CmdResult;
 use serde::Serialize;
 use tauri::State;
+use unstrung_core::Error;
 use unstrung_core::paths::AppPaths;
+use unstrung_core::repair::{self, Finding};
 use unstrung_core::start::{self, SafeReason};
 
 /// How this start went. Managed in both modes, so the window can always ask.
@@ -64,6 +66,33 @@ pub fn start_normally(app: tauri::AppHandle, info: State<'_, StartInfo>) -> CmdR
 }
 
 pub const SAFE_START_ARG: &str = "--safe-start";
+
+/// Quick repair runs only in safe start. In a normal start the saved engine
+/// process is the one that runs now, so a leftover check would stop it.
+fn only_in_safe_start(info: &StartInfo) -> CmdResult<()> {
+    if info.safe.is_none() {
+        return Err(Error::Invalid("quick repair runs only in safe start".into()).into());
+    }
+    Ok(())
+}
+
+/// Quick repair, step 1: look, and change nothing.
+#[tauri::command]
+pub async fn repair_check(info: State<'_, StartInfo>) -> CmdResult<Vec<Finding>> {
+    only_in_safe_start(&info)?;
+    let found = repair::check(&info.paths).await;
+    log::info!("quick repair check: {found:?}");
+    Ok(found)
+}
+
+/// Quick repair, step 2, after the user confirms: check again and fix.
+#[tauri::command]
+pub async fn repair_fix(info: State<'_, StartInfo>) -> CmdResult<Vec<Finding>> {
+    only_in_safe_start(&info)?;
+    let done = repair::fix(&info.paths).await;
+    log::info!("quick repair fix: {done:?}");
+    Ok(done)
+}
 
 /// Lines of the app log in the report.
 const LOG_LINES: usize = 80;

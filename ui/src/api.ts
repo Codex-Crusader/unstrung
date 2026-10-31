@@ -434,6 +434,22 @@ export const startOk = () => invoke<null>("start_ok");
 export const startNormally = () => invoke<null>("start_normally");
 export const diagnosticReport = () => invoke<string>("diagnostic_report");
 
+export type RepairArea = "engine" | "data" | "temp_files";
+export type RepairState = "ok" | "can_fix" | "fixed" | "needs_action";
+
+export interface Finding {
+  area: RepairArea;
+  state: RepairState;
+  /** Bytes of temporary files, found or freed. */
+  bytes: number;
+  detail: string;
+}
+
+/** Quick repair, step 1: looks and changes nothing. Safe start only. */
+export const repairCheck = () => invoke<Finding[]>("repair_check");
+/** Quick repair, step 2: checks again and fixes. Safe start only. */
+export const repairFix = () => invoke<Finding[]>("repair_fix");
+
 export interface SelfTestReport {
   ok: boolean;
   detail: string;

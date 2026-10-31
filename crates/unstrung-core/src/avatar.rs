@@ -22,7 +22,7 @@ const STAGED_SIDE: u32 = 1600;
 /// The smallest crop, in staged pixels.
 const MIN_CROP: u32 = 32;
 pub const AVATAR_SIDE: u32 = 512;
-const STAGING: &str = "staging";
+pub(crate) const STAGING: &str = "staging";
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 

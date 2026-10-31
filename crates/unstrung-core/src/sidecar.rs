@@ -196,32 +196,29 @@ fn save_pid(paths: &AppPaths, pid: u32) {
     }
 }
 
-/// Stops an engine that an earlier run started and did not stop.
-/// The process must still be `ollama.exe` with the same start time, so a reused
-/// process ID, or an Ollama that the user started, is never stopped.
-pub fn stop_leftover(paths: &AppPaths) {
-    let file = paths.engine_pids();
-    let Ok(bytes) = std::fs::read(&file) else {
-        return;
-    };
-    let _ = std::fs::remove_file(&file);
-    let Ok(record) = serde_json::from_slice::<PidRecord>(&bytes) else {
-        return;
-    };
+/// The process ID of an engine that an earlier run started and did not stop.
+/// The process must still be `ollama.exe` with the saved start time, so a
+/// reused process ID, or an Ollama that the user started, never matches.
+/// While this app runs an engine, the saved record is that engine, so call
+/// this only when this run has not started one.
+pub fn leftover(paths: &AppPaths) -> Option<u32> {
+    let bytes = std::fs::read(paths.engine_pids()).ok()?;
+    let record = serde_json::from_slice::<PidRecord>(&bytes).ok()?;
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::All, true);
-    let Some(process) = system.process(Pid::from_u32(record.pid)) else {
-        return;
-    };
+    let process = system.process(Pid::from_u32(record.pid))?;
     let is_ollama = process.name().eq_ignore_ascii_case("ollama.exe")
         || process.name().eq_ignore_ascii_case("ollama");
-    if is_ollama && process.start_time() == record.start_time {
-        log::warn!(
-            "stopping a chat engine left by an earlier run: pid {}",
-            record.pid
-        );
-        kill_tree(record.pid);
+    (is_ollama && process.start_time() == record.start_time).then_some(record.pid)
+}
+
+/// Stops an engine that an earlier run started and did not stop (see `leftover`).
+pub fn stop_leftover(paths: &AppPaths) {
+    if let Some(pid) = leftover(paths) {
+        log::warn!("stopping a chat engine left by an earlier run: pid {pid}");
+        kill_tree(pid);
     }
+    let _ = std::fs::remove_file(paths.engine_pids());
 }
 
 /// Kills a process and its direct children (the model runners).

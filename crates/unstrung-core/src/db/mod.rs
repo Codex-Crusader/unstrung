@@ -62,6 +62,33 @@ impl Db {
         self.pool.close().await;
     }
 
+    /// A full `integrity_check` of a database file that is not open, on a
+    /// read-only connection with no migrations, so a check never changes the
+    /// file. `None` means there is no database yet. An empty list means it passed.
+    pub async fn integrity_check_file(path: &Path) -> Result<Option<Vec<String>>> {
+        if !path.exists() {
+            return Ok(None);
+        }
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .read_only(true)
+            .busy_timeout(Duration::from_secs(5));
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await?;
+        let rows: Vec<(String,)> = sqlx::query_as("PRAGMA integrity_check(20)")
+            .fetch_all(&pool)
+            .await?;
+        pool.close().await;
+        Ok(Some(
+            rows.into_iter()
+                .map(|(row,)| row)
+                .filter(|row| row != "ok")
+                .collect(),
+        ))
+    }
+
     pub async fn quick_check(&self) -> Result<bool> {
         let row: (String,) = sqlx::query_as("PRAGMA quick_check")
             .fetch_one(&self.pool)

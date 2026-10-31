@@ -13,6 +13,8 @@
     "allow-start-ok",
     "allow-start-normally",
     "allow-diagnostic-report",
+    "allow-repair-check",
+    "allow-repair-fix",
     "allow-list-characters",
     "allow-list-personas",
     "allow-open-character",

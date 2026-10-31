@@ -19,6 +19,7 @@ pub mod ollama;
 pub mod paths;
 pub mod presets;
 pub mod prompt;
+pub mod repair;
 pub mod sidecar;
 pub mod start;
 pub mod starters;

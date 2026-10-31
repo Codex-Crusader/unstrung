@@ -135,6 +135,8 @@ fn main() {
             safe::start_ok,
             safe::start_normally,
             safe::diagnostic_report,
+            safe::repair_check,
+            safe::repair_fix,
         ])
         .setup(move |app| {
             let mut info = StartInfo {
