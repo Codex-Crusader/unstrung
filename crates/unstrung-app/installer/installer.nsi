@@ -836,8 +836,12 @@ Section Uninstall
   ; before its own exe is deleted. Never on an update.
   ${If} $DeleteAppDataCheckboxState = 1
   ${AndIf} $UpdateMode <> 1
+    ; An exe that does not start leaves $0 as it was, so it counts as a failure.
+    ClearErrors
+    StrCpy $0 ""
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --delete-data' $0
-    ${If} $0 != 0
+    ${If} ${Errors}
+    ${OrIf} $0 != 0
       MessageBox MB_ICONEXCLAMATION|MB_OK "Unstrung could not delete all of your data. To remove the rest, delete the folder $LOCALAPPDATA\Unstrung and your library folder." /SD IDOK
     ${EndIf}
   ${EndIf}
