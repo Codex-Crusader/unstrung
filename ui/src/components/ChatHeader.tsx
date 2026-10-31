@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ChatView, Persona, StyleSettings } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
+import { Icon } from "./Icon";
 import { StylePanel } from "./StylePanel";
 
 const TONES = ["casual", "wholesome", "dramatic", "flirty", "dark", "funny", "custom"];
@@ -32,7 +33,7 @@ export function ChatHeader({
   onStyle: (style: string, custom: StyleSettings | null) => void;
   onModel: (model: string | null) => void;
   /** The installed models. */
-  models: string[];
+  models: { id: string; name: string }[];
   defaultModel: string;
   onToggleChats: () => void;
   onToggleMemory: () => void;
@@ -42,12 +43,13 @@ export function ChatHeader({
   const { chat, character } = view;
   const [toneDraft, setToneDraft] = useState<string | null>(null);
   const [styleOpen, setStyleOpen] = useState(false);
+  const modelName = (id: string) => models.find((m) => m.id === id)?.name ?? id;
 
   return (
     <header className="chat-header">
       <div className="chat-header-top">
         <button type="button" className="icon-button back" aria-label={strings.chat.back} onClick={onBack}>
-          ‹
+          <Icon name="back" />
         </button>
         <Avatar kind="character" owner={character} />
         <div className="chat-title">
@@ -62,6 +64,7 @@ export function ChatHeader({
             aria-pressed={memoryOpen}
             onClick={onToggleMemory}
           >
+            <Icon name="memory" />
             {strings.memory.button}
           </button>
           <button
@@ -70,13 +73,17 @@ export function ChatHeader({
             aria-pressed={chatsOpen}
             onClick={onToggleChats}
           >
+            <Icon name="chats" />
             {strings.header.chats}
           </button>
         </div>
       </div>
       <div className="chat-settings">
         <label className="control">
-          <span>{strings.header.persona}</span>
+          <span>
+            <Icon name="personas" />
+            {strings.header.persona}
+          </span>
           <select
             value={chat.persona_id ?? ""}
             disabled={locked}
@@ -93,7 +100,10 @@ export function ChatHeader({
           </select>
         </label>
         <label className="control">
-          <span>{strings.header.tone}</span>
+          <span>
+            <Icon name="tone" />
+            {strings.header.tone}
+          </span>
           <select
             value={chat.tone}
             disabled={locked}
@@ -115,7 +125,10 @@ export function ChatHeader({
           </select>
         </label>
         <div className="control control-anchor">
-          <span id="style-label">{strings.header.style}</span>
+          <span id="style-label">
+            <Icon name="style" />
+            {strings.header.style}
+          </span>
           <button
             type="button"
             className="select-button"
@@ -144,7 +157,10 @@ export function ChatHeader({
         </div>
         {models.length > 1 && (
           <label className="control">
-            <span>{strings.header.model}</span>
+            <span>
+              <Icon name="models" />
+              {strings.header.model}
+            </span>
             <select
               value={chat.chat_model ?? ""}
               disabled={locked}
@@ -152,10 +168,10 @@ export function ChatHeader({
                 onModel(e.target.value === "" ? null : e.target.value);
               }}
             >
-              <option value="">{strings.header.defaultModel(character.model_override ?? defaultModel)}</option>
+              <option value="">{strings.header.defaultModel(modelName(character.model_override ?? defaultModel))}</option>
               {models.map((m) => (
-                <option key={m} value={m}>
-                  {m}
+                <option key={m.id} value={m.id}>
+                  {m.name}
                 </option>
               ))}
             </select>

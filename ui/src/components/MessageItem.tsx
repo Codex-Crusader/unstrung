@@ -3,6 +3,7 @@ import type { Character, Persona, RegenMode, ViewMessage } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { MessageText } from "./MessageText";
+import { Icon, type IconName } from "./Icon";
 
 export interface MessageActions {
   showVersion: (messageId: number) => void;
@@ -48,9 +49,10 @@ export function MessageItem({
     menu.current?.removeAttribute("open");
     run();
   };
-  const item = (label: string, run: () => void, extra?: string): ReactNode => (
+  const item = (icon: IconName, label: string, run: () => void, extra?: string): ReactNode => (
     <li key={label}>
       <button type="button" className={extra ? `menu-item ${extra}` : "menu-item"} onClick={act(run)}>
+        <Icon name={icon} />
         {label}
       </button>
     </li>
@@ -137,43 +139,46 @@ export function MessageItem({
           )}
           {!locked && editing === null && (
             <details className="menu" ref={menu}>
-              <summary aria-label={strings.message.menu}>⋯</summary>
+              <summary aria-label={strings.message.menu}>
+                <Icon name="more" />
+              </summary>
               <ul className="menu-list">
                 {fromCharacter && [
-                  item(strings.message.regenerate, () => {
+                  item("regenerate", strings.message.regenerate, () => {
                     actions.regenerate(message.id, "normal");
                   }),
-                  item(strings.message.shorter, () => {
+                  item("shorter", strings.message.shorter, () => {
                     actions.regenerate(message.id, "shorter");
                   }),
-                  item(strings.message.longer, () => {
+                  item("longer", strings.message.longer, () => {
                     actions.regenerate(message.id, "longer");
                   }),
                 ]}
                 {fromCharacter && message.parent_id !== null && [
-                  item(strings.message.inCharacter, () => {
+                  item("inCharacter", strings.message.inCharacter, () => {
                     actions.regenerate(message.id, "in_character");
                   }),
-                  item(strings.message.notInCharacter, () => {
+                  item("close", strings.message.notInCharacter, () => {
                     actions.regenerate(message.id, "not_in_character");
                   }),
                 ]}
-                {fromCharacter && isLast && item(strings.message.continue, actions.continueReply)}
-                {item(strings.message.edit, () => {
+                {fromCharacter && isLast && item("continue", strings.message.continue, actions.continueReply)}
+                {item("edit", strings.message.edit, () => {
                   setEditing(message.content);
                 })}
                 {!isLast &&
-                  item(strings.message.rewind, () => {
+                  item("rewind", strings.message.rewind, () => {
                     actions.rewind(message.id);
                   })}
-                {item(strings.message.branch, () => {
+                {item("branch", strings.message.branch, () => {
                   actions.branch(message.id);
                 })}
-                {item(strings.message.remember, () => {
+                {item("remember", strings.message.remember, () => {
                   actions.remember(message);
                 })}
                 {message.parent_id !== null &&
                   item(
+                    "remove",
                     strings.message.delete,
                     () => {
                       actions.remove(message.id);

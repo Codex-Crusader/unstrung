@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
+import { Icon } from "./Icon";
 
 export function HomeScreen({
   onOpen,
@@ -76,7 +77,7 @@ export function HomeScreen({
         <li>
           <button type="button" className="character-card character-card-new" onClick={onCreate}>
             <span className="card-plus" aria-hidden="true">
-              +
+              <Icon name="plus" />
             </span>
             <span className="card-name">{strings.home.create}</span>
             <span className="card-tagline">{strings.home.createHint}</span>
@@ -103,6 +104,7 @@ export function HomeScreen({
                 onEdit(c);
               }}
             >
+              <Icon name="edit" />
               {strings.message.edit}
             </button>
           </li>
@@ -116,6 +118,7 @@ export function HomeScreen({
           disabled={importing}
           onClick={() => fileRef.current?.click()}
         >
+          <Icon name="import" />
           {importing ? strings.home.importing : strings.home.import}
         </button>
         <span className="field-hint">{strings.home.importHint}</span>

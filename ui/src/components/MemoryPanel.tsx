@@ -9,6 +9,7 @@ import {
   type UiError,
 } from "../api";
 import { strings } from "../strings";
+import { Icon } from "./Icon";
 
 /** A fact to add, with the message it belongs to. */
 export interface MemoryDraft {
@@ -177,6 +178,7 @@ export function MemoryPanel({
       <div className="chat-list-head">
         <h2>{strings.memory.title}</h2>
         <button type="button" className="link-button" onClick={onClose}>
+          <Icon name="close" />
           {strings.memory.close}
         </button>
       </div>

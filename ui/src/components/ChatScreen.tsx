@@ -38,6 +38,7 @@ import { ChatList } from "./ChatList";
 import { MemoryPanel, type MemoryDraft } from "./MemoryPanel";
 import { MessageItem, type MessageActions } from "./MessageItem";
 import { MessageText } from "./MessageText";
+import { Icon } from "./Icon";
 
 type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; text: string };
 
@@ -76,7 +77,7 @@ export function ChatScreen({
   const listRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
 
   // A memory pass ends after the reply, while the user reads it.
@@ -102,7 +103,7 @@ export function ChatScreen({
     modelsPage()
       .then((p) => {
         if (!active) return;
-        setModels(p.models.filter((m) => m.installed).map((m) => m.id));
+        setModels(p.models.filter((m) => m.installed).map((m) => ({ id: m.id, name: m.name })));
         setDefaultModel(p.default_model);
       })
       .catch(() => {
@@ -480,10 +481,12 @@ export function ChatScreen({
           />
           {busy ? (
             <button type="button" className="button button-stop" onClick={() => void stopReply()}>
+              <Icon name="stop" />
               {strings.chat.stop}
             </button>
           ) : (
             <button type="submit" className="button" disabled={!canSend}>
+              <Icon name="send" />
               {strings.chat.send}
             </button>
           )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { deleteChat, listChats, toUiError, type ChatSummary, type UiError } from "../api";
 import { strings } from "../strings";
+import { Icon } from "./Icon";
 
 /** The side panel with all chats of one character. */
 export function ChatList({
@@ -58,6 +59,7 @@ export function ChatList({
       <div className="chat-list-head">
         <h2>{strings.chats.title}</h2>
         <button type="button" className="link-button" onClick={onClose}>
+          <Icon name="close" />
           {strings.chats.close}
         </button>
       </div>

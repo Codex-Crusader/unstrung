@@ -14,6 +14,7 @@ import { estimateTokens } from "../cardCheck";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { PictureField } from "./PictureField";
+import { Icon } from "./Icon";
 
 const EMPTY: PersonaFields = { name: "", description: "", appearance_tags: "", age: null };
 const DESCRIPTION_TOKENS = 100;
@@ -231,6 +232,7 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
                     edit(p);
                   }}
                 >
+                  <Icon name="edit" />
                   {strings.personas.edit}
                 </button>
               </li>
@@ -259,6 +261,7 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
                 edit(null);
               }}
             >
+              <Icon name="plus" />
               {strings.personas.create}
             </button>
           </div>

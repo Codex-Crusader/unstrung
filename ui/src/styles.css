@@ -389,14 +389,48 @@ body {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-head);
   font-size: 20px;
   font-weight: 600;
-  padding: 0 10px 14px;
+  padding: 0 6px 14px;
   color: var(--accent);
 }
 
+/* The logo figure. The app icon file has the figure on its cream tile. */
+.brand-figure {
+  width: 30px;
+  height: 30px;
+}
+
+/* Icons: thick rounded strokes like the logo figure, one brass pin. */
+.icon {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-pin {
+  fill: var(--accent);
+  stroke: none;
+}
+
+.icon-dot {
+  fill: currentColor;
+  stroke: none;
+}
+
 .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   border: 0;
   background: none;
   color: var(--text);
@@ -663,7 +697,24 @@ textarea:focus-visible {
 }
 
 .back {
-  font-size: 26px;
+  font-size: 22px;
+  padding: 4px;
+}
+
+/* A button or label with an icon: the icon sits before the text. */
+.button:has(> .icon),
+.link-button:has(> .icon),
+.badge:has(> .icon),
+.chat-settings .control > span:has(> .icon),
+.pc-fact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.chat-settings .control > span > .icon {
+  color: var(--accent);
 }
 
 .control-anchor {
@@ -986,6 +1037,9 @@ textarea:focus-visible {
 }
 
 .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   border: 0;
   background: none;
@@ -1005,6 +1059,20 @@ textarea:focus-visible {
 
 .menu-item.danger {
   color: var(--bad);
+}
+
+.menu-item .icon {
+  color: var(--text-soft);
+}
+
+.menu-item.danger .icon {
+  color: inherit;
+}
+
+.menu summary .icon {
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 .edit-form textarea {
@@ -1456,7 +1524,27 @@ body > iframe {
 }
 
 .pc-line {
-  margin: 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0;
+}
+
+/* The PC facts: graphics card, memory and disk, each with its icon. */
+.pc-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
+.pc-fact .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
 }
 
 .recommended-card {
@@ -1488,12 +1576,6 @@ body > iframe {
   font-size: 16px;
 }
 
-.recommended-ok {
-  margin: 16px 0;
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-}
 
 .models-section {
   margin: 24px 0;

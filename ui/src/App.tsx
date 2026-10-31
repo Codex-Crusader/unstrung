@@ -16,6 +16,8 @@ import { PersonasScreen } from "./components/PersonasScreen";
 import { StatusBar } from "./components/StatusBar";
 import { runSelfTest } from "./selfTest";
 import { strings } from "./strings";
+import { Icon } from "./components/Icon";
+import figure from "./assets/figure.png";
 
 export type Screen =
   | { name: "home" }
@@ -94,12 +96,16 @@ export function App() {
     <div className="app">
       <div className="app-body">
         <nav className="sidebar" aria-label={strings.nav.main}>
-          <span className="brand">{strings.appName}</span>
+          <span className="brand">
+            <img className="brand-figure" src={figure} alt="" />
+            {strings.appName}
+          </span>
           <button
             type="button"
             className={screen.name === "home" ? "nav-item nav-current" : "nav-item"}
             onClick={home}
           >
+            <Icon name="home" />
             {strings.nav.home}
           </button>
           <button
@@ -109,6 +115,7 @@ export function App() {
               setScreen({ name: "personas" });
             }}
           >
+            <Icon name="personas" />
             {strings.nav.personas}
           </button>
           <button
@@ -118,6 +125,7 @@ export function App() {
               setScreen({ name: "models" });
             }}
           >
+            <Icon name="models" />
             {strings.nav.models}
           </button>
         </nav>

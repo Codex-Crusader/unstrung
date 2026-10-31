@@ -16,6 +16,7 @@ import {
   type UiError,
 } from "../api";
 import { strings } from "../strings";
+import { Icon } from "./Icon";
 
 const GB = 1_000_000_000;
 const CONTEXTS = [4096, 8192, 12288, 16384];
@@ -142,7 +143,7 @@ function Facts({ m }: { m: ModelView }) {
       {m.license_name && (
         <span title={m.license_url}>
           {" "}
-          · {s.license}: {m.license_name}
+          · {s.license(m.license_name)}
         </span>
       )}
     </span>
@@ -182,11 +183,17 @@ function ModelRow({
           act.download(m.id);
         }}
       >
+        <Icon name="download" />
         {resumable ? s.resume : s.download}
       </button>
     );
   } else if (m.is_default) {
-    main = <span className="badge badge-strong">{s.inUse}</span>;
+    main = (
+      <span className="badge badge-strong">
+        <Icon name="check" />
+        {s.inUse}
+      </span>
+    );
   } else {
     main = (
       <button
@@ -196,6 +203,7 @@ function ModelRow({
           act.use(m.id);
         }}
       >
+        <Icon name="check" />
         {s.useForNew}
       </button>
     );
@@ -252,6 +260,7 @@ function ModelRow({
                   setConfirm(m.id);
                 }}
               >
+                <Icon name="remove" />
                 {s.remove}
               </button>
             )}
@@ -298,20 +307,27 @@ export function ModelsView({
 
       <div className="pc-panel">
         <p className="pc-line">
-          <strong>{s.yourPc}:</strong>{" "}
-          {[
-            hw.gpu && hw.tier !== "basic" ? s.gpu(hw.gpu.name, gib(hw.gpu.vram_bytes)) : s.noGpu,
-            s.ram(gib(hw.ram_bytes)),
-            hw.disk_free_bytes > 0 ? s.disk(gb(hw.disk_free_bytes)) : "",
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <p className="pc-line">
-          <strong>{s.canRun.get(hw.tier)}</strong>{" "}
+          <strong>{s.canRun.get(hw.tier)}</strong>
           <button type="button" className="link-button" onClick={act.recheck}>
+            <Icon name="refresh" />
             {s.checkAgain}
           </button>
+        </p>
+        <p className="pc-facts" aria-label={s.yourPc}>
+          <span className="pc-fact">
+            <Icon name="gpu" />
+            {hw.gpu && hw.tier !== "basic" ? s.gpu(hw.gpu.name, gib(hw.gpu.vram_bytes)) : s.noGpu}
+          </span>
+          <span className="pc-fact">
+            <Icon name="ram" />
+            {s.ram(gib(hw.ram_bytes))}
+          </span>
+          {hw.disk_free_bytes > 0 && (
+            <span className="pc-fact">
+              <Icon name="disk" />
+              {s.disk(gb(hw.disk_free_bytes))}
+            </span>
+          )}
         </p>
         {hw.below_minimum && <p className="field-hint warn">{s.belowMinimum}</p>}
         {page.hardware_changed && <p className="field-hint">{s.hardwareChanged}</p>}
@@ -324,41 +340,41 @@ export function ModelsView({
         />
       )}
 
-      {pick &&
-        (pick.installed && pick.is_default ? (
-          <p className="recommended-ok">{s.recommendedInUse(pick.name)}</p>
-        ) : (
-          <div className="recommended-card">
-            <h2>{s.recommendedTitle}</h2>
-            <p className="model-name">{pick.name}</p>
-            <p className="card-tagline">{pick.description}</p>
-            <Facts m={pick} />
-            <div className="model-actions">
-              {pick.installed ? (
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => {
-                    act.use(pick.id);
-                  }}
-                >
-                  {s.useForNew}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="button button-big"
-                  disabled={busy}
-                  onClick={() => {
-                    act.download(pick.id);
-                  }}
-                >
-                  {busy && download.model === pick.id ? s.downloadingShort : `${s.download} (${gb(pick.size_bytes)} GB)`}
-                </button>
-              )}
-            </div>
+      {/* When new chats already use it, the list marks it. */}
+      {pick && !(pick.installed && pick.is_default) && (
+        <div className="recommended-card">
+          <h2>{s.recommendedTitle}</h2>
+          <p className="model-name">{pick.name}</p>
+          <p className="card-tagline">{pick.description}</p>
+          <Facts m={pick} />
+          <div className="model-actions">
+            {pick.installed ? (
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  act.use(pick.id);
+                }}
+              >
+                <Icon name="check" />
+                {s.useForNew}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="button button-big"
+                disabled={busy}
+                onClick={() => {
+                  act.download(pick.id);
+                }}
+              >
+                <Icon name="download" />
+                {busy && download.model === pick.id ? s.downloadingShort : `${s.download} (${gb(pick.size_bytes)} GB)`}
+              </button>
+            )}
           </div>
-        ))}
+        </div>
+      )}
 
       <div className="models-section">
         <h2>{s.inUseTitle}</h2>
