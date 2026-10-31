@@ -512,7 +512,7 @@ export function ChatScreen({
       {memoryOpen && (
         <MemoryPanel
           chatId={chatId}
-          headId={view.chat.head_message_id}
+          anchorId={view.messages.findLast((m) => m.role === "user")?.id ?? view.chat.head_message_id}
           refreshKey={`${String(view.chat.head_message_id)}-${String(memoryTick)}`}
           disabled={locked}
           draft={memoryDraft}

@@ -1451,6 +1451,20 @@ mod tests {
         // Only a fact can be pinned.
         let list = chats.set_memory_flags(chat, summary.id, true, false).await.unwrap();
         assert!(!list.iter().find(|m| m.kind == "summary").unwrap().is_pinned);
+
+        // A regenerate replaces the reply, not the user message, so a fact on
+        // the user message stays. This is why the panel uses it as the anchor.
+        let reply = |content| NewMessage {
+            chat_id: chat,
+            parent_id: Some(hello.id),
+            role: "character",
+            content,
+            ..Default::default()
+        };
+        chats.db.append_message(&reply("First reply.")).await.unwrap();
+        let again = chats.db.append_message(&reply("Second reply.")).await.unwrap();
+        chats.db.set_chat_head(chat, Some(again.id)).await.unwrap();
+        assert!(chats.memories(chat).await.unwrap().iter().any(|m| m.id == fact));
     }
 
     #[test]

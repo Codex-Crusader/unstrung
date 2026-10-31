@@ -19,7 +19,7 @@ export interface MemoryDraft {
 /** The side panel with what a chat remembers: goal, story so far and facts. */
 export function MemoryPanel({
   chatId,
-  headId,
+  anchorId,
   refreshKey,
   disabled,
   draft,
@@ -27,8 +27,11 @@ export function MemoryPanel({
   onClose,
 }: {
   chatId: number;
-  /** The newest message on the path. A fact typed in the panel belongs to it. */
-  headId: number | null;
+  /**
+   * The message that a fact typed in the panel belongs to: the newest user message.
+   * A regenerate replaces the reply, so a fact on it would leave the path.
+   */
+  anchorId: number | null;
   /** Changes when the list must load again. */
   refreshKey: string;
   disabled: boolean;
@@ -74,7 +77,7 @@ export function MemoryPanel({
       });
   };
 
-  const source = draft?.messageId ?? headId;
+  const source = draft?.messageId ?? anchorId;
   const goal = memories.find((m) => m.kind === "goal");
   const summary = memories.find((m) => m.kind === "summary");
   const facts = memories.filter((m) => m.kind === "fact");
