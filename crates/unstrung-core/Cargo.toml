@@ -16,7 +16,11 @@ base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 log = { version = "0.4", features = ["std"] }
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls"] }
+sha2 = "0.10"
+zip = { version = "9.2", default-features = false, features = ["deflate-flate2"] }
+# zip needs a flate2 backend; the pure Rust one is already in the build.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio", "macros", "migrate"] }

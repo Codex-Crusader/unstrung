@@ -22,6 +22,12 @@ pub enum Error {
     Busy,
     #[error("no reply after {0} seconds")]
     Timeout(u64),
+    #[error("stopped")]
+    Cancelled,
+    #[error("not enough space: {need} more bytes needed")]
+    NoSpace { need: u64 },
+    #[error("no internet connection: {0}")]
+    Offline(String),
     #[error("not found: {0}")]
     NotFound(&'static str),
     #[error("invalid input: {0}")]

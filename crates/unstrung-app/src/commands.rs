@@ -40,6 +40,23 @@ impl From<Error> for UiError {
             Error::Invalid(text) => sentence(text),
             Error::Rejected { message, .. } => sentence(message),
             Error::NotFound(what) => format!("This {what} no longer exists. Go back and open it again."),
+            Error::Cancelled => "Stopped.".to_owned(),
+            Error::NoSpace { need } => format!(
+                "Not enough space. You need {} more. Free some space, or pick a folder on another drive.",
+                gigabytes(*need)
+            ),
+            Error::Offline(_) => {
+                "No internet connection. Connect, then press Retry. The download goes on from where it stopped."
+                    .to_owned()
+            }
+            Error::Engine(text) if engine_out_of_memory(text) => {
+                "This model is too big for your graphics card. Pick a smaller model on the Models screen."
+                    .to_owned()
+            }
+            Error::Engine(text) if model_file_damaged(text) => {
+                "The model file is missing or damaged. Download it again on the Models screen."
+                    .to_owned()
+            }
             Error::Engine(_) | Error::Http(_) | Error::Json(_) => {
                 "The chat engine did not answer. Try again.".to_owned()
             }
@@ -54,6 +71,41 @@ impl From<Error> for UiError {
             detail: e.to_string(),
         }
     }
+}
+
+/// Ollama's words when a model does not fit in memory.
+fn engine_out_of_memory(text: &str) -> bool {
+    let t = text.to_ascii_lowercase();
+    [
+        "out of memory",
+        "requires more system memory",
+        "insufficient memory",
+        "cudamalloc failed",
+        "unable to allocate",
+    ]
+    .iter()
+    .any(|w| t.contains(w))
+}
+
+/// Ollama's words when a model file is gone or broken.
+fn model_file_damaged(text: &str) -> bool {
+    let t = text.to_ascii_lowercase();
+    [
+        "invalid file magic",
+        "unable to load model",
+        "failed to load model",
+        "file does not exist",
+        "no such file",
+    ]
+    .iter()
+    .any(|w| t.contains(w))
+}
+
+/// Rounded up, so a small shortfall never shows as "0.0 GB".
+pub fn gigabytes(bytes: u64) -> String {
+    #[allow(clippy::cast_precision_loss)]
+    let gb = bytes as f64 / 1_073_741_824.0;
+    format!("{:.1} GB", (gb * 10.0).ceil() / 10.0)
 }
 
 fn sentence(text: &str) -> String {
