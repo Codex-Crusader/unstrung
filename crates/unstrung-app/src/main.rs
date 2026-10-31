@@ -173,6 +173,7 @@ fn main() {
             setup::engine_install,
             setup::engine_install_cancel,
             setup::finish_first_run,
+            setup::choose_setup,
             notify::set_notify,
             notify::get_notify,
         ])

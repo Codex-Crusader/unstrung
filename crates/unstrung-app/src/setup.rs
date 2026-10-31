@@ -14,6 +14,8 @@ use unstrung_core::location::{self, FolderCheck, Location, Purpose};
 
 pub const ENGINE_SETUP_EVENT: &str = "engine-setup";
 pub const ENGINE_SETUP_ERROR_EVENT: &str = "engine-setup-error";
+/// The catalog model picked in the setup step, kept while the first run lasts.
+const META_CHOICE: &str = "first_run_model";
 
 #[derive(Serialize)]
 pub struct SetupState {
@@ -25,6 +27,8 @@ pub struct SetupState {
     /// Free space that the engine install needs at its peak.
     pub engine_disk_bytes: u64,
     pub engine_progress: Option<Progress>,
+    /// The model picked in the setup step, so a restart resumes the download.
+    pub choice: Option<String>,
     pub app_folder: String,
     pub library: String,
     pub models: String,
@@ -46,6 +50,7 @@ pub async fn setup_state(state: State<'_, AppState>) -> CmdResult<SetupState> {
         engine_download_bytes: engine_setup::download_bytes(gpu.as_ref()),
         engine_disk_bytes: engine_setup::disk_need(gpu.as_ref()),
         engine_progress: state.setup.current(),
+        choice: state.chats.db().meta(META_CHOICE).await?,
         app_folder: shown(paths.root().to_path_buf()),
         library: shown(paths.library()),
         models: shown(paths.models()),
@@ -174,6 +179,16 @@ pub async fn engine_install(app: AppHandle, state: State<'_, AppState>) -> CmdRe
 #[tauri::command]
 pub fn engine_install_cancel(state: State<'_, AppState>) {
     state.setup.cancel();
+}
+
+/// Saves the model from the setup step. Only catalog chat models.
+#[tauri::command]
+pub async fn choose_setup(state: State<'_, AppState>, model: String) -> CmdResult<()> {
+    if !unstrung_core::catalog::entry(&model).is_some_and(|e| e.kind == "chat") {
+        return Err(Error::Invalid(format!("{model} is not a catalog chat model")).into());
+    }
+    state.chats.db().set_meta(META_CHOICE, &model).await?;
+    Ok(())
 }
 
 /// Ends the welcome flow. The next start opens Home.

@@ -15,6 +15,7 @@ const COMMANDS: &[&str] = &[
     "engine_install",
     "engine_install_cancel",
     "finish_first_run",
+    "choose_setup",
     "set_notify",
     "get_notify",
     "get_status",

@@ -222,6 +222,7 @@ impl ModelService {
     }
 
     /// Starts a download in the background. Progress goes to `subscribe`.
+    /// Call it inside a Tokio runtime.
     pub fn download(self: &Arc<Self>, model: &str) -> Result<()> {
         let model = catalog::check_tag(model)?;
         let client = self.engine.running_client()?;

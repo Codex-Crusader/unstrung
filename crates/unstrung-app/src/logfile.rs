@@ -59,5 +59,35 @@ pub fn init(path: &Path) -> std::io::Result<()> {
     if log::set_boxed_logger(Box::new(FileLogger(Mutex::new(file)))).is_ok() {
         log::set_max_level(log::LevelFilter::Info);
     }
+    log_panics();
     Ok(())
+}
+
+/// Writes every panic to the log before the default hook runs. The app has
+/// no console, so without this a panic that ends the process (for example,
+/// one inside a Windows callback, which aborts) leaves no trace.
+fn log_panics() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let place = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_default();
+        let what = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_owned())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        let thread = std::thread::current()
+            .name()
+            .unwrap_or("unnamed")
+            .to_owned();
+        log::error!(
+            "panic in thread {thread} at {place}: {what}\n{}",
+            std::backtrace::Backtrace::force_capture()
+        );
+        log::logger().flush();
+        default(info);
+    }));
 }

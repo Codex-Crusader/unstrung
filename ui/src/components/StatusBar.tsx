@@ -7,6 +7,8 @@ function label(status: EngineStatus, name: (model: string) => string): string {
   switch (status.state) {
     case "starting":
       return strings.status.starting;
+    case "not_installed":
+      return strings.status.notInstalled;
     case "loading_model":
       return strings.status.loading(name(status.model));
     case "ready":
@@ -18,7 +20,15 @@ function label(status: EngineStatus, name: (model: string) => string): string {
   }
 }
 
-export function StatusBar({ status, onOpenModels }: { status: EngineStatus; onOpenModels: () => void }) {
+export function StatusBar({
+  status,
+  onOpenModels,
+  onInstallEngine,
+}: {
+  status: EngineStatus;
+  onOpenModels: () => void;
+  onInstallEngine: () => void;
+}) {
   const [showDetail, setShowDetail] = useState(false);
   const [names, setNames] = useState(new Map<string, string>());
   // The catalog names, as the header and the Models screen show them.
@@ -42,6 +52,11 @@ export function StatusBar({ status, onOpenModels }: { status: EngineStatus; onOp
     <footer className="status-bar" role="status" aria-live="polite">
       <span className={`pin-dot pin-${status.state}`} aria-hidden="true" />
       <span className="status-label">{label(status, name)}</span>
+      {status.state === "not_installed" && (
+        <button type="button" className="link-button" onClick={onInstallEngine}>
+          {strings.status.install}
+        </button>
+      )}
       {status.state === "no_model" && (
         <button type="button" className="link-button" onClick={onOpenModels}>
           {strings.status.openModels}

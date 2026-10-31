@@ -489,8 +489,10 @@ pub async fn recheck_hardware(state: State<'_, AppState>) -> CmdResult<ModelsPag
 }
 
 /// Starts a download. Progress comes as `model-download` events.
+/// Async so that Tauri runs it inside the Tokio runtime: a sync command runs
+/// on the main thread, where the spawn in `download` panics and the app aborts.
 #[tauri::command]
-pub fn download_model(state: State<'_, AppState>, model: String) -> CmdResult<()> {
+pub async fn download_model(state: State<'_, AppState>, model: String) -> CmdResult<()> {
     Ok(state.models.download(&model)?)
 }
 

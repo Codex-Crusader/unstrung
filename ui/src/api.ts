@@ -6,6 +6,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type EngineStatus =
   | { state: "starting" }
+  | { state: "not_installed" }
   | { state: "loading_model"; model: string }
   | { state: "ready"; model: string }
   | { state: "no_model"; model: string }
@@ -443,6 +444,77 @@ export interface Finding {
   /** Bytes of temporary files, found or freed. */
   bytes: number;
   detail: string;
+}
+
+export type EngineStep = "downloading" | "unpacking" | "checking" | "done" | "stopped" | "failed";
+
+export interface EngineProgress {
+  step: EngineStep;
+  completed: number;
+  total: number;
+  bytes_per_second: number;
+  error: string;
+}
+
+export interface SetupState {
+  first_run: boolean;
+  engine_installed: string | null;
+  engine_version: string;
+  engine_download_bytes: number;
+  engine_disk_bytes: number;
+  engine_progress: EngineProgress | null;
+  choice: string | null;
+  app_folder: string;
+  library: string;
+  models: string;
+  default_library: string;
+  default_models: string;
+}
+
+export type FolderPurpose = "library" | "models";
+export type FolderIssue =
+  | "system_folder"
+  | "not_absolute"
+  | "not_writable"
+  | "synced"
+  | "network_drive"
+  | "removable_drive"
+  | "unusual_characters"
+  | "not_enough_space";
+
+export interface FolderCheck {
+  folder: string;
+  issues: FolderIssue[];
+  blocked: boolean;
+  free_bytes: number;
+  need_bytes: number;
+  existing_library: boolean;
+}
+
+export const setupState = () => invoke<SetupState>("setup_state");
+export const pickFolder = (start: string | null) => invoke<string | null>("pick_folder", { start });
+export const checkFolder = (path: string, purpose: FolderPurpose, downloadBytes: number) =>
+  invoke<FolderCheck>("check_folder", { path, purpose, downloadBytes });
+/** `null` keeps the default folder. First run only. */
+export const setLocation = (library: string | null, models: string | null, downloadBytes: number) =>
+  invoke<SetupState>("set_location", { library, models, downloadBytes });
+export const engineInstall = () => invoke<null>("engine_install");
+export const engineInstallCancel = () => invoke<null>("engine_install_cancel");
+export const chooseSetup = (model: string) => invoke<null>("choose_setup", { model });
+export const finishFirstRun = () => invoke<null>("finish_first_run");
+export const getNotify = () => invoke<boolean>("get_notify");
+export const setNotify = (on: boolean) => invoke<null>("set_notify", { on });
+
+export function onEngineSetup(handler: (progress: EngineProgress | null) => void): Promise<UnlistenFn> {
+  return listen<EngineProgress | null>("engine-setup", (event) => {
+    handler(event.payload);
+  });
+}
+
+export function onEngineSetupError(handler: (error: UiError) => void): Promise<UnlistenFn> {
+  return listen<UiError>("engine-setup-error", (event) => {
+    handler(event.payload);
+  });
 }
 
 /** Quick repair, step 1: looks and changes nothing. Safe start only. */

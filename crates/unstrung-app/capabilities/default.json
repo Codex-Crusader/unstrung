@@ -22,6 +22,7 @@
     "allow-engine-install",
     "allow-engine-install-cancel",
     "allow-finish-first-run",
+    "allow-choose-setup",
     "allow-set-notify",
     "allow-get-notify",
     "allow-list-characters",

@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 
-const LIMIT: Duration = Duration::from_secs(300);
+// Long enough for a first run that installs the engine in a debug build.
+const LIMIT: Duration = Duration::from_secs(900);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Report {

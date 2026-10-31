@@ -4,6 +4,7 @@ import {
   listPersonas,
   onStatus,
   selfTestMode,
+  setupState,
   startMode,
   startOk,
   type EngineStatus,
@@ -17,10 +18,11 @@ import { HomeScreen } from "./components/HomeScreen";
 import { ModelsScreen } from "./components/ModelsScreen";
 import { PersonasScreen } from "./components/PersonasScreen";
 import { StatusBar } from "./components/StatusBar";
-import { runSelfTest } from "./selfTest";
+import { runSelfTest, runWelcomeSelfTest } from "./selfTest";
 import { strings } from "./strings";
 import { Icon } from "./components/Icon";
 import { SafeStart } from "./components/SafeStart";
+import { Welcome } from "./components/Welcome";
 import figure from "./assets/figure.png";
 
 export type Screen =
@@ -28,7 +30,8 @@ export type Screen =
   | { name: "chat"; characterId: number }
   | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number }
   | { name: "personas" }
-  | { name: "models" };
+  | { name: "models" }
+  | { name: "engine" };
 
 /** Closes open message menus on a click outside them, or on Escape. */
 function useMenuDismiss() {
@@ -64,7 +67,36 @@ export function App() {
       });
   }, []);
   if (!start) return null;
-  return start.safe ? <SafeStart start={start} /> : <MainApp />;
+  return start.safe ? <SafeStart start={start} /> : <FirstRunGate />;
+}
+
+/** A new install shows the welcome flow before the app. */
+function FirstRunGate() {
+  const [firstRun, setFirstRun] = useState<boolean | null>(null);
+  useEffect(() => {
+    setupState()
+      .then((s) => {
+        setFirstRun(s.first_run);
+        if (s.first_run)
+          void selfTestMode().then((on) => {
+            if (on) void runWelcomeSelfTest();
+          });
+      })
+      .catch(() => {
+        setFirstRun(false);
+      });
+  }, []);
+  if (firstRun === null) return null;
+  if (firstRun)
+    return (
+      <Welcome
+        mode="full"
+        onDone={() => {
+          setFirstRun(false);
+        }}
+      />
+    );
+  return <MainApp />;
 }
 
 function MainApp() {
@@ -194,12 +226,16 @@ function MainApp() {
           {screen.name === "models" && (
             <ModelsScreen engine={`${status.state}:${"model" in status ? status.model : ""}`} />
           )}
+          {screen.name === "engine" && <Welcome mode="engine" onDone={home} />}
         </main>
       </div>
       <StatusBar
         status={status}
         onOpenModels={() => {
           setScreen({ name: "models" });
+        }}
+        onInstallEngine={() => {
+          setScreen({ name: "engine" });
         }}
       />
     </div>

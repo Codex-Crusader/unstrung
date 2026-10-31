@@ -453,7 +453,9 @@ export function ChatScreen({
                   ? status.message
                   : status.state === "no_model"
                     ? strings.status.noModel(status.model)
-                    : strings.chat.notReady(name)
+                    : status.state === "not_installed"
+                      ? strings.status.notInstalled
+                      : strings.chat.notReady(name)
             }
             title={strings.chat.oocHint}
             aria-label={strings.chat.placeholder(name)}

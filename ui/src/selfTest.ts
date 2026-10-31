@@ -2,6 +2,7 @@
 // The core writes the report to logs/self-test.json and exits.
 
 import type { Screen } from "./App";
+import { strings } from "./strings";
 import {
   chatMemories,
   deleteCharacter,
@@ -347,5 +348,42 @@ export async function runSelfTest(show: (screen: Screen) => void): Promise<void>
     report.detail = toUiError(e).detail;
   } finally {
     await selfTestReport(report);
+  }
+}
+
+/**
+ * Goes through the welcome flow with clicks inside the page: the default
+ * setup, the default folder, the downloads, and no persona. The main
+ * self-test runs after it, in the app that the flow opens. A failure ends
+ * the run with the step in the report.
+ */
+export async function runWelcomeSelfTest(): Promise<void> {
+  try {
+    // A run that was closed early resumes at the download, so press
+    // whichever welcome button comes next until the persona step's Skip.
+    const end = Date.now() + 13 * 60_000;
+    for (;;) {
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>(".welcome button")].filter(
+        (b) => !b.disabled,
+      );
+      const label = (b: HTMLButtonElement) => b.textContent.trim();
+      const skip = buttons.find((b) => label(b) === strings.welcome.skip);
+      if (skip) {
+        skip.click();
+        return;
+      }
+      const next = buttons.find((b) => label(b) === strings.welcome.start || label(b) === strings.welcome.next);
+      if (next) next.click();
+      if (Date.now() > end) throw new Error("welcome self-test: the persona step never came");
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  } catch (e) {
+    await selfTestReport({
+      ok: false,
+      detail: toUiError(e).detail,
+      messages_at_open: 0,
+      messages_after: 0,
+      text_events: 0,
+    });
   }
 }
