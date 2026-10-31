@@ -938,17 +938,19 @@ impl ChatService {
     /// prompt. The app runs it after each reply. A new reply stops it, and
     /// the next pass goes on from where this one stopped.
     pub async fn update_memory(&self, chat_id: i64) -> Result<()> {
-        if self.closing.load(std::sync::atomic::Ordering::SeqCst) {
-            return Ok(());
-        }
         let token = CancellationToken::new();
-        if let Some(old) = self
-            .memory_job
-            .lock()
-            .ok()
-            .and_then(|mut j| j.replace(token.clone()))
         {
-            old.cancel();
+            let Ok(mut job) = self.memory_job.lock() else {
+                return Ok(());
+            };
+            // Checked under the lock that `shut_down` takes, so no pass
+            // starts after it.
+            if self.closing.load(std::sync::atomic::Ordering::SeqCst) {
+                return Ok(());
+            }
+            if let Some(old) = job.replace(token.clone()) {
+                old.cancel();
+            }
         }
         match self.memory_passes(chat_id, &token).await {
             // A stopped pass can fail on its way out (the engine closes):
@@ -961,9 +963,14 @@ impl ChatService {
     /// The app closes: stops the memory pass and starts no new one, so the
     /// engine can stop without a pass failing against it.
     pub fn shut_down(&self) {
-        self.closing
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-        self.stop_memory();
+        let job = self.memory_job.lock().ok().and_then(|mut j| {
+            self.closing
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            j.take()
+        });
+        if let Some(job) = job {
+            job.cancel();
+        }
     }
 
     async fn memory_passes(&self, chat_id: i64, token: &CancellationToken) -> Result<()> {

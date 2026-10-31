@@ -1715,6 +1715,11 @@ body > iframe {
   background: color-mix(in srgb, var(--bad) 18%, transparent);
 }
 
+/* Soft text is under AA on the red fill in the light theme. */
+.download-failed .muted {
+  color: var(--text);
+}
+
 .model-list {
   list-style: none;
   margin: 16px 0;
