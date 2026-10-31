@@ -24,15 +24,50 @@ pub const STYLES: &[&str] = &[
 pub const MAX_CUSTOM_TONE: usize = 300;
 
 /// The instruction and temperature of a tone. `custom` uses the chat's own text.
+///
+/// A short mood word lost to the character card: a warm character stayed warm
+/// in a dark chat. So each tone says how the mood shows in `{{char}}`'s
+/// reactions. The texts describe a mood, never a fact or a trait, because the
+/// card that the user wrote stays true in every tone (see `guide::tone`).
 pub fn tone(key: &str, custom: &str) -> (String, f32) {
     let (text, temperature) = match key {
-        "wholesome" => ("Warm, kind and hopeful.", 0.7),
-        "dramatic" => ("Intense, with high stakes and strong feelings.", 0.85),
-        "flirty" => ("Playful and teasing.", 0.9),
-        "dark" => ("Grim, tense and moody.", 0.8),
-        "funny" => ("Light, with jokes and comic timing.", 0.95),
+        "wholesome" => (
+            "Wholesome. The mood is soft and safe. {{char}} shows a caring side: {{char}} looks \
+             after {{user}}, notices small good things and helps without being asked.",
+            0.7,
+        ),
+        "dramatic" => (
+            "Dramatic. The mood is intense. {{char}} feels things strongly and shows it: shock, \
+             anger, passion or fear come out in words and actions. Small news becomes a turning \
+             point.",
+            0.85,
+        ),
+        "flirty" => (
+            "Flirty. The mood is playful and a little romantic. {{char}} shows interest in \
+             {{user}} in {{char}}'s own way: {{char}} notices how {{user}} looks and talks, plays \
+             coy and drops hints. Keep it light and tasteful. If {{char}}'s description says \
+             that {{char}} is taken or not interested, {{char}} only teases as a friend and does \
+             not touch or invite {{user}} closer.",
+            0.9,
+        ),
+        "dark" => (
+            "Dark. The mood is heavy and tense. {{char}} is more guarded than usual: {{char}} \
+             expects the worst, notices what could go wrong and does not take kindness at face \
+             value.",
+            0.8,
+        ),
+        "funny" => (
+            "Funny. The mood is silly. {{char}} sees the silly side of things: {{char}} teases \
+             the situation, plays with words and overreacts for fun. Each reply has a line meant \
+             to amuse.",
+            0.95,
+        ),
         "custom" if !custom.trim().is_empty() => (custom.trim(), 0.8),
-        _ => ("Relaxed and natural.", 0.8),
+        _ => (
+            "Casual. The mood is relaxed and ordinary. {{char}} takes things in stride and talks \
+             plainly.",
+            0.8,
+        ),
     };
     (text.to_owned(), temperature)
 }
@@ -287,6 +322,7 @@ mod tests {
     fn tones() {
         assert_eq!(tone("dark", "").1, 0.8);
         assert_eq!(tone("custom", "  Cozy.  ").0, "Cozy.");
-        assert_eq!(tone("custom", "").0, "Relaxed and natural.");
+        assert!(tone("custom", "").0.starts_with("Casual."));
+        assert!(tone("dark", "").0.starts_with("Dark. The mood is heavy"));
     }
 }

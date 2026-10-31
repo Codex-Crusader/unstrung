@@ -19,8 +19,10 @@ const OPENING_WORDS: usize = 5;
 pub enum Failure {
     /// The voice fades into a polite assistant in a long chat.
     GenericVoice,
-    /// Four paragraphs in Texting mode, or the wrong tone.
+    /// Four paragraphs in Texting mode.
     IgnoresStyle,
+    /// The character card's own mood wins, so every tone sounds the same.
+    FlatTone,
     /// The same opening words in every reply.
     Repeats,
     /// A request from a few turns ago is gone after some small talk.
@@ -68,9 +70,11 @@ pub(super) struct Rule {
 }
 
 /// The guide lines, in order.
-pub(super) const RULES: [Rule; 10] = [
+pub(super) const RULES: [Rule; 11] = [
     Rule { fixes: Failure::GenericVoice, line: voice },
-    Rule { fixes: Failure::IgnoresStyle, line: tone_and_style },
+    Rule { fixes: Failure::IgnoresStyle, line: style },
+    // After the long style line, so that the tone is nearer the end.
+    Rule { fixes: Failure::FlatTone, line: tone },
     Rule { fixes: Failure::Repeats, line: new_opening },
     Rule { fixes: Failure::DropsRequest, line: open_thread },
     Rule { fixes: Failure::Passive, line: keep_talk_going },
@@ -96,8 +100,20 @@ fn voice(t: &Turn<'_>) -> Option<String> {
     Some(format!("Voice of {{{{char}}}}: {anchor}{push}"))
 }
 
-fn tone_and_style(t: &Turn<'_>) -> Option<String> {
-    Some(format!("Tone: {}\nReply style: {}", t.tone, t.style))
+/// The tone sets the mood, and the user's character card stays true. A card
+/// can say anything, so this line names what the tone never changes.
+fn tone(t: &Turn<'_>) -> Option<String> {
+    Some(format!(
+        "Tone: {}\nThe facts in {{{{char}}}}'s description stay true: {{{{char}}}}'s past, \
+         relationships and limits. The tone changes the mood of the scene and how {{{{char}}}} \
+         feels in it, shown in {{{{char}}}}'s own voice: a grim character can be funny in a grim \
+         way, and a warm one can be shaken.",
+        t.tone
+    ))
+}
+
+fn style(t: &Turn<'_>) -> Option<String> {
+    Some(format!("Reply style: {}", t.style))
 }
 
 fn new_opening(t: &Turn<'_>) -> Option<String> {

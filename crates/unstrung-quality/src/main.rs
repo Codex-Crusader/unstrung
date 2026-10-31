@@ -7,6 +7,7 @@
 //! --characters ren,ash    only these starters (part of the name)
 //! --styles texting,novel  these reply styles (default: each character's own)
 //! --tones dark,funny      these tones, one chat each (default: each character's own)
+//! --card FILE            also add this character, a JSON object with CharacterFields keys
 //! --turns 10              stop each scripted chat after this many messages
 //! --script FILE           the chat script (default: scripts/everyday.json)
 //! --skip-chats            run only the injection set
@@ -88,6 +89,7 @@ struct Options {
     tones: Vec<String>,
     turns: Option<usize>,
     script: Option<PathBuf>,
+    cards: Vec<PathBuf>,
     skip_chats: bool,
     skip_injection: bool,
     label: String,
@@ -115,6 +117,7 @@ fn options() -> Result<Options, Fail> {
             "--characters" => o.characters = list(args.next())?,
             "--styles" => o.styles = list(args.next())?,
             "--tones" => o.tones = list(args.next())?,
+            "--card" => o.cards.push(args.next().ok_or("--card needs a file")?.into()),
             "--turns" => o.turns = Some(args.next().ok_or("--turns needs a number")?.parse()?),
             "--script" => o.script = Some(args.next().ok_or("--script needs a file")?.into()),
             "--skip-chats" => o.skip_chats = true,
@@ -233,6 +236,12 @@ async fn main() -> Result<(), Fail> {
     paths.ensure()?;
     let db = unstrung_core::db::Db::open(&paths.database()).await?;
     starters::ensure(&db, &paths).await?;
+    // A card like one that a user writes. Missing keys keep their defaults.
+    for card in &o.cards {
+        let mut fields: CharacterFields = serde_json::from_str(&std::fs::read_to_string(card)?)?;
+        fields.is_adult = true;
+        db.insert_character(&fields, Some("test"), "{}").await?;
+    }
     let advanced = Advanced {
         think: o.think,
         context: o.context,

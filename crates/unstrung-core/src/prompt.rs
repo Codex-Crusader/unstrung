@@ -11,7 +11,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 11;
+pub const PROMPT_VERSION: i64 = 12;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";

@@ -352,7 +352,7 @@ fn golden_prompts() {
 fn guide_rules_map_to_failures() {
     use guide::Failure::*;
     let all = [
-        GenericVoice, IgnoresStyle, Repeats, DropsRequest, Passive, Interview, WrongName,
+        GenericVoice, FlatTone, IgnoresStyle, Repeats, DropsRequest, Passive, Interview, WrongName,
         ModelQuirk, FailedCheck, SpeaksForUser,
     ];
     for failure in all {
