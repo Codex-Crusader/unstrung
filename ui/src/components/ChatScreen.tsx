@@ -39,6 +39,7 @@ import { MemoryPanel, type MemoryDraft } from "./MemoryPanel";
 import { MessageItem, type MessageActions } from "./MessageItem";
 import { MessageText } from "./MessageText";
 import { Icon } from "./Icon";
+import { ErrorNote } from "./ErrorNote";
 
 type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; text: string };
 
@@ -65,7 +66,6 @@ export function ChatScreen({
   // The message under the reply that streams now. Messages after it are hidden.
   const [replyAfter, setReplyAfter] = useState<number | null>(null);
   const [error, setError] = useState<UiError | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [undo, setUndo] = useState<DeleteUndo | null>(null);
   const [listOpen, setListOpen] = useState(false);
@@ -174,7 +174,6 @@ export function ChatScreen({
   /** Starts a streamed reply. `after` is the message the reply answers. */
   const start = (after: number | null, run: (handler: ReplyHandler) => Promise<null>) => {
     setError(null);
-    setShowDetail(false);
     setHint(null);
     setUndo(null);
     setReply({ phase: "thinking" });
@@ -216,11 +215,7 @@ export function ChatScreen({
   if (!view) {
     return (
       <section className="chat chat-empty">
-        {error && (
-          <p className="chat-error">
-            {strings.chat.loadFailed} {error.detail}
-          </p>
-        )}
+        {error && <ErrorNote error={error} lead={strings.chat.loadFailed} />}
       </section>
     );
   }
@@ -422,8 +417,7 @@ export function ChatScreen({
             </p>
           )}
           {error && (
-            <div className="chat-error" role="alert">
-              <span>{error.message}</span>
+            <ErrorNote error={error}>
               {lastIsUser && !busy && (
                 <button
                   type="button"
@@ -436,17 +430,7 @@ export function ChatScreen({
                   {strings.chat.tryAgain}
                 </button>
               )}
-              <button
-                type="button"
-                className="link-button"
-                onClick={() => {
-                  setShowDetail((v) => !v);
-                }}
-              >
-                {showDetail ? strings.status.hideDetails : strings.status.details}
-              </button>
-              {showDetail && <code className="error-detail">{error.detail}</code>}
-            </div>
+            </ErrorNote>
           )}
         </div>
 

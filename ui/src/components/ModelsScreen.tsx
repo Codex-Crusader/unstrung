@@ -17,6 +17,7 @@ import {
 } from "../api";
 import { strings } from "../strings";
 import { Icon } from "./Icon";
+import { ErrorNote } from "./ErrorNote";
 
 const GB = 1_000_000_000;
 const CONTEXTS = [4096, 8192, 12288, 16384];
@@ -503,11 +504,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
     return (
       <section className="page models">
         <h1>{s.title}</h1>
-        {error && (
-          <p className="chat-error" role="alert">
-            {s.loadFailed} {error.detail}
-          </p>
-        )}
+        {error && <ErrorNote error={error} lead={s.loadFailed} />}
       </section>
     );
   }
@@ -559,11 +556,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
           }}
         />
         <span className="field-hint">{s.byNameHint}</span>
-        {ownError && (
-          <span className="field-hint warn" role="alert">
-            {ownError.message} {ownError.detail}
-          </span>
-        )}
+        {ownError && <ErrorNote error={ownError} />}
       </label>
       <button type="submit" className="button" disabled={busy || !byName.trim()}>
         {s.add}
@@ -661,11 +654,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
     </form>
   );
 
-  const notice = error && (
-    <p className="chat-error" role="alert">
-      {error.message} {error.detail}
-    </p>
-  );
+  const notice = error && <ErrorNote error={error} />;
   return (
     <ModelsView
       page={page}

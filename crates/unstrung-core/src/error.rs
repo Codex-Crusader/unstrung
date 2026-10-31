@@ -26,4 +26,8 @@ pub enum Error {
     NotFound(&'static str),
     #[error("invalid input: {0}")]
     Invalid(String),
+    /// A file that the user picked and that the app cannot use. `message` is
+    /// for the user, with what to do. `why` is the technical reason.
+    #[error("{message} ({why})")]
+    Rejected { message: String, why: String },
 }

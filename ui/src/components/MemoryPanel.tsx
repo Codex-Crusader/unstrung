@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { strings } from "../strings";
 import { Icon } from "./Icon";
+import { ErrorNote } from "./ErrorNote";
 
 /** A fact to add, with the message it belongs to. */
 export interface MemoryDraft {
@@ -183,7 +184,7 @@ export function MemoryPanel({
         </button>
       </div>
       <p className="memory-intro">{strings.memory.intro}</p>
-      {error && <p className="chat-error">{error.message}</p>}
+      {error && <ErrorNote error={error} />}
       {memories.length === 0 && <p className="memory-intro">{strings.memory.empty}</p>}
       {goal && (
         <section className="memory-section">

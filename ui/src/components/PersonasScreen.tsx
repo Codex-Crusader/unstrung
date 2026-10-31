@@ -15,6 +15,7 @@ import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { PictureField } from "./PictureField";
 import { Icon } from "./Icon";
+import { ErrorNote } from "./ErrorNote";
 
 const EMPTY: PersonaFields = { name: "", description: "", appearance_tags: "", age: null };
 const DESCRIPTION_TOKENS = 100;
@@ -70,11 +71,7 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
     <section className="page personas">
       <h1>{strings.personas.title}</h1>
       <p className="muted">{strings.personas.intro}</p>
-      {error && (
-        <p className="chat-error" role="alert">
-          {error.message}
-        </p>
-      )}
+      {error && <ErrorNote error={error} />}
 
       {editing ? (
         <form

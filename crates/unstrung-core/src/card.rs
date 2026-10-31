@@ -73,9 +73,12 @@ pub struct ParsedCard {
 }
 
 fn invalid(why: &str) -> Error {
-    Error::Invalid(format!(
-        "this is not a character card that Unstrung can read ({why})"
-    ))
+    Error::Rejected {
+        message:
+            "this is not a character card that Unstrung can read. Pick a PNG or JSON card file"
+                .into(),
+        why: why.into(),
+    }
 }
 
 /// Reads a card file: a PNG with a card chunk, or JSON.

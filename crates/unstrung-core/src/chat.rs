@@ -212,7 +212,9 @@ impl ChatService {
         if let Some(m) = model
             && !self.engine.is_installed(m)
         {
-            return Err(Error::Invalid(format!("{m} is not installed")));
+            return Err(Error::Invalid(format!(
+                "{m} is not installed. Download it on the Models screen"
+            )));
         }
         self.db.set_chat_model(chat_id, model).await?;
         self.view(chat_id).await
@@ -223,7 +225,9 @@ impl ChatService {
         if let Some(m) = model
             && !self.engine.is_installed(m)
         {
-            return Err(Error::Invalid(format!("{m} is not installed")));
+            return Err(Error::Invalid(format!(
+                "{m} is not installed. Download it on the Models screen"
+            )));
         }
         self.db.set_character_model(character_id, model).await
     }

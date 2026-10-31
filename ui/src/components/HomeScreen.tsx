@@ -11,6 +11,7 @@ import {
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
+import { ErrorNote } from "./ErrorNote";
 
 export function HomeScreen({
   onOpen,
@@ -25,7 +26,7 @@ export function HomeScreen({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<UiError | null>(null);
 
   const importFile = (file: File) => {
     setImportError(null);
@@ -35,7 +36,7 @@ export function HomeScreen({
       .then((buffer) => importCard(new Uint8Array(buffer)))
       .then(onImport)
       .catch((e: unknown) => {
-        setImportError(toUiError(e).message);
+        setImportError(toUiError(e));
       })
       .finally(() => {
         setImporting(false);
@@ -68,11 +69,7 @@ export function HomeScreen({
   return (
     <section className="home">
       <h1>{strings.home.title}</h1>
-      {error && (
-        <p className="chat-error" role="alert">
-          {strings.home.loadFailed} {error.detail}
-        </p>
-      )}
+      {error && <ErrorNote error={error} lead={strings.home.loadFailed} />}
       <ul className="card-grid">
         <li>
           <button type="button" className="character-card character-card-new" onClick={onCreate}>
@@ -134,11 +131,7 @@ export function HomeScreen({
           }}
         />
       </div>
-      {importError && (
-        <p className="chat-error" role="alert">
-          {importError}
-        </p>
-      )}
+      {importError && <ErrorNote error={importError} />}
       <p className="home-foot">
         <button type="button" className="link-button" onClick={restore}>
           {strings.home.restore}

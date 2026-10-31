@@ -21,15 +21,31 @@ pub struct UiError {
 
 impl From<Error> for UiError {
     fn from(e: Error) -> Self {
+        if let Error::Rejected { message, why } = &e {
+            log::warn!("command failed: {e}");
+            return Self {
+                message: sentence(message),
+                detail: why.clone(),
+            };
+        }
         let message = match &e {
-            Error::NotReady => "The chat engine is not ready yet.".to_owned(),
+            Error::NotReady => {
+                "The chat engine is not ready yet. Wait until the status bar says Ready, then try again."
+                    .to_owned()
+            }
             Error::Busy => "A reply is still being written. Wait, or press Stop.".to_owned(),
-            Error::Timeout(secs) => format!("No reply after {secs} seconds."),
+            Error::Timeout(secs) => format!(
+                "No reply after {secs} seconds. Try again, or pick a smaller model on the Models screen."
+            ),
             Error::Invalid(text) => sentence(text),
-            Error::NotFound(what) => format!("This {what} does not exist."),
-            Error::Engine(_) | Error::Http(_) | Error::Json(_) => "The reply failed.".to_owned(),
+            Error::Rejected { message, .. } => sentence(message),
+            Error::NotFound(what) => format!("This {what} no longer exists. Go back and open it again."),
+            Error::Engine(_) | Error::Http(_) | Error::Json(_) => {
+                "The chat engine did not answer. Try again.".to_owned()
+            }
             Error::Db(_) | Error::Migrate(_) | Error::Io(_) => {
-                "Your data could not be saved.".to_owned()
+                "Unstrung could not read or save your data. Try again. If it fails again, restart Unstrung."
+                    .to_owned()
             }
         };
         log::warn!("command failed: {e}");
@@ -468,4 +484,27 @@ pub async fn set_character_model(
         .chats
         .set_character_model(character_id, model.as_deref())
         .await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejected_file_keeps_the_reason_in_details() {
+        let e = UiError::from(Error::Rejected {
+            message: "the picture could not be read. Use a PNG, JPEG or WebP picture".into(),
+            why: "unexpected end of file".into(),
+        });
+        assert_eq!(
+            e.message,
+            "The picture could not be read. Use a PNG, JPEG or WebP picture."
+        );
+        assert_eq!(e.detail, "unexpected end of file");
+        let e = UiError::from(Error::Timeout(60));
+        assert!(
+            e.message
+                .starts_with("No reply after 60 seconds. Try again")
+        );
+    }
 }

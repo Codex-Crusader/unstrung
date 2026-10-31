@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { stopReply, testReply, toUiError, type CharacterFields, type TestLine } from "../api";
+import { stopReply, testReply, toUiError, type CharacterFields, type TestLine, type UiError } from "../api";
 import { strings } from "../strings";
 import { MessageText } from "./MessageText";
+import { ErrorNote } from "./ErrorNote";
 
 /** A chat with the character as it is in the form now. Nothing is saved. */
 export function TestChat({
@@ -15,7 +16,7 @@ export function TestChat({
 }) {
   const [lines, setLines] = useState<TestLine[]>(() => [{ role: "character", content: fields.greeting }]);
   const [streaming, setStreaming] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
   const [draft, setDraft] = useState("");
   const busy = streaming !== null;
 
@@ -40,12 +41,12 @@ export function TestChat({
           break;
         case "failed":
           setStreaming(null);
-          setError(event.error.message);
+          setError(event.error);
           break;
       }
     }).catch((e: unknown) => {
       setStreaming(null);
-      setError(toUiError(e).message);
+      setError(toUiError(e));
     });
   };
 
@@ -71,11 +72,7 @@ export function TestChat({
             <MessageText text={streaming || "..."} />
           </div>
         )}
-        {error && (
-          <p className="chat-error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNote error={error} />}
       </div>
       <div className="test-ready">
         {strings.creator.testLines.map((line) => (

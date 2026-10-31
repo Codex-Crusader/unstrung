@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { deleteChat, listChats, toUiError, type ChatSummary, type UiError } from "../api";
 import { strings } from "../strings";
 import { Icon } from "./Icon";
+import { ErrorNote } from "./ErrorNote";
 
 /** The side panel with all chats of one character. */
 export function ChatList({
@@ -66,7 +67,7 @@ export function ChatList({
       <button type="button" className="button" onClick={onNew} disabled={disabled}>
         {strings.chats.newChat}
       </button>
-      {error && <p className="chat-error">{error.message}</p>}
+      {error && <ErrorNote error={error} />}
       <ul>
         {chats.map((c) => (
           <li key={c.id} className={c.id === currentChatId ? "chat-item chat-item-current" : "chat-item"}>

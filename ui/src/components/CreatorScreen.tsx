@@ -22,6 +22,7 @@ import { CropAvatar } from "./CropAvatar";
 import { PictureField } from "./PictureField";
 import { startingCustom, StyleEditor } from "./StylePanel";
 import { TestChat } from "./TestChat";
+import { ErrorNote } from "./ErrorNote";
 
 const TONES = ["casual", "wholesome", "dramatic", "flirty", "dark", "funny"];
 
@@ -440,11 +441,7 @@ export function CreatorScreen({
           )}
         </section>
 
-        {error && (
-          <p className="chat-error" role="alert">
-            {error.message}
-          </p>
-        )}
+        {error && <ErrorNote error={error} />}
 
         <div className="form-actions">
           {saved &&

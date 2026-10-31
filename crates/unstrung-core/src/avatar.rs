@@ -72,9 +72,10 @@ pub fn stage(paths: &AppPaths, bytes: &[u8]) -> Result<Staged> {
     limits.max_image_height = Some(MAX_SIDE);
     limits.max_alloc = Some(MAX_ALLOC);
     reader.limits(limits);
-    let picture = reader
-        .decode()
-        .map_err(|e| Error::Invalid(format!("the picture could not be read ({e})")))?;
+    let picture = reader.decode().map_err(|e| Error::Rejected {
+        message: "the picture could not be read. Use a PNG, JPEG or WebP picture".into(),
+        why: e.to_string(),
+    })?;
     if picture.width() < MIN_CROP || picture.height() < MIN_CROP {
         return Err(Error::Invalid("the picture is too small".into()));
     }
