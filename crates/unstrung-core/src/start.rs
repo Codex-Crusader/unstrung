@@ -50,7 +50,7 @@ pub fn attempts(paths: &AppPaths) -> u32 {
 /// Counts one more start. Call it before anything that can crash.
 pub fn record_attempt(paths: &AppPaths) -> Result<()> {
     let next = attempts(paths).saturating_add(1);
-    crate::starters::write_atomic(&paths.start_attempts(), next.to_string().as_bytes())
+    crate::files::write_atomic(&paths.start_attempts(), next.to_string().as_bytes())
 }
 
 /// Clears the count after a start that loaded.

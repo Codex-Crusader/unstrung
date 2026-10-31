@@ -10,6 +10,7 @@ pub mod chat;
 pub mod db;
 pub mod engine;
 pub mod error;
+pub mod files;
 pub mod guard;
 pub mod hardware;
 pub mod library;

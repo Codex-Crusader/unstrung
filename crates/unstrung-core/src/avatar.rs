@@ -4,8 +4,8 @@
 //! 512 x 512 crop in the avatars folder.
 
 use crate::error::{Error, Result};
+use crate::files::write_atomic;
 use crate::paths::AppPaths;
-use crate::starters::write_atomic;
 use image::{DynamicImage, ImageFormat, ImageReader, Limits, imageops::FilterType};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;

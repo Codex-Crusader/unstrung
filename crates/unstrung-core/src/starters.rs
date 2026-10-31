@@ -4,6 +4,7 @@
 
 use crate::db::{CharacterFields, Db, PersonaFields};
 use crate::error::Result;
+use crate::files::write_atomic;
 use crate::paths::AppPaths;
 
 /// Raise this to add new starters to existing databases.
@@ -215,18 +216,6 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
         write_atomic(&paths.stored(&avatar)?, p.avatar)?;
         db.set_persona_avatar(id, Some(&avatar)).await?;
     }
-    Ok(())
-}
-
-/// Writes to a temporary file, flushes it, then renames it over the target.
-pub fn write_atomic(target: &std::path::Path, bytes: &[u8]) -> Result<()> {
-    use std::io::Write;
-    let temp = target.with_extension("tmp");
-    let mut file = std::fs::File::create(&temp)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    drop(file);
-    std::fs::rename(&temp, target)?;
     Ok(())
 }
 

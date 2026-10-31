@@ -37,7 +37,7 @@ pub fn self_test_report(app: AppHandle, state: State<'_, StartInfo>, report: Rep
     let file = state.paths.logs().join("self-test.json");
     match serde_json::to_vec_pretty(&report) {
         Ok(json) => {
-            if let Err(e) = std::fs::write(&file, json) {
+            if let Err(e) = unstrung_core::files::write_atomic(&file, &json) {
                 log::error!("could not write the self-test report: {e}");
             }
         }

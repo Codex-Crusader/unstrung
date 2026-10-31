@@ -190,7 +190,7 @@ fn save_pid(paths: &AppPaths, pid: u32) {
     };
     let record = PidRecord { pid, start_time };
     if let Ok(json) = serde_json::to_vec(&record)
-        && let Err(e) = std::fs::write(paths.engine_pids(), json)
+        && let Err(e) = crate::files::write_atomic(&paths.engine_pids(), &json)
     {
         log::warn!("could not save the engine process ID: {e}");
     }
