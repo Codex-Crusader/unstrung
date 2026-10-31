@@ -4,6 +4,7 @@
 //! Paths never come from the UI.
 
 use crate::error::{Error, Result};
+use crate::location::Location;
 use std::path::{Component, Path, PathBuf};
 
 /// Overrides the app folder. Tests and the self-test use it, so they never touch real data.
@@ -15,6 +16,8 @@ pub const DEV_MODELS_ENV: &str = "UNSTRUNG_DEV_OLLAMA_MODELS";
 #[derive(Debug, Clone)]
 pub struct AppPaths {
     root: PathBuf,
+    /// From `location.json`, read once at start.
+    location: Location,
 }
 
 impl AppPaths {
@@ -30,7 +33,12 @@ impl AppPaths {
     }
 
     pub fn at(root: PathBuf) -> Self {
-        Self { root }
+        let location = Location::load(&root);
+        Self { root, location }
+    }
+
+    pub fn location(&self) -> &Location {
+        &self.location
     }
 
     /// Creates the folders that the app writes to.
@@ -87,10 +95,10 @@ impl AppPaths {
         self.root.join("engine-pids.json")
     }
 
-    /// The models folder of the private chat engine (`OLLAMA_MODELS`).
-    /// Phase 1 keeps the library folder inside the app folder.
+    /// The models folder of the private chat engine (`OLLAMA_MODELS`), in the
+    /// models folder from `location.json` (default `<app folder>\models`).
     pub fn ollama_models(&self) -> PathBuf {
-        self.root.join("models").join("ollama")
+        self.location.models(&self.root).join("ollama")
     }
 
     /// Joins a path that the database stores (relative to the app folder).

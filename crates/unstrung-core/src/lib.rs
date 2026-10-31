@@ -14,6 +14,7 @@ pub mod files;
 pub mod guard;
 pub mod hardware;
 pub mod library;
+pub mod location;
 pub mod memory;
 pub mod models;
 pub mod ollama;

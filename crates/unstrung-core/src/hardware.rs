@@ -147,19 +147,34 @@ fn gpus() -> Vec<Gpu> {
 }
 
 fn free_space(path: &Path) -> u64 {
+    disk_of(path).map_or(0, |d| d.available)
+}
+
+pub(crate) struct DiskInfo {
+    pub available: u64,
+    pub removable: bool,
+}
+
+/// The local disk that holds `path`, or `None` for a network share or a
+/// drive that is not connected. A missing folder counts by its nearest parent.
+pub(crate) fn disk_of(path: &Path) -> Option<DiskInfo> {
     let disks = sysinfo::Disks::new_with_refreshed_list();
-    // The disk with the longest mount point that holds the path.
-    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let existing = path.ancestors().find(|p| p.exists()).unwrap_or(path);
+    let target = std::fs::canonicalize(existing).unwrap_or_else(|_| existing.to_path_buf());
     let target = target
         .to_string_lossy()
         .trim_start_matches(r"\\?\")
         .to_lowercase();
+    // The disk with the longest mount point that holds the path.
     disks
         .list()
         .iter()
         .filter(|d| target.starts_with(&d.mount_point().to_string_lossy().to_lowercase()))
         .max_by_key(|d| d.mount_point().as_os_str().len())
-        .map_or(0, sysinfo::Disk::available_space)
+        .map(|d| DiskInfo {
+            available: d.available_space(),
+            removable: d.is_removable(),
+        })
 }
 
 fn avx2() -> bool {
