@@ -37,16 +37,20 @@ import {
   type ViewMessage,
 } from "./api";
 
-function waitForReady(): Promise<EngineStatus> {
+/** The first status that `done` accepts. */
+function waitForStatus(done: (status: EngineStatus) => boolean): Promise<EngineStatus> {
   return new Promise((resolve) => {
     const settle = (status: EngineStatus) => {
-      if (status.state === "ready" || status.state === "error") {
-        resolve(status);
-      }
+      if (done(status)) resolve(status);
     };
     void onStatus(settle);
     void getStatus().then(settle);
   });
+}
+
+/** Ready, or a state that will not become ready by itself. */
+function waitForReady(): Promise<EngineStatus> {
+  return waitForStatus((s) => s.state === "ready" || s.state === "error" || s.state === "not_installed");
 }
 
 interface Streamed {
@@ -294,7 +298,34 @@ function streamed(events: number, text: string): boolean {
   return events >= 2 || text.split(/\s+/).length <= HELD_WORDS + 5;
 }
 
+/**
+ * An app with no engine: presses Install in the status bar, as a user would,
+ * then waits for the engine and for the engine screen to go back Home.
+ */
+async function installFromStatusBar(): Promise<string> {
+  const install = [...document.querySelectorAll<HTMLButtonElement>(".status-bar button")].find(
+    (b) => b.textContent.trim() === strings.status.install,
+  );
+  if (!install) return "the engine is not installed, but the status bar has no Install button";
+  install.click();
+  const status = await waitForStatus((s) => s.state === "ready" || s.state === "error");
+  if (status.state !== "ready") return `engine install: ${JSON.stringify(status)}`;
+  const end = Date.now() + 20_000;
+  while (document.querySelector(".welcome")) {
+    if (Date.now() > end) return "the engine screen did not go back Home";
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return "";
+}
+
 async function check(report: SelfTestReport, show: (screen: Screen) => void): Promise<string> {
+  let installed = "";
+  // The engine says "starting" for a moment before it knows it is missing.
+  if ((await waitForStatus((s) => s.state !== "starting")).state === "not_installed") {
+    const problem = await installFromStatusBar();
+    if (problem) return problem;
+    installed = " (engine installed from the status bar)";
+  }
   const characters = await listCharacters();
   const ren = characters.find((c) => c.name === "Ren Kagami") ?? characters[0];
   if (!ren) return "no characters";
@@ -334,7 +365,7 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   if (imported) return imported;
   const models = await checkModels(show, ren.id);
   if (models.error) return models.error;
-  return `ok: ${reply.content}${models.note}`;
+  return `ok: ${reply.content}${models.note}${installed}`;
 }
 
 /** `show` opens the chat screen of the tested character, so a screenshot can show it. */
