@@ -236,10 +236,36 @@ fn open_window(app: &tauri::App, background: bool) -> tauri::Result<()> {
         .title("Unstrung")
         .inner_size(1100.0, 760.0)
         .min_inner_size(640.0, 480.0)
-        .background_color(tauri::window::Color(30, 30, 30, 255))
+        .background_color(window_background())
         .focused(!background)
         .build()?;
     Ok(())
+}
+
+/// The page background of the Windows app theme, so the window does not
+/// flash the other color before the page draws (`--bg` in styles.css).
+fn window_background() -> tauri::window::Color {
+    if prefers_light_theme() {
+        tauri::window::Color(244, 239, 230, 255)
+    } else {
+        tauri::window::Color(30, 30, 30, 255)
+    }
+}
+
+#[cfg(windows)]
+fn prefers_light_theme() -> bool {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        .and_then(|key| key.get_value::<u32, _>("AppsUseLightTheme"))
+        // Windows starts in light mode when the value is missing.
+        .map_or(true, |light| light != 0)
+}
+
+#[cfg(not(windows))]
+fn prefers_light_theme() -> bool {
+    false
 }
 
 async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {

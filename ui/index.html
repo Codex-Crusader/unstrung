@@ -4,9 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Unstrung</title>
+    <link rel="stylesheet" href="/src/splash.css" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Shown until React mounts and replaces it. -->
+    <div id="root">
+      <div class="splash" aria-hidden="true">
+        <img src="/src/assets/figure.png" alt="" />
+        <span>Unstrung</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

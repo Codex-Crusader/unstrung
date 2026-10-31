@@ -4715,6 +4715,7 @@ dependencies = [
  "tauri-winrt-notification",
  "tokio",
  "unstrung-core",
+ "winreg",
 ]
 
 [[package]]

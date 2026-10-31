@@ -1,0 +1,48 @@
+/* The splash in index.html. It loads before the app styles, so it has its own colors. */
+html,
+body {
+  margin: 0;
+  background: #f4efe6;
+}
+
+.splash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #a87a2c;
+  font: 700 28px Rockwell, "Roboto Slab", Georgia, serif;
+}
+
+.splash img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  animation: splash-in 0.6s ease-out;
+}
+
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    background: #1e1e1e;
+  }
+
+  .splash {
+    color: #c9a052;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash img {
+    animation: none;
+  }
+}
