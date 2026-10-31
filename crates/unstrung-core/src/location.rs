@@ -11,7 +11,7 @@ pub const FILE: &str = "location.json";
 /// Room to keep free on top of the downloads.
 pub const MARGIN_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// Marks a library folder, so a reinstall can find it again.
-const LIBRARY_MARK: &str = "unstrung-library.json";
+pub(crate) const LIBRARY_MARK: &str = "unstrung-library.json";
 
 /// Saved paths. A missing or damaged file means the defaults, so an install
 /// from before this file keeps working.

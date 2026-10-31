@@ -39,6 +39,19 @@ fn fail(message: &str) -> ! {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // The uninstaller asks to delete the data. This runs before anything
+    // creates a folder or opens the log in the folder that it deletes.
+    if args
+        .iter()
+        .any(|a| a == unstrung_core::uninstall::DELETE_ARG)
+    {
+        let paths = AppPaths::resolve().unwrap_or_else(|e| fail(&format!("no app folder: {e}")));
+        let left = unstrung_core::uninstall::delete_data(&paths);
+        for line in &left {
+            eprintln!("{line}");
+        }
+        std::process::exit(if left.is_empty() { 0 } else { 2 });
+    }
     let self_test = args.iter().any(|a| a == "--self-test");
     // Opens the window without focus, so tests do not take over the desktop.
     let background = args.iter().any(|a| a == "--background");

@@ -3,7 +3,10 @@
   "productName": "Unstrung",
   "version": "0.1.0",
   "identifier": "io.github.codex-crusader.unstrung",
-  "build": { "frontendDist": "../../ui/dist" },
+  "build": {
+    "frontendDist": "../../ui/dist",
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "../../ui" }
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [],
@@ -13,5 +16,16 @@
       "freezePrototype": true
     }
   },
-  "bundle": { "active": false, "icon": ["icons/icon.ico", "icons/icon.png"] }
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "template": "installer/installer.nsi",
+        "installerHooks": "installer/hooks.nsh"
+      }
+    }
+  }
 }
