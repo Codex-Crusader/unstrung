@@ -8,7 +8,7 @@ use tauri::ipc::Channel;
 use unstrung_core::Error;
 use unstrung_core::catalog::Advanced;
 use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RegenMode, ReplyResult};
-use unstrung_core::db::{Character, ChatSummary, Memory, Message, Persona};
+use unstrung_core::db::{Character, ChatSummary, Memory, Message, Persona, RecentChat};
 use unstrung_core::engine::EngineStatus;
 use unstrung_core::models::ModelsPage;
 use unstrung_core::presets::StyleSettings;
@@ -242,6 +242,14 @@ pub async fn list_chats(
     character_id: i64,
 ) -> CmdResult<Vec<ChatSummary>> {
     Ok(state.chats.chats(character_id).await?)
+}
+
+/// How many chats the "Recent chats" row on Home shows.
+const RECENT_CHATS: i64 = 6;
+
+#[tauri::command]
+pub async fn recent_chats(state: State<'_, AppState>) -> CmdResult<Vec<RecentChat>> {
+    Ok(state.chats.db().recent_chats(RECENT_CHATS).await?)
 }
 
 #[tauri::command]

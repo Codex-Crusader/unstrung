@@ -27,7 +27,7 @@ import figure from "./assets/figure.png";
 
 export type Screen =
   | { name: "home" }
-  | { name: "chat"; characterId: number }
+  | { name: "chat"; characterId: number; chatId?: number }
   | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number }
   | { name: "personas" }
   | { name: "models" }
@@ -189,6 +189,9 @@ function MainApp() {
               onOpen={(c) => {
                 setScreen({ name: "chat", characterId: c.id });
               }}
+              onOpenChat={(characterId, chatId) => {
+                setScreen({ name: "chat", characterId, chatId });
+              }}
               onCreate={() => {
                 setScreen({ name: "creator", characterId: null });
               }}
@@ -202,9 +205,10 @@ function MainApp() {
           )}
           {screen.name === "chat" && (
             <ChatScreen
-              key={screen.characterId}
+              key={`${String(screen.characterId)}:${String(screen.chatId ?? "")}`}
               status={status}
               characterId={screen.characterId}
+              chatId={screen.chatId}
               personas={personas}
               onBack={home}
             />

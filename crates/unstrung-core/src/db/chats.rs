@@ -18,6 +18,18 @@ pub struct Chat {
     pub updated_at: i64,
 }
 
+/// A chat for the "Recent chats" row on Home.
+#[derive(Debug, Clone, Serialize)]
+pub struct RecentChat {
+    pub chat_id: i64,
+    pub character_id: i64,
+    pub character_name: String,
+    pub avatar_path: Option<String>,
+    /// The start of the last message on the current branch.
+    pub preview: String,
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatSummary {
     pub id: i64,
@@ -66,6 +78,29 @@ impl Db {
              FROM chats c WHERE c.character_id = ? AND c.deleted_at IS NULL
              ORDER BY c.updated_at DESC, c.id DESC"#,
             character_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// The newest chats in which the user wrote at least one message.
+    /// 18+ characters stay out until Phase 7 adds the adult content setting.
+    pub async fn recent_chats(&self, limit: i64) -> Result<Vec<RecentChat>> {
+        let rows = sqlx::query_as!(
+            RecentChat,
+            r#"SELECT c.id AS "chat_id!", ch.id AS "character_id!", ch.name AS "character_name!",
+                    ch.avatar_path, c.updated_at AS "updated_at!",
+                    COALESCE((SELECT substr(m.content, 1, 120) FROM messages m
+                              WHERE m.id = c.head_message_id AND m.deleted_at IS NULL), '')
+                        AS "preview!: String"
+             FROM chats c JOIN characters ch ON ch.id = c.character_id
+             WHERE c.deleted_at IS NULL AND ch.is_adult = 0
+               AND EXISTS (SELECT 1 FROM messages m
+                           WHERE m.chat_id = c.id AND m.role = 'user' AND m.deleted_at IS NULL)
+             ORDER BY c.updated_at DESC, c.id DESC
+             LIMIT ?"#,
+            limit
         )
         .fetch_all(&self.pool)
         .await?;

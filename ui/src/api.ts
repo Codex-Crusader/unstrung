@@ -491,6 +491,17 @@ export interface FolderCheck {
   existing_library: boolean;
 }
 
+export interface RecentChat {
+  chat_id: number;
+  character_id: number;
+  character_name: string;
+  avatar_path: string | null;
+  preview: string;
+  updated_at: number;
+}
+
+export const recentChats = () => invoke<RecentChat[]>("recent_chats");
+
 export const setupState = () => invoke<SetupState>("setup_state");
 export const pickFolder = (start: string | null) => invoke<string | null>("pick_folder", { start });
 export const checkFolder = (path: string, purpose: FolderPurpose, downloadBytes: number) =>

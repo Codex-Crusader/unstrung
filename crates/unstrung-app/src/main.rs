@@ -117,6 +117,7 @@ fn main() {
             commands::open_chat,
             commands::new_chat,
             commands::list_chats,
+            commands::recent_chats,
             commands::delete_chat,
             commands::send_message,
             commands::edit_message,

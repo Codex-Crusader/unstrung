@@ -52,11 +52,14 @@ const BEFORE_FIRST = 0;
 export function ChatScreen({
   status,
   characterId,
+  chatId: startChat,
   personas,
   onBack,
 }: {
   status: EngineStatus;
   characterId: number;
+  /** A chat to open. Without it, the character's latest chat opens. */
+  chatId?: number | undefined;
   personas: Persona[];
   onBack: () => void;
 }) {
@@ -116,7 +119,7 @@ export function ChatScreen({
 
   useEffect(() => {
     let active = true;
-    openCharacter(characterId)
+    (startChat === undefined ? openCharacter(characterId) : openChat(startChat))
       .then((v) => {
         if (active) setView(v);
       })
@@ -126,7 +129,7 @@ export function ChatScreen({
     return () => {
       active = false;
     };
-  }, [characterId]);
+  }, [characterId, startChat]);
 
   // Follow new text only when the user is already at the bottom, so reading
   // older messages is not interrupted.

@@ -31,6 +31,7 @@
     "allow-open-chat",
     "allow-new-chat",
     "allow-list-chats",
+    "allow-recent-chats",
     "allow-delete-chat",
     "allow-send-message",
     "allow-edit-message",

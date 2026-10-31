@@ -2135,3 +2135,92 @@ body > iframe {
     animation: none;
   }
 }
+
+/* Home: recent chats and search */
+.recent h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-head);
+  font-size: 18px;
+}
+
+.recent-row {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.recent-chat {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.recent-chat:hover {
+  border-color: var(--accent);
+}
+
+.recent-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recent-name {
+  font-weight: 700;
+}
+
+.recent-preview {
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-soft);
+}
+
+.home-search input {
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: none;
+  padding: 7px 0;
+  width: 200px;
+}
+
+.home-search input:focus-visible {
+  outline: none;
+}
+
+.home-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

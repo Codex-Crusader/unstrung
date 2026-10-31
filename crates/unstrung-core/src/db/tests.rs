@@ -169,3 +169,48 @@ async fn a_database_from_before_the_welcome_flow_skips_it() {
     );
     assert!(!db.first_run_pending().await.unwrap());
 }
+
+#[tokio::test]
+async fn recent_chats_are_talked_in_newest_first_and_not_adult() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let ren_id = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let detective = db.character(ren_id).await.unwrap();
+    let adult_fields = CharacterFields {
+        name: "Vex".into(),
+        is_adult: true,
+        ..ren()
+    };
+    let vex = db
+        .character(
+            db.insert_character(&adult_fields, None, "{}")
+                .await
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Only the greeting: not recent.
+    db.create_chat(&detective, None, "", true).await.unwrap();
+    let older = db.create_chat(&detective, None, "", true).await.unwrap();
+    let greeting = db.chat(older).await.unwrap().head_message_id;
+    user(&db, older, greeting, "First chat").await;
+    let newer = db.create_chat(&detective, None, "", true).await.unwrap();
+    let greeting = db.chat(newer).await.unwrap().head_message_id;
+    let hello = user(&db, newer, greeting, "Hello").await;
+    user(&db, newer, greeting, "Other branch").await;
+    // The preview is the head: the last message on the current branch.
+    user(&db, newer, Some(hello.id), "Where were we?").await;
+    let gone = db.create_chat(&detective, None, "", true).await.unwrap();
+    user(&db, gone, None, "Deleted").await;
+    db.delete_chat(gone).await.unwrap();
+    let adult = db.create_chat(&vex, None, "", true).await.unwrap();
+    user(&db, adult, None, "Hidden").await;
+
+    let recent = db.recent_chats(8).await.unwrap();
+    let ids: Vec<i64> = recent.iter().map(|r| r.chat_id).collect();
+    assert_eq!(ids, [newer, older]);
+    assert_eq!(recent[0].preview, "Where were we?");
+    assert_eq!(recent[0].character_name, "Ren");
+    assert_eq!(db.recent_chats(1).await.unwrap().len(), 1);
+}

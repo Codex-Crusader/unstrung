@@ -7,7 +7,7 @@ mod messages;
 mod personas;
 
 pub use characters::{Character, CharacterFields, WorldEntry};
-pub use chats::{Chat, ChatSummary};
+pub use chats::{Chat, ChatSummary, RecentChat};
 pub use memories::Memory;
 pub use messages::{Message, NewMessage};
 pub use personas::{Persona, PersonaFields};

@@ -20,6 +20,7 @@ import {
   regenerate,
   remember,
   saveCharacter,
+  recentChats,
   selfTestReport,
   sendMessage,
   setChatStyle,
@@ -365,6 +366,9 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   if (imported) return imported;
   const models = await checkModels(show, ren.id);
   if (models.error) return models.error;
+  // Home's "Recent chats" row hides a load failure, so check it here.
+  const recent = await recentChats();
+  if (!recent.some((r) => r.character_id === ren.id)) return "recent chats: the test chat is missing";
   return `ok: ${reply.content}${models.note}${installed}`;
 }
 
