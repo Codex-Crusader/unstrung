@@ -2224,3 +2224,15 @@ body > iframe {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+.import-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+}
+
+.import-file .welcome-warning {
+  flex-basis: 100%;
+}

@@ -209,7 +209,7 @@ export interface Advanced {
 
 export interface Download {
   model: string;
-  state: "downloading" | "checking" | "done" | "stopped" | "failed";
+  state: "downloading" | "importing" | "checking" | "done" | "stopped" | "failed";
   completed: number;
   total: number;
   bytes_per_second: number;
@@ -499,6 +499,13 @@ export interface RecentChat {
   preview: string;
   updated_at: number;
 }
+
+/** Opens the file picker and starts the import. `null` when the user cancels. */
+export const importModelFile = () => invoke<string | null>("import_model_file");
+
+/** A download or an import is running. */
+export const downloadRunning = (d: Download | null) =>
+  d !== null && (d.state === "downloading" || d.state === "importing" || d.state === "checking");
 
 export const recentChats = () => invoke<RecentChat[]>("recent_chats");
 

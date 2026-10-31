@@ -233,3 +233,59 @@ async fn missing_model_keeps_the_engine_running() {
     assert!(engine.client().is_ok());
     engine.stop().await;
 }
+
+/// Phase 4: a GGUF file imports as a model of its own. The file is a hard
+/// link to a test model's weights, so the engine already has the blob and
+/// skips the upload; the test covers the hash, the blob check, the create
+/// and the model list. Set UNSTRUNG_TEST_GGUF to a GGUF file.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama, the test models and UNSTRUNG_TEST_GGUF"]
+async fn a_gguf_file_imports_as_a_model() {
+    let source = std::path::PathBuf::from(std::env::var("UNSTRUNG_TEST_GGUF").unwrap());
+    let home = tempfile::tempdir().unwrap();
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths.ensure().unwrap();
+    let file = home.path().join("My Test Model.gguf");
+    std::fs::hard_link(&source, &file).unwrap();
+
+    let engine = Engine::new(paths.clone());
+    engine.start().await;
+    let db = Db::open(&paths.database()).await.unwrap();
+    let startup = unstrung_core::models::startup(&db, &paths).await.unwrap();
+    let models = unstrung_core::models::ModelService::new(engine.clone(), db, &startup);
+    let mut progress = models.subscribe();
+
+    let name = models.import_file(file.clone()).await.unwrap();
+    assert_eq!(name, "my-test-model");
+    let end = loop {
+        progress.changed().await.unwrap();
+        let now = progress.borrow_and_update().clone().unwrap();
+        if !matches!(now.state, unstrung_core::models::DownloadState::Importing) {
+            break now;
+        }
+    };
+    assert_eq!(
+        end.state,
+        unstrung_core::models::DownloadState::Done,
+        "{end:?}"
+    );
+    let installed = engine.refresh_installed().await.unwrap();
+    assert!(
+        installed
+            .iter()
+            .any(|m| m.name.starts_with("my-test-model"))
+    );
+
+    // A file with a .gguf name but other bytes is refused.
+    let not_gguf = home.path().join("notes.gguf");
+    std::fs::write(&not_gguf, b"not a model").unwrap();
+    assert!(models.import_file(not_gguf).await.is_err());
+
+    engine
+        .client()
+        .unwrap()
+        .delete("my-test-model")
+        .await
+        .unwrap();
+    engine.stop().await;
+}

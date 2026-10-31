@@ -51,6 +51,7 @@ const COMMANDS: &[&str] = &[
     "recheck_hardware",
     "download_model",
     "stop_download",
+    "import_model_file",
     "remove_model",
     "set_default_model",
     "set_advanced",

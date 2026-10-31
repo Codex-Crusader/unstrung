@@ -6,10 +6,11 @@ use crate::db::Db;
 use crate::engine::{Engine, EngineStatus};
 use crate::error::{Error, Result};
 use crate::hardware::{Hardware, Tier};
-use crate::ollama::Installed;
+use crate::ollama::{Client, Installed};
 use crate::sidecar;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::sync::watch;
@@ -26,6 +27,8 @@ const DISK_MARGIN: u64 = 2 * 1024 * 1024 * 1024;
 #[serde(rename_all = "snake_case")]
 pub enum DownloadState {
     Downloading,
+    /// A model file from disk: hashing it, then copying it into the engine.
+    Importing,
     /// The engine checks the files after the last byte.
     Checking,
     Done,
@@ -306,6 +309,152 @@ impl ModelService {
         }
     }
 
+    /// Imports a GGUF model file from disk. It runs in the background like a
+    /// download, in the same slot and with the same progress events. The
+    /// engine copies the file into its models folder. Returns the model name.
+    pub async fn import_file(self: &Arc<Self>, path: PathBuf) -> Result<String> {
+        let client = self.engine.running_client()?;
+        let size = check_gguf(&path)?;
+        let taken: Vec<String> = client
+            .installed()
+            .await?
+            .into_iter()
+            .map(|m| m.name)
+            .collect();
+        let model = import_name(&path, &taken)?;
+        let cancel = CancellationToken::new();
+        {
+            let mut running = self.running.lock().map_err(|_| Error::Busy)?;
+            if let Some(r) = running.as_ref() {
+                return Err(Error::Invalid(format!(
+                    "{} is downloading now. Wait for it, or stop it first",
+                    r.model
+                )));
+            }
+            let free = self.hardware.lock().map_or(0, |h| h.disk_free_bytes);
+            if free > 0 && free < size + DISK_MARGIN {
+                return Err(Error::NoSpace {
+                    need: size + DISK_MARGIN,
+                });
+            }
+            *running = Some(Running {
+                model: model.clone(),
+                cancel: cancel.clone(),
+            });
+        }
+        let service = Arc::clone(self);
+        let name = model.clone();
+        tokio::spawn(async move {
+            let result = service
+                .import_run(&client, &path, size, &name, &cancel)
+                .await;
+            let (end, error) = match result {
+                Ok(()) => (DownloadState::Done, String::new()),
+                Err(Error::Cancelled) => (DownloadState::Stopped, String::new()),
+                Err(e) => {
+                    log::warn!("import of {} failed: {e}", path.display());
+                    (DownloadState::Failed, e.to_string())
+                }
+            };
+            if let Ok(mut running) = service.running.lock() {
+                *running = None;
+            }
+            service.engine.model_list_changed().await;
+            if end == DownloadState::Done {
+                log::info!("imported {} as {name}", path.display());
+                service.after_download(&name).await;
+            }
+            service.progress.send_replace(Some(Download {
+                model: name,
+                state: end,
+                completed: if end == DownloadState::Done {
+                    2 * size
+                } else {
+                    0
+                },
+                total: 2 * size,
+                bytes_per_second: 0,
+                error,
+            }));
+        });
+        Ok(model)
+    }
+
+    /// Hashes the file (the first half of the bar), then streams it to the
+    /// engine (the second half), then makes the model.
+    async fn import_run(
+        self: &Arc<Self>,
+        client: &Client,
+        path: &Path,
+        size: u64,
+        model: &str,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        let show = {
+            let service = Arc::clone(self);
+            let model = model.to_owned();
+            move |completed: u64| {
+                service.progress.send_replace(Some(Download {
+                    model: model.clone(),
+                    state: DownloadState::Importing,
+                    completed,
+                    total: 2 * size,
+                    bytes_per_second: 0,
+                    error: String::new(),
+                }));
+            }
+        };
+        show(0);
+        let sha256 = {
+            let path = path.to_owned();
+            let show = show.clone();
+            let cancel = cancel.clone();
+            tokio::task::spawn_blocking(move || {
+                let mut done = 0;
+                crate::download::sha256_of(&path, &mut |n| {
+                    done += n;
+                    if !cancel.is_cancelled() {
+                        show(done);
+                    }
+                })
+            })
+            .await
+            .map_err(|e| Error::Engine(e.to_string()))??
+        };
+        if cancel.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        if !client.has_blob(&sha256).await? {
+            let file = tokio::fs::File::open(path).await?;
+            let sent = std::sync::atomic::AtomicU64::new(0);
+            let stream = futures_util::stream::try_unfold(
+                (file, show.clone(), sent),
+                move |(mut file, show, sent)| async move {
+                    use tokio::io::AsyncReadExt;
+                    let mut buf = vec![0u8; 1 << 20];
+                    let n = file.read(&mut buf).await?;
+                    if n == 0 {
+                        return Ok::<_, std::io::Error>(None);
+                    }
+                    buf.truncate(n);
+                    let total =
+                        sent.fetch_add(n as u64, std::sync::atomic::Ordering::Relaxed) + n as u64;
+                    show(size + total);
+                    Ok(Some((buf, (file, show, sent))))
+                },
+            );
+            tokio::select! {
+                result = client.push_blob(&sha256, reqwest::Body::wrap_stream(stream)) => result?,
+                () = cancel.cancelled() => return Err(Error::Cancelled),
+            }
+        }
+        show(2 * size);
+        let file_name = path
+            .file_name()
+            .map_or_else(|| "model.gguf".into(), |n| n.to_string_lossy().into_owned());
+        client.create_from_gguf(model, &file_name, &sha256).await
+    }
+
     /// Stops the running download. The engine keeps the finished parts.
     pub fn stop_download(&self) {
         if let Ok(running) = self.running.lock()
@@ -485,6 +634,77 @@ impl Progress {
     }
 }
 
+/// A GGUF file starts with these four bytes.
+const GGUF_MAGIC: &[u8; 4] = b"GGUF";
+
+/// Checks that `path` is a GGUF model file. Returns its size.
+fn check_gguf(path: &Path) -> Result<u64> {
+    let not_gguf = |why: String| Error::Rejected {
+        message: "This is not a GGUF model file. Pick a file that ends in .gguf.".into(),
+        why,
+    };
+    let gguf_name = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("gguf"));
+    if !gguf_name {
+        return Err(not_gguf(format!("{} has no .gguf ending", path.display())));
+    }
+    let meta = std::fs::metadata(path)?;
+    if !meta.is_file() {
+        return Err(not_gguf(format!("{} is not a file", path.display())));
+    }
+    let mut magic = [0u8; 4];
+    std::io::Read::read_exact(&mut std::fs::File::open(path)?, &mut magic)
+        .map_err(|e| not_gguf(e.to_string()))?;
+    if &magic != GGUF_MAGIC {
+        return Err(not_gguf(format!(
+            "the file starts with {magic:?}, not GGUF"
+        )));
+    }
+    Ok(meta.len())
+}
+
+/// A model name from the file name: lowercase letters, digits and - . _,
+/// with a number added when the engine already has that name.
+fn import_name(path: &Path, taken: &[String]) -> Result<String> {
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let mut base = String::new();
+    for c in stem.chars() {
+        let c = if c.is_ascii_alphanumeric() || "._".contains(c) {
+            c
+        } else {
+            '-'
+        };
+        if !(c == '-' && base.ends_with('-')) {
+            base.push(c);
+        }
+    }
+    let mut base: String = base
+        .trim_matches(|c| "-._".contains(c))
+        .chars()
+        .take(40)
+        .collect();
+    base = base.trim_end_matches(|c| "-._".contains(c)).to_owned();
+    if base.is_empty() {
+        base = "imported-model".into();
+    }
+    let free = |name: &str| !taken.iter().any(|t| catalog::same_tag(t, name));
+    let name = (1..1000)
+        .map(|n| {
+            if n == 1 {
+                base.clone()
+            } else {
+                format!("{base}-{n}")
+            }
+        })
+        .find(|name| free(name))
+        .ok_or_else(|| Error::Invalid("pick a file with another name".into()))?;
+    catalog::check_tag(&name)
+}
+
 /// The Tokio runtime of the caller. A caller on a thread with no runtime
 /// (for example, a sync Tauri command on the main thread) gets an error
 /// instead of a panic, which would end the app.
@@ -497,6 +717,39 @@ fn runtime() -> Result<tokio::runtime::Handle> {
 mod tests {
     use super::*;
     use crate::ollama::{InstalledDetails, PullLine};
+
+    #[test]
+    fn import_names_are_clean_and_free() {
+        let taken = vec!["my-model:latest".to_owned(), "gemma4:e4b-it-qat".to_owned()];
+        let name = |p: &str| super::import_name(Path::new(p), &taken).unwrap();
+        assert_eq!(
+            name("C:/m/Mistral 7B Instruct (Q4_K_M).gguf"),
+            "mistral-7b-instruct-q4_k_m"
+        );
+        assert_eq!(name("C:/m/my-model.gguf"), "my-model-2");
+        assert_eq!(name("C:/m/!!!.gguf"), "imported-model");
+        assert_eq!(name("C:/m/über-modell.GGUF"), "ber-modell");
+    }
+
+    #[test]
+    fn only_gguf_files_import() {
+        let dir = tempfile::tempdir().unwrap();
+        let good = dir.path().join("a.gguf");
+        std::fs::write(&good, b"GGUF\x03\x00\x00\x00rest").unwrap();
+        assert_eq!(super::check_gguf(&good).unwrap(), 12);
+        let fake = dir.path().join("b.gguf");
+        std::fs::write(&fake, b"PK\x03\x04 a zip").unwrap();
+        assert!(matches!(
+            super::check_gguf(&fake),
+            Err(Error::Rejected { .. })
+        ));
+        let short = dir.path().join("c.gguf");
+        std::fs::write(&short, b"GG").unwrap();
+        assert!(super::check_gguf(&short).is_err());
+        let named = dir.path().join("d.bin");
+        std::fs::write(&named, b"GGUF").unwrap();
+        assert!(super::check_gguf(&named).is_err());
+    }
 
     #[test]
     fn a_download_outside_the_runtime_is_an_error() {

@@ -268,6 +268,53 @@ impl Client {
         Ok(())
     }
 
+    /// Whether the engine already has a blob (`HEAD /api/blobs/:digest`).
+    pub async fn has_blob(&self, sha256: &str) -> Result<bool> {
+        let response = self
+            .http
+            .head(format!("{}/api/blobs/sha256:{sha256}", self.base))
+            .timeout(Duration::from_secs(30))
+            .send()
+            .await?;
+        Ok(response.status().is_success())
+    }
+
+    /// Sends a file to the engine as a blob (`POST /api/blobs/:digest`).
+    /// The engine checks the bytes against the digest.
+    pub async fn push_blob(&self, sha256: &str, body: reqwest::Body) -> Result<()> {
+        let response = self
+            .http
+            .post(format!("{}/api/blobs/sha256:{sha256}", self.base))
+            .body(body)
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::Engine(engine_message(&body)));
+        }
+        Ok(())
+    }
+
+    /// Makes a model from one GGUF blob (`POST /api/create`).
+    pub async fn create_from_gguf(&self, model: &str, file_name: &str, sha256: &str) -> Result<()> {
+        let response = self
+            .http
+            .post(format!("{}/api/create", self.base))
+            .timeout(Duration::from_secs(600))
+            .json(&serde_json::json!({
+                "model": model,
+                "files": { file_name: format!("sha256:{sha256}") },
+                "stream": false,
+            }))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::Engine(engine_message(&body)));
+        }
+        Ok(())
+    }
+
     /// Takes a model out of memory.
     pub async fn unload(&self, model: &str) -> Result<()> {
         self.http

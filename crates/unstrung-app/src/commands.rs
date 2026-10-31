@@ -504,6 +504,31 @@ pub async fn download_model(state: State<'_, AppState>, model: String) -> CmdRes
     Ok(state.models.download(&model)?)
 }
 
+/// Opens the Windows file picker for a GGUF file and starts the import.
+/// The path comes only from the picker, never from the page. `None` when the
+/// user closes the picker; otherwise the new model's name.
+#[tauri::command]
+pub async fn import_model_file(state: State<'_, AppState>) -> CmdResult<Option<String>> {
+    #[cfg(windows)]
+    {
+        let Some(file) = rfd::AsyncFileDialog::new()
+            .add_filter("GGUF model", &["gguf"])
+            .pick_file()
+            .await
+        else {
+            return Ok(None);
+        };
+        Ok(Some(
+            state.models.import_file(file.path().to_path_buf()).await?,
+        ))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = state;
+        Ok(None)
+    }
+}
+
 #[tauri::command]
 pub fn stop_download(state: State<'_, AppState>) {
     state.models.stop_download();

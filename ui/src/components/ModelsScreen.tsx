@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   downloadModel,
+  downloadRunning,
+  importModelFile,
   modelsPage,
   onDownload,
   recheckHardware,
@@ -32,9 +34,11 @@ function gib(bytes: number): string {
 }
 
 /** `name` is the model name to show, or the tag for a model outside the catalog. */
-function DownloadLine({ download, name }: { download: Download; name: string }) {
+function DownloadLine({ download, name, imported }: { download: Download; name: string; imported: boolean }) {
   const s = strings.models;
+  const percent = String(Math.floor((100 * download.completed) / Math.max(1, download.total)));
   const text = {
+    importing: s.importing(name, percent),
     downloading: s.downloading(
       name,
       gb(download.completed),
@@ -42,11 +46,11 @@ function DownloadLine({ download, name }: { download: Download; name: string }) 
       download.bytes_per_second > 0 ? (download.bytes_per_second / 1_000_000).toFixed(1) : "",
     ),
     checking: s.checking(name),
-    done: s.done(name),
-    stopped: s.stopped(name),
-    failed: s.failed(name),
+    done: imported ? s.imported(name) : s.done(name),
+    stopped: imported ? s.importStopped(name) : s.stopped(name),
+    failed: imported ? s.importFailed(name) : s.failed(name),
   }[download.state];
-  const active = download.state === "downloading" || download.state === "checking";
+  const active = downloadRunning(download);
   return (
     <div className={download.state === "failed" ? "download-line download-failed" : "download-line"} role="status">
       <span>{text}</span>
@@ -123,6 +127,7 @@ export interface ModelActions {
   use: (model: string) => void;
   remove: (model: string) => void;
   recheck: () => void;
+  importFile: () => void;
 }
 
 const TIERS = ["basic", "standard", "high"] as const;
@@ -168,7 +173,7 @@ function ModelRow({
   act: ModelActions;
 }) {
   const s = strings.models;
-  const busy = download !== null && (download.state === "downloading" || download.state === "checking");
+  const busy = downloadRunning(download);
   const mine = download?.model === m.id;
   let main;
   if (busy && mine) {
@@ -276,6 +281,7 @@ function ModelRow({
 export function ModelsView({
   page,
   download,
+  imported,
   act,
   notice,
   ownForm,
@@ -284,6 +290,8 @@ export function ModelsView({
   notice: ReactNode;
   page: ModelsPage;
   download: Download | null;
+  /** The model name of the last import, so its line says "import". */
+  imported: string | null;
   act: ModelActions;
   ownForm: ReactNode;
   advancedForm: ReactNode;
@@ -295,7 +303,7 @@ export function ModelsView({
   const own = page.models.filter((m) => !m.in_catalog).sort(bySize);
   const installed = page.models.filter((m) => m.installed);
   const pick = catalog.find((m) => m.recommended);
-  const busy = download !== null && (download.state === "downloading" || download.state === "checking");
+  const busy = downloadRunning(download);
   const row = (m: ModelView) => (
     <ModelRow key={m.id} m={m} page={page} download={download} confirm={confirm} setConfirm={setConfirm} act={act} />
   );
@@ -338,6 +346,7 @@ export function ModelsView({
         <DownloadLine
           download={download}
           name={page.models.find((m) => m.id === download.model)?.name ?? download.model}
+          imported={download.model === imported}
         />
       )}
 
@@ -370,7 +379,7 @@ export function ModelsView({
                 }}
               >
                 <Icon name="download" />
-                {busy && download.model === pick.id ? s.downloadingShort : `${s.download} (${gb(pick.size_bytes)} GB)`}
+                {busy && download?.model === pick.id ? s.downloadingShort : `${s.download} (${gb(pick.size_bytes)} GB)`}
               </button>
             )}
           </div>
@@ -423,6 +432,22 @@ export function ModelsView({
         <p className="muted">{s.ownIntro}</p>
         {own.length > 0 ? <ul className="model-list">{own.map(row)}</ul> : <p className="muted">{s.ownNone}</p>}
         {ownForm}
+        <div className="import-file">
+          <button
+            type="button"
+            className="button button-quiet"
+            disabled={busy}
+            onClick={act.importFile}
+          >
+            <Icon name="import" />
+            {s.importFile}
+          </button>
+          <span className="field-hint">{s.importHint}</span>
+          <p className="welcome-warning">
+            <Icon name="warning" />
+            {s.importWarning}
+          </p>
+        </div>
       </div>
 
       <details className="more advanced">
@@ -445,6 +470,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
   const [advanced, setAdvancedDraft] = useState<Advanced | null>(null);
   const [saved, setSaved] = useState(false);
   const [byName, setByName] = useState("");
+  const [imported, setImported] = useState<string | null>(null);
 
   const show = (p: ModelsPage) => {
     setPage(p);
@@ -509,7 +535,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
     );
   }
 
-  const busy = download !== null && (download.state === "downloading" || download.state === "checking");
+  const busy = downloadRunning(download);
   const act: ModelActions = {
     download: (model) => {
       setError(null);
@@ -525,6 +551,14 @@ export function ModelsScreen({ engine }: { engine: string }) {
     },
     recheck: () => {
       recheckHardware().then(show).catch(fail);
+    },
+    importFile: () => {
+      setError(null);
+      importModelFile()
+        .then((name) => {
+          if (name !== null) setImported(name);
+        })
+        .catch(fail);
     },
   };
 
@@ -548,6 +582,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
       <label className="field">
         <span className="field-label">{s.byName}</span>
         <input
+          type="text"
           value={byName}
           placeholder="llama3.1:8b"
           spellCheck={false}
@@ -659,6 +694,7 @@ export function ModelsScreen({ engine }: { engine: string }) {
     <ModelsView
       page={page}
       download={download}
+      imported={imported}
       act={act}
       notice={notice}
       ownForm={ownForm}

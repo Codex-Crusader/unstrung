@@ -57,6 +57,7 @@
     "allow-recheck-hardware",
     "allow-download-model",
     "allow-stop-download",
+    "allow-import-model-file",
     "allow-remove-model",
     "allow-set-default-model",
     "allow-set-advanced",
