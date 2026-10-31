@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Actions, Description, Initiative, Length, Perspective, StyleSettings, Talk } from "../api";
 import { strings } from "../strings";
 import { Icon, type IconName } from "./Icon";
@@ -198,9 +198,34 @@ export function StylePanel({
 }) {
   const [picked, setPicked] = useState(style);
   const [custom, setCustom] = useState<StyleSettings>(() => startingCustom(style, customJson));
+  const panel = useRef<HTMLDivElement>(null);
+
+  // The keyboard goes into the panel when it opens, and back to the
+  // button that opened it when it closes.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const first =
+      panel.current?.querySelector<HTMLElement>("input:checked") ??
+      panel.current?.querySelector<HTMLElement>("input, button, select");
+    first?.focus();
+    return () => {
+      opener?.focus();
+    };
+  }, []);
 
   return (
-    <div className="popover style-panel" role="dialog" aria-label={strings.header.style}>
+    <div
+      className="popover style-panel"
+      role="dialog"
+      aria-label={strings.header.style}
+      ref={panel}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <StyleEditor
         picked={picked}
         custom={custom}

@@ -356,7 +356,15 @@ export function ChatScreen({
         />
 
         {view.model_removed && <p className="chat-notice">{strings.header.modelRemoved(view.model_removed)}</p>}
-        <div className="messages" ref={listRef} onScroll={onScroll} role="log" aria-label={strings.chat.messages}>
+        <div
+          className="messages"
+          ref={listRef}
+          onScroll={onScroll}
+          role="log"
+          aria-label={strings.chat.messages}
+          // While a reply streams, a screen reader waits and reads it once.
+          aria-busy={busy}
+        >
           {shown.map((m, i) => (
             <MessageItem
               key={m.id}

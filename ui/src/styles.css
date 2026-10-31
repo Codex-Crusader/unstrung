@@ -10,12 +10,14 @@
   --text-soft: #6b625a;
   --action: #7a6f64;
   --accent: #a87a2c;
+  /* Brass that carries text: AA (4.5:1) on every background and under white text. */
+  --accent-strong: #856023;
   --accent-text: #ffffff;
   --accent-soft: rgba(168, 122, 44, 0.16);
   --user-bubble: #e6dccb;
   --ok: #5b8a3a;
   --warn: #c58a1a;
-  --bad: #b5432f;
+  --bad: #b3422f;
   --radius: 12px;
   --gap: 12px;
   --font-ui: "Segoe UI", system-ui, sans-serif;
@@ -34,6 +36,8 @@
     --text-soft: #a69d91;
     --action: #b3a898;
     --accent: #c9a052;
+    --accent-strong: #c9a052;
+    --bad: #d87868;
     --accent-text: #1e1e1e;
     --accent-soft: rgba(201, 160, 82, 0.18);
     --user-bubble: #3a3630;
@@ -280,7 +284,7 @@ body {
   border: none;
   border-radius: var(--radius);
   padding: 0 20px;
-  background: var(--accent);
+  background: var(--accent-strong);
   color: var(--accent-text);
   cursor: pointer;
 }
@@ -301,7 +305,7 @@ body {
   font-size: 13px;
   border: none;
   background: none;
-  color: var(--accent);
+  color: var(--accent-strong);
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
@@ -1764,7 +1768,7 @@ body > iframe {
 }
 
 .badge-strong {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: var(--accent-text);
 }
 
