@@ -2,6 +2,10 @@
 //! of what the window may call.
 
 const COMMANDS: &[&str] = &[
+    "start_mode",
+    "start_ok",
+    "start_normally",
+    "diagnostic_report",
     "get_status",
     "list_characters",
     "list_personas",

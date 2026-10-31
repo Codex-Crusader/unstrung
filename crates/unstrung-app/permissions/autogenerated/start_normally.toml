@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-normally"
+description = "Enables the start_normally command without any pre-configured scope."
+commands.allow = ["start_normally"]
+
+[[permission]]
+identifier = "deny-start-normally"
+description = "Denies the start_normally command without any pre-configured scope."
+commands.deny = ["start_normally"]

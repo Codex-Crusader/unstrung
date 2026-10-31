@@ -251,6 +251,21 @@ export const strings = {
     undo: "Undo",
     dismiss: "Dismiss",
   },
+  safe: {
+    title: "Safe start",
+    reasons: new Map<string, string>([
+      ["failed_starts", "Unstrung did not open the last 2 times, so it opened in safe start. The chat engine is off."],
+      ["asked", "You asked for safe start. The chat engine is off."],
+      ["data_did_not_open", "Your chat data did not open, so Unstrung opened in safe start. The chat engine is off."],
+    ]),
+    dataError: "The chat data did not open.",
+    keep: "Safe start does not change your chats, characters, personas or pictures.",
+    startNormally: "Start normally",
+    copyReport: "Copy diagnostic report",
+    copied: "Copied. Paste it into your bug report.",
+    copyFailed: "The report could not be copied.",
+    reportHint: "The report has the app version and the last log lines, with no chat text and no user name.",
+  },
   header: {
     persona: "You are",
     noPersona: "No persona (User)",

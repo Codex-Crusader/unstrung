@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-mode"
+description = "Enables the start_mode command without any pre-configured scope."
+commands.allow = ["start_mode"]
+
+[[permission]]
+identifier = "deny-start-mode"
+description = "Denies the start_mode command without any pre-configured scope."
+commands.deny = ["start_mode"]

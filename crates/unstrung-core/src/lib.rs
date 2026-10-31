@@ -20,6 +20,7 @@ pub mod paths;
 pub mod presets;
 pub mod prompt;
 pub mod sidecar;
+pub mod start;
 pub mod starters;
 
 pub use error::{Error, Result};

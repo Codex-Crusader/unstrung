@@ -72,6 +72,11 @@ impl AppPaths {
         self.root.join("engines")
     }
 
+    /// The count of starts in a row that did not load (see `start`).
+    pub fn start_attempts(&self) -> PathBuf {
+        self.root.join("start-attempts.txt")
+    }
+
     /// Process IDs of the engines that this app started. Used to stop leftovers.
     pub fn engine_pids(&self) -> PathBuf {
         self.root.join("engine-pids.json")

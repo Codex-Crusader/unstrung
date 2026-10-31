@@ -7,9 +7,11 @@
 mod commands;
 mod creator;
 mod logfile;
+mod safe;
 mod selftest;
 mod state;
 
+use safe::StartInfo;
 use state::AppState;
 use std::sync::Arc;
 use tauri::http::{Response, StatusCode};
@@ -19,6 +21,7 @@ use unstrung_core::db::Db;
 use unstrung_core::engine::Engine;
 use unstrung_core::models::{self, ModelService};
 use unstrung_core::paths::AppPaths;
+use unstrung_core::start::{self, SafeReason};
 use unstrung_core::starters;
 
 pub const STATUS_EVENT: &str = "engine-status";
@@ -51,6 +54,24 @@ fn main() {
         env!("CARGO_PKG_VERSION"),
         paths.root().display()
     );
+    // The self-test never counts starts, so a killed test run cannot turn the
+    // next one into a safe start.
+    let safe_reason = if self_test {
+        None
+    } else {
+        let asked = args.iter().any(|a| a == safe::SAFE_START_ARG);
+        start::decide(start::attempts(&paths), asked)
+    };
+    match safe_reason {
+        Some(reason) => log::warn!("safe start: {reason:?}"),
+        None if !self_test => {
+            // Counted before anything that can crash. The window clears it.
+            if let Err(e) = start::record_attempt(&paths) {
+                log::warn!("could not count the start: {e}");
+            }
+        }
+        None => {}
+    }
 
     let app = tauri::Builder::default()
         .register_asynchronous_uri_scheme_protocol("avatar", |ctx, request, responder| {
@@ -110,16 +131,39 @@ fn main() {
             creator::test_reply,
             selftest::self_test_mode,
             selftest::self_test_report,
+            safe::start_mode,
+            safe::start_ok,
+            safe::start_normally,
+            safe::diagnostic_report,
         ])
         .setup(move |app| {
-            let state = tauri::async_runtime::block_on(open_core(paths, self_test))?;
-            open_window(app, background)?;
-            start_engine(app.handle(), &state.engine, &state.models);
-            send_memory_changes(app.handle(), &state.chats);
+            let mut info = StartInfo {
+                paths: paths.clone(),
+                safe: safe_reason,
+                error: String::new(),
+                self_test,
+            };
             if self_test {
                 selftest::arm_timeout(app.handle().clone());
             }
-            app.manage(state);
+            if info.safe.is_none() {
+                // If the chat data does not open, safe start shows why,
+                // instead of an app that closes at once.
+                match tauri::async_runtime::block_on(open_core(paths, self_test)) {
+                    Ok(state) => {
+                        start_engine(app.handle(), &state.engine, &state.models);
+                        send_memory_changes(app.handle(), &state.chats);
+                        app.manage(state);
+                    }
+                    Err(e) => {
+                        log::error!("the chat data did not open: {e}");
+                        info.safe = Some(SafeReason::DataDidNotOpen);
+                        info.error = e.to_string();
+                    }
+                }
+            }
+            app.manage(info);
+            open_window(app, background)?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -127,7 +171,11 @@ fn main() {
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
-            let state = handle.state::<AppState>();
+            // Safe start has no chat state.
+            let Some(state) = handle.try_state::<AppState>() else {
+                log::info!("Unstrung closed");
+                return;
+            };
             tauri::async_runtime::block_on(async {
                 state.engine.stop().await;
                 // Closing the last connection writes the log into the database file.
@@ -234,7 +282,9 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
             .body(Vec::new())
             .unwrap_or_default()
     };
-    let state = app.state::<AppState>();
+    let Some(state) = app.try_state::<AppState>() else {
+        return not_found();
+    };
     let Some((kind, key)) = path.trim_start_matches('/').split_once('/') else {
         return not_found();
     };

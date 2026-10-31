@@ -419,6 +419,21 @@ export const restartEngine = () => invoke<null>("restart_engine");
 
 export const selfTestMode = () => invoke<boolean>("self_test_mode");
 
+export type SafeReason = "failed_starts" | "asked" | "data_did_not_open";
+
+export interface StartView {
+  safe: boolean;
+  reason: SafeReason | null;
+  /** Why the chat data did not open. */
+  error: string;
+}
+
+export const startMode = () => invoke<StartView>("start_mode");
+/** The window loaded, so this start counts as good. */
+export const startOk = () => invoke<null>("start_ok");
+export const startNormally = () => invoke<null>("start_normally");
+export const diagnosticReport = () => invoke<string>("diagnostic_report");
+
 export interface SelfTestReport {
   ok: boolean;
   detail: string;

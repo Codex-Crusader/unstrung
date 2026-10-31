@@ -4,9 +4,12 @@ import {
   listPersonas,
   onStatus,
   selfTestMode,
+  startMode,
+  startOk,
   type EngineStatus,
   type ImportDraft,
   type Persona,
+  type StartView,
 } from "./api";
 import { ChatScreen } from "./components/ChatScreen";
 import { CreatorScreen } from "./components/CreatorScreen";
@@ -17,6 +20,7 @@ import { StatusBar } from "./components/StatusBar";
 import { runSelfTest } from "./selfTest";
 import { strings } from "./strings";
 import { Icon } from "./components/Icon";
+import { SafeStart } from "./components/SafeStart";
 import figure from "./assets/figure.png";
 
 export type Screen =
@@ -49,7 +53,21 @@ function useMenuDismiss() {
   }, []);
 }
 
+/** Asks for the start mode first. Safe start shows only its own screen. */
 export function App() {
+  const [start, setStart] = useState<StartView | null>(null);
+  useEffect(() => {
+    startMode()
+      .then(setStart)
+      .catch(() => {
+        setStart({ safe: false, reason: null, error: "" });
+      });
+  }, []);
+  if (!start) return null;
+  return start.safe ? <SafeStart start={start} /> : <MainApp />;
+}
+
+function MainApp() {
   const [status, setStatus] = useState<EngineStatus>({ state: "starting" });
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -59,6 +77,10 @@ export function App() {
     let active = true;
     const unlisten = onStatus((next) => {
       if (active) setStatus(next);
+    });
+    // The window loaded, so the next start is a normal one.
+    void startOk().catch(() => {
+      // Only the start count stays. The next start still opens normally once.
     });
     // Events only report changes, so read the state once at the start.
     void getStatus().then((current) => {
