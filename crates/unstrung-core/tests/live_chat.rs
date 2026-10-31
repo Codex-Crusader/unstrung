@@ -234,10 +234,10 @@ async fn missing_model_keeps_the_engine_running() {
     engine.stop().await;
 }
 
-/// Phase 4: a GGUF file imports as a model of its own. The file is a hard
-/// link to a test model's weights, so the engine already has the blob and
-/// skips the upload; the test covers the hash, the blob check, the create
-/// and the model list. Set UNSTRUNG_TEST_GGUF to a GGUF file.
+/// Phase 4: a GGUF file imports as a model of its own. Set UNSTRUNG_TEST_GGUF
+/// to a GGUF file. By default the file is a hard link, so the engine already
+/// has the blob and skips the upload. With UNSTRUNG_TEST_GGUF_UPLOAD set, the
+/// test copies the file with one more byte, so the upload runs too.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs Ollama, the test models and UNSTRUNG_TEST_GGUF"]
 async fn a_gguf_file_imports_as_a_model() {
@@ -246,7 +246,18 @@ async fn a_gguf_file_imports_as_a_model() {
     let paths = AppPaths::at(home.path().to_path_buf());
     paths.ensure().unwrap();
     let file = home.path().join("My Test Model.gguf");
-    std::fs::hard_link(&source, &file).unwrap();
+    if std::env::var_os("UNSTRUNG_TEST_GGUF_UPLOAD").is_some() {
+        // One byte more gives a new digest, so the engine must receive the
+        // whole file. GGUF readers ignore bytes after the last tensor.
+        std::fs::copy(&source, &file).unwrap();
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file)
+            .unwrap();
+        std::io::Write::write_all(&mut f, &[0]).unwrap();
+    } else {
+        std::fs::hard_link(&source, &file).unwrap();
+    }
 
     let engine = Engine::new(paths.clone());
     engine.start().await;
@@ -288,4 +299,7 @@ async fn a_gguf_file_imports_as_a_model() {
         .await
         .unwrap();
     engine.stop().await;
+    // The database pool can still hold app.db, which stops the temporary
+    // folder from going away on Windows, so remove the large file now.
+    std::fs::remove_file(&file).unwrap();
 }
