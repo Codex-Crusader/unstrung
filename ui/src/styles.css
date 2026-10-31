@@ -7,8 +7,8 @@
   --panel: #ece6db;
   --panel-line: #d9d0c1;
   --text: #2a2622;
-  --text-soft: #6b625a;
-  --action: #7a6f64;
+  --text-soft: #696058;
+  --action: #695f56;
   --accent: #a87a2c;
   /* Brass that carries text: AA (4.5:1) on every background and under white text. */
   --accent-strong: #856023;
@@ -33,7 +33,7 @@
     --panel: #2d2c29;
     --panel-line: #3b3934;
     --text: #ece6db;
-    --text-soft: #a69d91;
+    --text-soft: #a79f93;
     --action: #b3a898;
     --accent: #c9a052;
     --accent-strong: #c9a052;
