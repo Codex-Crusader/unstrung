@@ -3,10 +3,11 @@
 //! Messages form a tree. Rewind, regenerate, edit and branch all move the head
 //! of the chat, so later messages become hidden branches and nothing is lost.
 
-use crate::db::{Character, Chat, ChatSummary, Db, Message, NewMessage, Persona, now_ms};
+use crate::db::{Character, Chat, ChatSummary, Db, Memory, Message, NewMessage, Persona, now_ms};
 use crate::engine::{Engine, KEEP_ALIVE};
 use crate::error::{Error, Result};
 use crate::guard::{self, Problem};
+use crate::memory;
 use crate::ollama::{ChatMessage, ChatParams, Options};
 use crate::presets::{self, StyleSettings};
 use crate::prompt::{self, PROMPT_VERSION, PromptInput};
@@ -14,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 /// Longest user message, in characters.
@@ -24,6 +26,9 @@ pub const REPLY_TIMEOUT: Duration = Duration::from_secs(60);
 const THREAD_TIMEOUT: Duration = Duration::from_secs(20);
 /// The open thread shows only after a user message this short or shorter.
 const THREAD_SHORT_WORDS: usize = 8;
+/// A memory pass reads up to 10 messages and writes a short summary and facts.
+const MEMORY_TOKENS: i32 = 400;
+const MEMORY_TIMEOUT: Duration = Duration::from_secs(90);
 /// Open-thread answers kept in memory before the cache starts again.
 const THREAD_CACHE: usize = 1000;
 /// The end-reminder line for "Continue".
@@ -108,6 +113,11 @@ pub struct ChatService {
     // Open-thread answers by the id of the user message they came before. A
     // regenerate reuses one, and the next check reads it as the earlier note.
     threads: Mutex<HashMap<i64, Option<String>>>,
+    // The running memory pass. A new reply stops it, because the engine
+    // writes one answer at a time and a reply must not wait.
+    memory_job: Mutex<Option<CancellationToken>>,
+    // The id of the last chat whose memory a pass changed, for the panel.
+    memory_changed: watch::Sender<i64>,
 }
 
 /// Clears the "reply in progress" slot when the reply ends in any way.
@@ -135,7 +145,14 @@ impl ChatService {
             engine,
             current: Mutex::new(None),
             threads: Mutex::new(HashMap::new()),
+            memory_job: Mutex::new(None),
+            memory_changed: watch::Sender::new(0),
         }
+    }
+
+    /// Sends the chat id each time a memory pass changes what a chat remembers.
+    pub fn subscribe_memory(&self) -> watch::Receiver<i64> {
+        self.memory_changed.subscribe()
     }
 
     pub fn db(&self) -> &Db {
@@ -614,6 +631,7 @@ impl ChatService {
                 history: std::slice::from_ref(&request),
                 push_character: plan.push_character,
                 open_thread: None,
+                recall: None,
                 extra_reminder: Some(&extra),
                 continuation: false,
                 tuning: &tuning,
@@ -721,6 +739,7 @@ impl ChatService {
             history: &history,
             push_character: false,
             open_thread: None,
+            recall: None,
             extra_reminder: Some(CONTINUE_REMINDER),
             continuation: mid_sentence,
             tuning: &tuning,
@@ -785,6 +804,7 @@ impl ChatService {
             history,
             push_character: false,
             open_thread: None,
+            recall: None,
             extra_reminder: None,
             continuation: false,
             tuning: &tuning,
@@ -848,6 +868,141 @@ impl ChatService {
             .complete(&chat_params(&model, &messages, &options, think), REPLY_TIMEOUT)
             .await?;
         Ok(clean_line(text.trim().trim_matches('"'), 400))
+    }
+
+    /// What the chat remembers on its current path, for the memory panel.
+    pub async fn memories(&self, chat_id: i64) -> Result<Vec<Memory>> {
+        let path = self.db.path_to_head(chat_id).await?;
+        let all = self.db.memories(chat_id).await?;
+        Ok(memory::on_path(&all, &path))
+    }
+
+    /// Saves a fact that the user wrote, from a message on the current path.
+    /// "Remember this" on a message and the panel's own field both use it.
+    pub async fn remember(&self, chat_id: i64, message_id: i64, text: &str) -> Result<Vec<Memory>> {
+        let note = memory::user_note(text, "fact").ok_or_else(|| Error::Invalid("empty note".into()))?;
+        let path = self.db.path_to_head(chat_id).await?;
+        if !path.iter().any(|m| m.id == message_id) {
+            return Err(Error::NotFound("message"));
+        }
+        self.stop_memory();
+        self.db.add_memory(chat_id, "fact", &note, message_id, "user").await?;
+        self.memories(chat_id).await
+    }
+
+    /// Changes the text of a memory. The running pass stops, so that it
+    /// does not write a summary from the old text over the edit.
+    pub async fn edit_memory(&self, chat_id: i64, id: i64, text: &str) -> Result<Vec<Memory>> {
+        let old = self.db.memory(chat_id, id).await?;
+        let note = memory::user_note(text, &old.kind).ok_or_else(|| Error::Invalid("empty note".into()))?;
+        self.stop_memory();
+        self.db.edit_memory(chat_id, id, &note).await?;
+        self.memories(chat_id).await
+    }
+
+    /// Pins or hides a memory. Only a fact can be pinned.
+    pub async fn set_memory_flags(&self, chat_id: i64, id: i64, pinned: bool, hidden: bool) -> Result<Vec<Memory>> {
+        let old = self.db.memory(chat_id, id).await?;
+        self.stop_memory();
+        self.db
+            .set_memory_flags(chat_id, id, pinned && old.kind == "fact", hidden)
+            .await?;
+        self.memories(chat_id).await
+    }
+
+    /// Updates what the chat remembers: the story so far and the facts that
+    /// the user stated, from the messages that are about to leave the
+    /// prompt. The app runs it after each reply. A new reply stops it, and
+    /// the next pass goes on from where this one stopped.
+    pub async fn update_memory(&self, chat_id: i64) -> Result<()> {
+        let token = CancellationToken::new();
+        if let Some(old) = self.memory_job.lock().ok().and_then(|mut j| j.replace(token.clone())) {
+            old.cancel();
+        }
+        self.memory_passes(chat_id, &token).await
+    }
+
+    async fn memory_passes(&self, chat_id: i64, token: &CancellationToken) -> Result<()> {
+        while !token.is_cancelled() && self.idle().is_ok() {
+            let chat = self.db.chat(chat_id).await?;
+            let path = self.db.path_to_head(chat_id).await?;
+            let memories = self.db.memories(chat_id).await?;
+            let Some(chunk) = memory::pending(&memories, &path) else {
+                break;
+            };
+            let Some(last) = chunk.last() else { break };
+            let character = self.db.character(chat.character_id).await?;
+            let persona = self.persona_of(&chat).await?;
+            let user_name = persona.as_ref().map_or(prompt::NO_PERSONA_NAME, |p| p.name.as_str());
+            let old = memory::recall(&memories, &path);
+            let question = memory::pass_question(&character.name, user_name, &old, chunk);
+            let model = self.model_for(&chat, &character);
+            let tuning = self.engine.tuning_for(&model);
+            let client = self.engine.client()?;
+            let messages = [
+                ChatMessage {
+                    role: "system",
+                    content: "You keep notes about a roleplay chat. Answer with plain text only.".into(),
+                },
+                ChatMessage { role: "user", content: question },
+            ];
+            let options = Options {
+                temperature: 0.0,
+                min_p: 0.0,
+                top_p: 1.0,
+                top_k: 1,
+                presence_penalty: 0.0,
+                repeat_penalty: 1.0,
+                repeat_last_n: 64,
+                // The chat's own size: another size makes the engine load the model again.
+                num_ctx: tuning.context,
+                num_predict: MEMORY_TOKENS,
+                stop: Vec::new(),
+            };
+            let started = std::time::Instant::now();
+            let params = chat_params(&model, &messages, &options, tuning.think.map(|_| false));
+            let answer = tokio::select! {
+                () = token.cancelled() => break,
+                a = client.complete(&params, MEMORY_TIMEOUT) => a?,
+            };
+            let user_messages: Vec<&Message> = chunk.iter().filter(|m| m.role == "user").collect();
+            let user_lines: Vec<&str> = user_messages.iter().map(|m| m.content.as_str()).collect();
+            let parsed = memory::parse_pass(&answer, &user_lines, &[&character.name, user_name]);
+            // The summary marks the chunk as read. With no new summary, the
+            // old one carries on, so the next pass does not read it again.
+            let summary = parsed.summary.or(old.summary).unwrap_or_default();
+            self.db.add_memory(chat_id, "summary", &summary, last.id, "auto").await?;
+            // "none" clears the goal: an empty goal on the path hides the old one.
+            let goal = parsed.goal.unwrap_or_default();
+            self.db.add_memory(chat_id, "goal", &goal, last.id, "auto").await?;
+            log::debug!("memory note: goal: {goal}");
+            // Chat text, so debug only: the app log stays at info.
+            log::debug!("memory note: summary: {summary}");
+            let mut known: Vec<String> = memories
+                .iter()
+                .filter(|m| m.kind == "fact")
+                .map(|m| m.content.clone())
+                .collect();
+            let mut added = 0;
+            for fact in parsed.facts {
+                if memory::is_duplicate(&fact, &known) {
+                    continue;
+                }
+                let source = memory::source_of(&fact, &user_messages).unwrap_or(last);
+                self.db.add_memory(chat_id, "fact", &fact, source.id, "auto").await?;
+                log::debug!("memory note: fact: {fact}");
+                known.push(fact);
+                added += 1;
+            }
+            self.memory_changed.send_replace(chat_id);
+            log::info!(
+                "memory pass in {} ms: {} messages, summary {} words, {added} new facts",
+                started.elapsed().as_millis(),
+                chunk.len(),
+                summary.split_whitespace().count()
+            );
+        }
+        Ok(())
     }
 
     /// Asks the model what the user still waits for from earlier in the chat.
@@ -936,9 +1091,17 @@ impl ChatService {
         if slot.is_some() {
             return Err(Error::Busy);
         }
+        self.stop_memory();
         let token = CancellationToken::new();
         *slot = Some(token.clone());
         Ok(token)
+    }
+
+    /// Stops the running memory pass. The next reply starts it again.
+    fn stop_memory(&self) {
+        if let Some(job) = self.memory_job.lock().ok().and_then(|mut j| j.take()) {
+            job.cancel();
+        }
     }
 
     /// Tree changes wait until no reply is being written.
@@ -1004,6 +1167,8 @@ impl ChatService {
             self.open_thread(&client, &model, &tuning, &character.name, user_name, history)
                 .await
         };
+        let memories = self.db.memories(chat.id).await?;
+        let recall = memory::recall(&memories, history);
         let mut extra: Option<String> = None;
         let mut hint = None;
         let (outcome, content, prompt) = loop {
@@ -1016,6 +1181,7 @@ impl ChatService {
                 history,
                 push_character: plan.push_character,
                 open_thread: open_thread.as_deref(),
+                recall: Some(&recall),
                 extra_reminder: extra.as_deref(),
                 continuation: false,
                 tuning: &tuning,
@@ -1241,6 +1407,51 @@ pub fn is_bidi_control(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn memory_panel_calls() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
+        let db = Db::open(&paths.database()).await.unwrap();
+        let fields = crate::db::CharacterFields {
+            name: "Ren".into(),
+            greeting: "Sit.".into(),
+            ..Default::default()
+        };
+        let id = db.insert_character(&fields, Some("test"), "{}").await.unwrap();
+        let character = db.character(id).await.unwrap();
+        let chat = db.create_chat(&character, None, "", true).await.unwrap();
+        let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+        let new = |parent, content| NewMessage {
+            chat_id: chat,
+            parent_id: Some(parent),
+            role: "user",
+            content,
+            ..Default::default()
+        };
+        let hello = db.append_message(&new(greeting, "Hello")).await.unwrap();
+        // A sibling that is not on the path to the head.
+        let other = db.append_message(&new(greeting, "Other")).await.unwrap();
+        db.set_chat_head(chat, Some(hello.id)).await.unwrap();
+        let chats = ChatService::new(db, Engine::new(paths));
+
+        let list = chats.remember(chat, hello.id, " My sister is *Emi* ").await.unwrap();
+        assert_eq!(list[0].content, "My sister is Emi");
+        assert_eq!(list[0].origin, "user");
+        assert!(matches!(chats.remember(chat, other.id, "x").await, Err(Error::NotFound(_))));
+        assert!(matches!(chats.remember(chat, hello.id, " ** ").await, Err(Error::Invalid(_))));
+
+        let fact = list[0].id;
+        let list = chats.set_memory_flags(chat, fact, true, false).await.unwrap();
+        assert!(list[0].is_pinned);
+        let summary = chats.db.add_memory(chat, "summary", "Ren met Kai.", hello.id, "auto").await.unwrap();
+        let list = chats.edit_memory(chat, summary.id, "Ren met Kai at the bar.").await.unwrap();
+        let summary = list.iter().find(|m| m.kind == "summary").unwrap();
+        assert_eq!((summary.content.as_str(), summary.origin.as_str()), ("Ren met Kai at the bar.", "user"));
+        // Only a fact can be pinned.
+        let list = chats.set_memory_flags(chat, summary.id, true, false).await.unwrap();
+        assert!(!list.iter().find(|m| m.kind == "summary").unwrap().is_pinned);
+    }
 
     #[test]
     fn input_is_checked() {

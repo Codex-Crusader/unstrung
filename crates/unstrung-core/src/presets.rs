@@ -231,9 +231,10 @@ impl StyleSettings {
             Initiative::Balanced => {
                 "Answer what {{user}} said, so {{user}} sees that {{char}} listened. \
                  If {{user}} asks {{char}} for something, or answers a question that {{char}} asked, \
-                 {{char}} acts on it in this reply, with concrete details. Then {{char}} adds one new thing: a detail, a fact about {{char}}, \
-                 a small event or an offer. {{char}} brings the story and does not ask {{user}} \
-                 to make up clues or events."
+                 {{char}} acts on it in this reply, with concrete details. Then {{char}} brings \
+                 something new into the scene, such as a detail, a memory, a small event or an \
+                 offer, as part of what {{char}} says and does. {{char}} brings the story and does \
+                 not ask {{user}} to make up clues or events."
             }
             Initiative::LeadTheStory => {
                 "Answer what {{user}} said. If {{user}} asks {{char}} for something, or answers \

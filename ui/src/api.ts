@@ -96,6 +96,19 @@ export interface ChatView {
   model_removed: string | null;
 }
 
+/** One thing a chat remembers. See `db::Memory` in the core. */
+export interface Memory {
+  id: number;
+  chat_id: number;
+  kind: "goal" | "summary" | "fact";
+  content: string;
+  source_message_id: number;
+  origin: "auto" | "user";
+  is_pinned: boolean;
+  is_hidden: boolean;
+  created_at: number;
+}
+
 export type Length = "very_short" | "short" | "medium" | "long" | "very_long";
 export type Talk = "dialogue_only" | "mostly_dialogue" | "mixed" | "mostly_narration";
 export type Description = "minimal" | "some" | "vivid";
@@ -277,6 +290,21 @@ export const setChatTone = (chatId: number, tone: string, custom: string) =>
   invoke<ChatView>("set_chat_tone", { chatId, tone, custom });
 export const setChatStyle = (chatId: number, style: string, custom: StyleSettings | null) =>
   invoke<ChatView>("set_chat_style", { chatId, style, custom });
+
+export const chatMemories = (chatId: number) => invoke<Memory[]>("chat_memories", { chatId });
+
+/** Calls `handler` with the chat id each time a memory pass changes that chat. */
+export function onMemoryChanged(handler: (chatId: number) => void): Promise<UnlistenFn> {
+  return listen<number>("chat-memory", (event) => {
+    handler(event.payload);
+  });
+}
+export const remember = (chatId: number, messageId: number, text: string) =>
+  invoke<Memory[]>("remember", { chatId, messageId, text });
+export const editMemory = (chatId: number, memoryId: number, text: string) =>
+  invoke<Memory[]>("edit_memory", { chatId, memoryId, text });
+export const setMemoryFlags = (chatId: number, memoryId: number, pinned: boolean, hidden: boolean) =>
+  invoke<Memory[]>("set_memory_flags", { chatId, memoryId, pinned, hidden });
 
 export interface CharacterFields {
   name: string;

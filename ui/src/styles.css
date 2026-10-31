@@ -94,9 +94,9 @@ body {
 
 .chat-header {
   display: flex;
-  align-items: center;
-  gap: var(--gap);
-  padding: 16px 20px 12px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 20px 12px;
   /* Joinery seam: a thin double line. */
   border-bottom: 3px double var(--panel-line);
 }
@@ -520,20 +520,92 @@ body {
   justify-content: center;
 }
 
-.chat-header {
-  flex-wrap: wrap;
+.chat-header-top {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
 }
 
 .chat-title {
   flex: 1;
-  min-width: 120px;
+  min-width: 0;
 }
 
-.chat-controls {
+.chat-title h1,
+.chat-title p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-panels {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
+.panel-toggle {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.panel-toggle[aria-pressed="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* The chat settings: one row, each label beside its control. */
+.chat-settings {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: center;
+  gap: 8px 20px;
+}
+
+.chat-settings .control {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.chat-settings select {
+  max-width: 220px;
+}
+
+/* The reply style opens a panel, but looks like the menus beside it. */
+.select-button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.select-button::after {
+  content: " ▾";
+  color: var(--text-soft);
+}
+
+.select-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.select-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chat-settings .popover {
+  left: 0;
+  right: auto;
 }
 
 .control {
@@ -704,6 +776,86 @@ textarea:focus-visible {
   overflow-y: auto;
   border-left: 3px double var(--panel-line);
   background: var(--panel);
+}
+
+.memory-panel {
+  flex: none;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px;
+  overflow-y: auto;
+  border-left: 3px double var(--panel-line);
+  background: var(--panel);
+}
+
+.memory-panel h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17px;
+}
+
+.memory-intro,
+.memory-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.memory-section h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.memory-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-text {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.memory-hidden {
+  color: var(--text-soft);
+  text-decoration: line-through;
+}
+
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.memory-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.memory-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.memory-edit textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
 }
 
 .chat-list-head {
@@ -1484,4 +1636,84 @@ body > iframe {
   border-radius: var(--radius);
   background: var(--accent-soft);
   font-size: 14px;
+}
+
+.memory-panel {
+  flex: none;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px;
+  overflow-y: auto;
+  border-left: 3px double var(--panel-line);
+  background: var(--panel);
+}
+
+.memory-panel h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17px;
+}
+
+.memory-panel h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.memory-intro,
+.memory-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.memory-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.memory-text {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.memory-hidden {
+  color: var(--text-soft);
+  text-decoration: line-through;
+}
+
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.memory-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.memory-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.memory-edit textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
 }

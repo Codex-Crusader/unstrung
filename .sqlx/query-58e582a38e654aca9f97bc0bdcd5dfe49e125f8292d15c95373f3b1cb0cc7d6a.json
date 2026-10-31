@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", chat_id, kind, content, source_message_id, origin,\n                    is_pinned AS \"is_pinned: bool\", is_hidden AS \"is_hidden: bool\", created_at\n             FROM memories WHERE chat_id = ? ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chat_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "kind",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "content",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "source_message_id",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "origin",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_pinned: bool",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_hidden: bool",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "58e582a38e654aca9f97bc0bdcd5dfe49e125f8292d15c95373f3b1cb0cc7d6a"
+}

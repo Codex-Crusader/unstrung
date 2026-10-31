@@ -19,6 +19,9 @@ export function ChatHeader({
   models,
   defaultModel,
   onToggleChats,
+  onToggleMemory,
+  chatsOpen,
+  memoryOpen,
 }: {
   view: ChatView;
   personas: Persona[];
@@ -32,6 +35,9 @@ export function ChatHeader({
   models: string[];
   defaultModel: string;
   onToggleChats: () => void;
+  onToggleMemory: () => void;
+  chatsOpen: boolean;
+  memoryOpen: boolean;
 }) {
   const { chat, character } = view;
   const [toneDraft, setToneDraft] = useState<string | null>(null);
@@ -39,15 +45,36 @@ export function ChatHeader({
 
   return (
     <header className="chat-header">
-      <button type="button" className="icon-button back" aria-label={strings.chat.back} onClick={onBack}>
-        ‹
-      </button>
-      <Avatar kind="character" owner={character} />
-      <div className="chat-title">
-        <h1>{character.name}</h1>
-        <p>{character.tagline}</p>
+      <div className="chat-header-top">
+        <button type="button" className="icon-button back" aria-label={strings.chat.back} onClick={onBack}>
+          ‹
+        </button>
+        <Avatar kind="character" owner={character} />
+        <div className="chat-title">
+          <h1>{character.name}</h1>
+          <p>{character.tagline}</p>
+        </div>
+        {/* The side panels. A pressed button shows that its panel is open. */}
+        <div className="chat-panels">
+          <button
+            type="button"
+            className="button button-quiet panel-toggle"
+            aria-pressed={memoryOpen}
+            onClick={onToggleMemory}
+          >
+            {strings.memory.button}
+          </button>
+          <button
+            type="button"
+            className="button button-quiet panel-toggle"
+            aria-pressed={chatsOpen}
+            onClick={onToggleChats}
+          >
+            {strings.header.chats}
+          </button>
+        </div>
       </div>
-      <div className="chat-controls">
+      <div className="chat-settings">
         <label className="control">
           <span>{strings.header.persona}</span>
           <select
@@ -87,17 +114,19 @@ export function ChatHeader({
             ))}
           </select>
         </label>
-        <div className="control-anchor">
+        <div className="control control-anchor">
+          <span id="style-label">{strings.header.style}</span>
           <button
             type="button"
-            className="button button-quiet"
+            className="select-button"
             disabled={locked}
+            aria-labelledby="style-label style-value"
             aria-expanded={styleOpen}
             onClick={() => {
               setStyleOpen((v) => !v);
             }}
           >
-            {strings.header.style}: {strings.styles.get(chat.reply_style) ?? chat.reply_style}
+            <span id="style-value">{strings.styles.get(chat.reply_style) ?? chat.reply_style}</span>
           </button>
           {styleOpen && (
             <StylePanel
@@ -132,9 +161,6 @@ export function ChatHeader({
             </select>
           </label>
         )}
-        <button type="button" className="button button-quiet" onClick={onToggleChats}>
-          {strings.header.chats}
-        </button>
       </div>
       {toneDraft !== null && (
         <form

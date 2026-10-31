@@ -54,7 +54,7 @@ async fn message_tree_survives_a_reopen() {
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
     assert_eq!(
         db.meta("schema_version").await.unwrap().as_deref(),
-        Some("3")
+        Some("4")
     );
     let summaries = db.chat_summaries(id).await.unwrap();
     assert_eq!(summaries[0].message_count, 4);

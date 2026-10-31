@@ -3,7 +3,9 @@
 
 import type { Screen } from "./App";
 import {
+  chatMemories,
   deleteCharacter,
+  editMemory,
   getCharacter,
   newChat,
   getStatus,
@@ -11,9 +13,11 @@ import {
   listCharacters,
   modelsPage,
   setChatModel,
+  setMemoryFlags,
   onStatus,
   openCharacter,
   regenerate,
+  remember,
   saveCharacter,
   selfTestReport,
   sendMessage,
@@ -25,9 +29,11 @@ import {
   toUiError,
   type ChatView,
   type EngineStatus,
+  type Memory,
   type ReplyHandler,
   type SelfTestReport,
   type StyleSettings,
+  type ViewMessage,
 } from "./api";
 
 function waitForReady(): Promise<EngineStatus> {
@@ -256,6 +262,37 @@ async function checkModels(show: (screen: Screen) => void, renId: number): Promi
   return { error: "", note: ` (switched to ${other.id}: ${written.content.slice(0, 80)})` };
 }
 
+/** "Remember this", edit, pin and hide, through the same calls as the memory panel. */
+async function checkMemory(chatId: number, messages: ViewMessage[]): Promise<string> {
+  const said = messages.find((m) => m.role === "user");
+  if (!said) return "memory: no user message";
+  let list = await remember(chatId, said.id, "Kai's sister is called {{Emi}}.");
+  // The newest fact. An earlier self-test run can leave its own in the chat.
+  const fact = list
+    .filter((m) => m.kind === "fact")
+    .reduce<Memory | undefined>((a, m) => (a && a.id > m.id ? a : m), undefined);
+  if (fact?.content !== "Kai's sister is called Emi.") return `memory: remember saved ${JSON.stringify(list)}`;
+  await editMemory(chatId, fact.id, "Kai's sister Emi lost the watch.");
+  list = await setMemoryFlags(chatId, fact.id, true, false);
+  const pinned = list.find((m) => m.id === fact.id);
+  if (pinned?.content !== "Kai's sister Emi lost the watch." || !pinned.is_pinned) {
+    return `memory: edit or pin failed ${JSON.stringify(pinned)}`;
+  }
+  list = await setMemoryFlags(chatId, fact.id, false, true);
+  if (!list.find((m) => m.id === fact.id)?.is_hidden) return "memory: hide failed";
+  if (!(await chatMemories(chatId)).some((m) => m.id === fact.id)) return "memory: a hidden fact left the panel";
+  return "";
+}
+
+/**
+ * The core holds the first words of a reply for its repeat check (`guard::StartWatch`),
+ * so a reply that is not longer than that comes as one piece.
+ */
+const HELD_WORDS = 20;
+function streamed(events: number, text: string): boolean {
+  return events >= 2 || text.split(/\s+/).length <= HELD_WORDS + 5;
+}
+
 async function check(report: SelfTestReport, show: (screen: Screen) => void): Promise<string> {
   const characters = await listCharacters();
   const ren = characters.find((c) => c.name === "Ren Kagami") ?? characters[0];
@@ -273,7 +310,6 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   const sent = await stream((h) => sendMessage(chatId, "Hello. Who are you, and what is this place?", h));
   report.text_events = sent.events;
   if (sent.error || !sent.view) return `reply failed: ${sent.error}`;
-  if (sent.events < 2) return "the reply did not stream";
   view = sent.view;
   report.messages_after = view.messages.length;
   if (report.messages_after !== report.messages_at_open + 2) return "the message and the reply were not both saved";
@@ -281,11 +317,16 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   if (reply?.role !== "character" || reply.id !== view.chat.head_message_id) {
     return "the saved reply is not the head of the chat";
   }
+  if (!streamed(sent.events, reply.content)) return "the reply did not stream";
 
   const again = await stream((h) => regenerate(chatId, reply.id, "longer", h));
   if (again.error || !again.view) return `regenerate failed: ${again.error}`;
-  const versions = again.view.messages.at(-1)?.siblings ?? [];
+  const longer = again.view.messages.at(-1);
+  if (!streamed(again.events, longer?.content ?? "")) return "the longer reply did not stream";
+  const versions = longer?.siblings ?? [];
   if (versions.length < 2 || !versions.includes(reply.id)) return "regenerate did not keep the old version";
+  const memory = await checkMemory(chatId, again.view.messages);
+  if (memory) return memory;
   const creator = await checkCreator(show, ren.id);
   if (creator) return creator;
   const imported = await checkImport(show);

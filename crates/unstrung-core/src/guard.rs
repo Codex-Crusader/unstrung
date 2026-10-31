@@ -74,6 +74,7 @@ pub fn clean(
         text.truncate(at);
     }
     text = strip_name_prefix(text.trim(), char_name).to_owned();
+    text = strip_labels(&text);
     text = cut_at_user_line(&text, user_name, continued);
     if cut_at_cap {
         text = trim_to_sentence(&text);
@@ -214,6 +215,45 @@ fn strip_template_tokens(text: &str) -> String {
     for token in TEMPLATE_TOKENS {
         out = out.replace(token, "");
     }
+    out
+}
+
+/// Words that a model copies from the reply guide as a label, as in
+/// "New fact: my father kept old newspapers".
+const LABEL_NOUNS: [&str; 4] = ["thing", "fact", "detail", "event"];
+
+/// Removes guide labels such as "New fact:" or "One new thing:" from a reply.
+fn strip_labels(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(colon) = rest.find(':') {
+        let head = &rest[..colon];
+        // The label is the last few words before the colon.
+        let start = head
+            .char_indices()
+            .rev()
+            .find(|&(_, c)| !(c.is_alphabetic() || c == ' ' || c == '\''))
+            .map_or(0, |(i, c)| i + c.len_utf8());
+        let words: Vec<String> = head[start..].split_whitespace().map(str::to_lowercase).collect();
+        let at = words.iter().position(|w| w == "new");
+        let label = at.is_some_and(|n| {
+            words.get(n + 1).is_some_and(|w| LABEL_NOUNS.contains(&w.as_str()))
+                && n <= 1
+                && (words.len() == n + 2 || words.get(n + 2).is_some_and(|w| w == "about"))
+                && words.len() <= n + 5
+        });
+        if label {
+            out.push_str(head[..start].trim_end_matches(' '));
+            if !out.is_empty() && !out.ends_with(char::is_whitespace) {
+                out.push(' ');
+            }
+            rest = rest[colon + 1..].trim_start_matches(' ');
+        } else {
+            out.push_str(&rest[..=colon]);
+            rest = &rest[colon + 1..];
+        }
+    }
+    out.push_str(rest);
     out
 }
 
@@ -461,6 +501,13 @@ mod tests {
         assert_eq!(c("*"), "");
         assert_eq!(c("Sit.\n\n[Reply guide for Ren. Not part"), "Sit.");
         assert_eq!(c("a\n\n\n\nb"), "a\n\nb");
+        // Labels copied from the reply guide go.
+        assert_eq!(c("*Ren nods.* Sure. New fact: My father kept old papers."), "*Ren nods.* Sure. My father kept old papers.");
+        assert_eq!(c("Fine.\nOne new thing: the lamp flickers."), "Fine.\nthe lamp flickers.");
+        assert_eq!(c("New detail about Ren: he limps."), "he limps.");
+        // Other colons stay.
+        assert_eq!(c("Two things: rain and debt. It is 11:30."), "Two things: rain and debt. It is 11:30.");
+        assert_eq!(c("\"The new thing is: nobody pays.\""), "\"The new thing is: nobody pays.\"");
         assert_eq!(clean("Sit. Then we tal", "Ren", "Kai", true, false), "Sit.");
         assert_eq!(clean("“Sit.” Then", "Ren", "Kai", true, false), "“Sit.”");
     }

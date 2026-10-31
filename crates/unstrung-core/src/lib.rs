@@ -13,6 +13,7 @@ pub mod error;
 pub mod guard;
 pub mod hardware;
 pub mod library;
+pub mod memory;
 pub mod models;
 pub mod ollama;
 pub mod paths;

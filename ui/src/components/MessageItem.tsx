@@ -11,6 +11,7 @@ export interface MessageActions {
   edit: (message: ViewMessage, text: string) => void;
   rewind: (messageId: number) => void;
   branch: (messageId: number) => void;
+  remember: (message: ViewMessage) => void;
   remove: (messageId: number) => void;
 }
 
@@ -167,6 +168,9 @@ export function MessageItem({
                   })}
                 {item(strings.message.branch, () => {
                   actions.branch(message.id);
+                })}
+                {item(strings.message.remember, () => {
+                  actions.remember(message);
                 })}
                 {message.parent_id !== null &&
                   item(

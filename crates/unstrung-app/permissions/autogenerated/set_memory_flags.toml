@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-memory-flags"
+description = "Enables the set_memory_flags command without any pre-configured scope."
+commands.allow = ["set_memory_flags"]
+
+[[permission]]
+identifier = "deny-set-memory-flags"
+description = "Denies the set_memory_flags command without any pre-configured scope."
+commands.deny = ["set_memory_flags"]

@@ -6,6 +6,7 @@
 //!
 //! --characters ren,ash    only these starters (part of the name)
 //! --styles texting,novel  these reply styles (default: each character's own)
+//! --tones dark,funny      these tones, one chat each (default: each character's own)
 //! --turns 10              stop each scripted chat after this many messages
 //! --script FILE           the chat script (default: scripts/everyday.json)
 //! --skip-chats            run only the injection set
@@ -84,6 +85,7 @@ struct Options {
     no_persona: bool,
     characters: Vec<String>,
     styles: Vec<String>,
+    tones: Vec<String>,
     turns: Option<usize>,
     script: Option<PathBuf>,
     skip_chats: bool,
@@ -112,6 +114,7 @@ fn options() -> Result<Options, Fail> {
         match arg.as_str() {
             "--characters" => o.characters = list(args.next())?,
             "--styles" => o.styles = list(args.next())?,
+            "--tones" => o.tones = list(args.next())?,
             "--turns" => o.turns = Some(args.next().ok_or("--turns needs a number")?.parse()?),
             "--script" => o.script = Some(args.next().ok_or("--script needs a file")?.into()),
             "--skip-chats" => o.skip_chats = true,
@@ -191,12 +194,15 @@ struct ThreadLog;
 
 impl log::Log for ThreadLog {
     fn enabled(&self, meta: &log::Metadata<'_>) -> bool {
-        meta.level() <= log::Level::Info
+        meta.level() <= log::Level::Debug
     }
 
     fn log(&self, record: &log::Record<'_>) {
         let text = record.args().to_string();
-        if text.starts_with("open thread") || text.starts_with("prompt tokens") || text.starts_with("silent regenerate") {
+        if ["open thread", "prompt tokens", "silent regenerate", "memory pass", "memory note"]
+            .iter()
+            .any(|p| text.starts_with(p))
+        {
             eprintln!("{text}");
         }
     }
@@ -209,7 +215,7 @@ static THREAD_LOG: ThreadLog = ThreadLog;
 #[tokio::main]
 async fn main() -> Result<(), Fail> {
     if log::set_logger(&THREAD_LOG).is_ok() {
-        log::set_max_level(log::LevelFilter::Info);
+        log::set_max_level(log::LevelFilter::Debug);
     }
     let o = options()?;
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -286,12 +292,17 @@ async fn main() -> Result<(), Fail> {
             } else {
                 o.styles.clone()
             };
-            for style in &styles {
-                eprintln!("chat: {} / {style}", character.name);
+            // An empty tone keeps the character's own.
+            let tones = if o.tones.is_empty() { vec![String::new()] } else { o.tones.clone() };
+            for (style, tone) in styles.iter().flat_map(|s| tones.iter().map(move |t| (s, t))) {
+                let label = if tone.is_empty() { style.clone() } else { format!("{style} {tone}") };
+                eprintln!("chat: {} / {label}", character.name);
                 let run = Run {
                     service: &service,
                     character,
                     style,
+                    tone,
+                    label: &label,
                     script: &script,
                     first,
                     personas: &personas,
@@ -302,10 +313,10 @@ async fn main() -> Result<(), Fail> {
                     eprintln!("  stopped: {e}");
                     errors.push(ChatError {
                         character: character.name.clone(),
-                        style: style.clone(),
+                        style: label.clone(),
                         turn: replies
                             .iter()
-                            .filter(|r: &&Reply| r.character == character.name && &r.style == style)
+                            .filter(|r: &&Reply| r.character == character.name && r.style == label)
                             .count(),
                         error: e.to_string(),
                     });
@@ -359,6 +370,9 @@ struct Run<'a> {
     service: &'a ChatService,
     character: &'a Character,
     style: &'a str,
+    tone: &'a str,
+    /// The style, and the tone when the run sets one, for the report.
+    label: &'a str,
     script: &'a Script,
     first: &'a Persona,
     personas: &'a [Persona],
@@ -376,6 +390,9 @@ impl Run<'_> {
             .chat
             .id;
         self.service.set_style(chat, self.style, None).await?;
+        if !self.tone.is_empty() {
+            self.service.set_tone(chat, self.tone, "").await?;
+        }
         let range = StyleSettings::of(self.style, "").word_range();
         let mut persona = self.first;
         let mut recent = vec![self.character.greeting.clone()];
@@ -415,6 +432,11 @@ impl Run<'_> {
                         )
                         .await?;
                     let seconds = start.elapsed().as_secs_f32();
+                    // The app runs the memory pass after each reply. Here it
+                    // runs in the open, so the next turn sees its notes.
+                    if let Err(e) = self.service.update_memory(chat).await {
+                        eprintln!("memory pass failed: {e}");
+                    }
                     let Some(message) = result.message else {
                         return Err("a reply had no text".into());
                     };
@@ -452,7 +474,7 @@ impl Run<'_> {
                     recent.push(message.content.clone());
                     replies.push(Reply {
                         character: self.character.name.clone(),
-                        style: self.style.to_owned(),
+                        style: self.label.to_owned(),
                         turn: said,
                         said: say.clone(),
                         trap: trap.clone(),
@@ -668,6 +690,7 @@ async fn prompt_shape_holds(service: &ChatService, chat_id: i64) -> Result<bool,
         history: &history,
         push_character: false,
         open_thread: None,
+        recall: None,
         extra_reminder: None,
         continuation: false,
         tuning: &unstrung_core::catalog::Tuning::default(),

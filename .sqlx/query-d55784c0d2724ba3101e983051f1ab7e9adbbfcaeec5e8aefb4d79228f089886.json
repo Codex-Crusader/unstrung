@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE memories SET content = ?, origin = 'user' WHERE id = ? AND chat_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "d55784c0d2724ba3101e983051f1ab7e9adbbfcaeec5e8aefb4d79228f089886"
+}

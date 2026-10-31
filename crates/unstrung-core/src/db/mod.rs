@@ -2,11 +2,13 @@
 
 mod characters;
 mod chats;
+mod memories;
 mod messages;
 mod personas;
 
 pub use characters::{Character, CharacterFields, WorldEntry};
 pub use chats::{Chat, ChatSummary};
+pub use memories::Memory;
 pub use messages::{Message, NewMessage};
 pub use personas::{Persona, PersonaFields};
 

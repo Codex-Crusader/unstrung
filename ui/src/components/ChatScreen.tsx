@@ -6,6 +6,7 @@ import {
   editMessage,
   editReply,
   newChat,
+  onMemoryChanged,
   openCharacter,
   openChat,
   regenerate,
@@ -34,6 +35,7 @@ import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatList } from "./ChatList";
+import { MemoryPanel, type MemoryDraft } from "./MemoryPanel";
 import { MessageItem, type MessageActions } from "./MessageItem";
 import { MessageText } from "./MessageText";
 
@@ -66,12 +68,32 @@ export function ChatScreen({
   const [hint, setHint] = useState<string | null>(null);
   const [undo, setUndo] = useState<DeleteUndo | null>(null);
   const [listOpen, setListOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [memoryDraft, setMemoryDraft] = useState<MemoryDraft | null>(null);
+  // Counts the memory passes of this chat, so the panel loads again.
+  const [memoryTick, setMemoryTick] = useState(0);
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [models, setModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
+
+  // A memory pass ends after the reply, while the user reads it.
+  const openChatId = view?.chat.id;
+  useEffect(() => {
+    if (openChatId === undefined) return;
+    let active = true;
+    const unlisten = onMemoryChanged((id) => {
+      if (active && id === openChatId) setMemoryTick((t) => t + 1);
+    });
+    return () => {
+      active = false;
+      void unlisten.then((stop) => {
+        stop();
+      });
+    };
+  }, [openChatId]);
 
   // The model picker in the header lists the installed models.
   useEffect(() => {
@@ -260,6 +282,11 @@ export function ChatScreen({
     branch: (id) => {
       change(() => branchChat(chatId, id));
     },
+    remember: (message) => {
+      setListOpen(false);
+      setMemoryOpen(true);
+      setMemoryDraft({ messageId: message.id, text: message.content.split(/\s+/).slice(0, 40).join(" ") });
+    },
     remove: (id) => {
       setError(null);
       deleteMessage(chatId, id)
@@ -321,7 +348,14 @@ export function ChatScreen({
           models={models}
           defaultModel={defaultModel}
           onToggleChats={() => {
+            setMemoryOpen(false);
             setListOpen((v) => !v);
+          }}
+          chatsOpen={listOpen}
+          memoryOpen={memoryOpen}
+          onToggleMemory={() => {
+            setListOpen(false);
+            setMemoryOpen((v) => !v);
           }}
         />
 
@@ -472,6 +506,22 @@ export function ChatScreen({
           }}
           onClose={() => {
             setListOpen(false);
+          }}
+        />
+      )}
+      {memoryOpen && (
+        <MemoryPanel
+          chatId={chatId}
+          headId={view.chat.head_message_id}
+          refreshKey={`${String(view.chat.head_message_id)}-${String(memoryTick)}`}
+          disabled={locked}
+          draft={memoryDraft}
+          onDraftDone={() => {
+            setMemoryDraft(null);
+          }}
+          onClose={() => {
+            setMemoryOpen(false);
+            setMemoryDraft(null);
           }}
         />
       )}

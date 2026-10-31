@@ -23,6 +23,7 @@ use unstrung_core::starters;
 
 pub const STATUS_EVENT: &str = "engine-status";
 pub const DOWNLOAD_EVENT: &str = "model-download";
+pub const MEMORY_EVENT: &str = "chat-memory";
 
 fn fail(message: &str) -> ! {
     log::error!("{message}");
@@ -81,6 +82,10 @@ fn main() {
             commands::branch_chat,
             commands::set_chat_persona,
             commands::set_chat_tone,
+            commands::chat_memories,
+            commands::remember,
+            commands::edit_memory,
+            commands::set_memory_flags,
             commands::set_chat_style,
             commands::restart_engine,
             commands::models_page,
@@ -110,6 +115,7 @@ fn main() {
             let state = tauri::async_runtime::block_on(open_core(paths, self_test))?;
             open_window(app, background)?;
             start_engine(app.handle(), &state.engine, &state.models);
+            send_memory_changes(app.handle(), &state.chats);
             if self_test {
                 selftest::arm_timeout(app.handle().clone());
             }
@@ -167,6 +173,20 @@ async fn open_core(paths: AppPaths, self_test: bool) -> unstrung_core::Result<Ap
         models,
         self_test,
     })
+}
+
+/// Sends the chat id to the window each time a memory pass changes that chat.
+fn send_memory_changes(app: &tauri::AppHandle, chats: &Arc<ChatService>) {
+    let mut changed = chats.subscribe_memory();
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while changed.changed().await.is_ok() {
+            let chat_id = *changed.borrow_and_update();
+            if let Err(e) = handle.emit(MEMORY_EVENT, chat_id) {
+                log::warn!("could not send the memory change: {e}");
+            }
+        }
+    });
 }
 
 /// Starts the engine in the background and sends each status change to the window.

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE memories SET is_pinned = ?, is_hidden = ? WHERE id = ? AND chat_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "190a848dc8728e4bbb829817c657f33c96cf20af17630129bf6807c2aa0a50c7"
+}

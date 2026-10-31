@@ -9,7 +9,7 @@ use tauri::State;
 use tauri::ipc::Channel;
 use unstrung_core::Error;
 use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RegenMode, ReplyResult};
-use unstrung_core::db::{Character, ChatSummary, Message, Persona};
+use unstrung_core::db::{Character, ChatSummary, Memory, Message, Persona};
 use unstrung_core::engine::EngineStatus;
 use unstrung_core::presets::StyleSettings;
 
@@ -108,6 +108,15 @@ async fn finish(
     channel: &Channel<ReplyEvent>,
     result: unstrung_core::Result<ReplyResult>,
 ) {
+    if result.is_ok() {
+        // The memory pass runs after the reply, while the user reads it.
+        let chats = state.chats.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = chats.update_memory(chat_id).await {
+                log::warn!("memory pass failed: {e}");
+            }
+        });
+    }
     let event = match result {
         Ok(reply) => match state.chats.view(chat_id).await {
             Ok(view) => ReplyEvent::Done {
@@ -342,6 +351,42 @@ pub async fn set_chat_tone(
     custom: String,
 ) -> CmdResult<ChatView> {
     Ok(state.chats.set_tone(chat_id, &tone, &custom).await?)
+}
+
+#[tauri::command]
+pub async fn chat_memories(state: State<'_, AppState>, chat_id: i64) -> CmdResult<Vec<Memory>> {
+    Ok(state.chats.memories(chat_id).await?)
+}
+
+#[tauri::command]
+pub async fn remember(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    message_id: i64,
+    text: String,
+) -> CmdResult<Vec<Memory>> {
+    Ok(state.chats.remember(chat_id, message_id, &text).await?)
+}
+
+#[tauri::command]
+pub async fn edit_memory(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    memory_id: i64,
+    text: String,
+) -> CmdResult<Vec<Memory>> {
+    Ok(state.chats.edit_memory(chat_id, memory_id, &text).await?)
+}
+
+#[tauri::command]
+pub async fn set_memory_flags(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    memory_id: i64,
+    pinned: bool,
+    hidden: bool,
+) -> CmdResult<Vec<Memory>> {
+    Ok(state.chats.set_memory_flags(chat_id, memory_id, pinned, hidden).await?)
 }
 
 #[tauri::command]
