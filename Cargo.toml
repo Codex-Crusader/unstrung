@@ -27,3 +27,8 @@ panic = "deny"
 codegen-units = 1
 lto = true
 strip = true
+
+# Hashing gigabytes (engine and model checks) is very slow without
+# optimization, so debug builds optimize the hash crate too.
+[profile.dev.package.sha2]
+opt-level = 3
