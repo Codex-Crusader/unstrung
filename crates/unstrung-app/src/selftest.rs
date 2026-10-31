@@ -3,6 +3,7 @@
 //! Run it with `UNSTRUNG_HOME` set to an empty folder. Run it twice to check
 //! that the history stays after a restart. The report is `logs/self-test.json`.
 
+use crate::safe::StartInfo;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -22,13 +23,14 @@ pub struct Report {
     pub text_events: u32,
 }
 
+// Both read `StartInfo`, because safe start has no chat state.
 #[tauri::command]
-pub fn self_test_mode(state: State<'_, AppState>) -> bool {
+pub fn self_test_mode(state: State<'_, StartInfo>) -> bool {
     state.self_test
 }
 
 #[tauri::command]
-pub fn self_test_report(app: AppHandle, state: State<'_, AppState>, report: Report) {
+pub fn self_test_report(app: AppHandle, state: State<'_, StartInfo>, report: Report) {
     if !state.self_test {
         return;
     }

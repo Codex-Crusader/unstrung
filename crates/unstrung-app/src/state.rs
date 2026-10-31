@@ -9,5 +9,4 @@ pub struct AppState {
     pub engine: Arc<Engine>,
     pub chats: Arc<ChatService>,
     pub models: Arc<ModelService>,
-    pub self_test: bool,
 }

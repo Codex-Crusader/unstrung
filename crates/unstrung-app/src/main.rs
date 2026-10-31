@@ -55,11 +55,11 @@ fn main() {
         paths.root().display()
     );
     // The self-test never counts starts, so a killed test run cannot turn the
-    // next one into a safe start.
+    // next one into a safe start. It opens safe start only when asked.
+    let asked = args.iter().any(|a| a == safe::SAFE_START_ARG);
     let safe_reason = if self_test {
-        None
+        asked.then_some(SafeReason::Asked)
     } else {
-        let asked = args.iter().any(|a| a == safe::SAFE_START_ARG);
         start::decide(start::attempts(&paths), asked)
     };
     match safe_reason {
@@ -149,7 +149,7 @@ fn main() {
             if info.safe.is_none() {
                 // If the chat data does not open, safe start shows why,
                 // instead of an app that closes at once.
-                match tauri::async_runtime::block_on(open_core(paths, self_test)) {
+                match tauri::async_runtime::block_on(open_core(paths)) {
                     Ok(state) => {
                         start_engine(app.handle(), &state.engine, &state.models);
                         send_memory_changes(app.handle(), &state.chats);
@@ -197,7 +197,7 @@ fn open_window(app: &tauri::App, background: bool) -> tauri::Result<()> {
     Ok(())
 }
 
-async fn open_core(paths: AppPaths, self_test: bool) -> unstrung_core::Result<AppState> {
+async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     let db = Db::open(&paths.database()).await?;
     if !db.quick_check().await? {
         // Phase 7 adds snapshots and the restore screen.
@@ -219,7 +219,6 @@ async fn open_core(paths: AppPaths, self_test: bool) -> unstrung_core::Result<Ap
         engine,
         chats,
         models,
-        self_test,
     })
 }
 
