@@ -224,6 +224,7 @@ fn main() {
                 log::info!("Unstrung closed");
                 return;
             };
+            state.chats.shut_down();
             tauri::async_runtime::block_on(async {
                 state.engine.stop().await;
                 // Closing the last connection writes the log into the database file.

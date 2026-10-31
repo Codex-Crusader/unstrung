@@ -116,6 +116,8 @@ pub struct ChatService {
     // The running memory pass. A new reply stops it, because the engine
     // writes one answer at a time and a reply must not wait.
     memory_job: Mutex<Option<CancellationToken>>,
+    // Set when the app closes: no new memory pass starts after that.
+    closing: std::sync::atomic::AtomicBool,
     // The id of the last chat whose memory a pass changed, for the panel.
     memory_changed: watch::Sender<i64>,
 }
@@ -146,6 +148,7 @@ impl ChatService {
             current: Mutex::new(None),
             threads: Mutex::new(HashMap::new()),
             memory_job: Mutex::new(None),
+            closing: std::sync::atomic::AtomicBool::new(false),
             memory_changed: watch::Sender::new(0),
         }
     }
@@ -935,6 +938,9 @@ impl ChatService {
     /// prompt. The app runs it after each reply. A new reply stops it, and
     /// the next pass goes on from where this one stopped.
     pub async fn update_memory(&self, chat_id: i64) -> Result<()> {
+        if self.closing.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(());
+        }
         let token = CancellationToken::new();
         if let Some(old) = self
             .memory_job
@@ -944,7 +950,20 @@ impl ChatService {
         {
             old.cancel();
         }
-        self.memory_passes(chat_id, &token).await
+        match self.memory_passes(chat_id, &token).await {
+            // A stopped pass can fail on its way out (the engine closes):
+            // that is a stop, not an error.
+            Err(_) if token.is_cancelled() => Ok(()),
+            result => result,
+        }
+    }
+
+    /// The app closes: stops the memory pass and starts no new one, so the
+    /// engine can stop without a pass failing against it.
+    pub fn shut_down(&self) {
+        self.closing
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.stop_memory();
     }
 
     async fn memory_passes(&self, chat_id: i64, token: &CancellationToken) -> Result<()> {
@@ -993,6 +1012,7 @@ impl ChatService {
             let started = std::time::Instant::now();
             let params = chat_params(&model, &messages, &options, tuning.think.map(|_| false));
             let answer = tokio::select! {
+                biased;
                 () = token.cancelled() => break,
                 a = client.complete(&params, MEMORY_TIMEOUT) => a?,
             };

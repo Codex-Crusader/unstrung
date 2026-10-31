@@ -58,7 +58,10 @@ pub fn arm_timeout(app: AppHandle) {
 }
 
 fn exit(app: &AppHandle, code: i32) {
-    let engine = app.try_state::<AppState>().map(|s| s.engine.clone());
+    let engine = app.try_state::<AppState>().map(|s| {
+        s.chats.shut_down();
+        s.engine.clone()
+    });
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Some(engine) = engine {
