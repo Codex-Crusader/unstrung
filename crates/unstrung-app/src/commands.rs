@@ -1,16 +1,16 @@
 //! The chat commands that the UI can call. Each one checks its input and
 //! returns errors in plain words, with the technical detail apart.
 
-use unstrung_core::catalog::Advanced;
-use unstrung_core::models::ModelsPage;
 use crate::state::AppState;
 use serde::Serialize;
 use tauri::State;
 use tauri::ipc::Channel;
 use unstrung_core::Error;
+use unstrung_core::catalog::Advanced;
 use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RegenMode, ReplyResult};
 use unstrung_core::db::{Character, ChatSummary, Memory, Message, Persona};
 use unstrung_core::engine::EngineStatus;
+use unstrung_core::models::ModelsPage;
 use unstrung_core::presets::StyleSettings;
 
 #[derive(Debug, Clone, Serialize)]
@@ -386,7 +386,10 @@ pub async fn set_memory_flags(
     pinned: bool,
     hidden: bool,
 ) -> CmdResult<Vec<Memory>> {
-    Ok(state.chats.set_memory_flags(chat_id, memory_id, pinned, hidden).await?)
+    Ok(state
+        .chats
+        .set_memory_flags(chat_id, memory_id, pinned, hidden)
+        .await?)
 }
 
 #[tauri::command]

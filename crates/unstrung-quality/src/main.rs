@@ -27,11 +27,11 @@
 mod checks;
 mod report;
 
-use unstrung_core::catalog::Advanced;
 use checks::{Context, Flags, PROMPT_LEAKS, TEMPLATE_TOKENS};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use unstrung_core::catalog::Advanced;
 use unstrung_core::chat::{ChatService, Progress};
 use unstrung_core::db::{Character, CharacterFields, Persona};
 use unstrung_core::engine::{Engine, EngineStatus};
@@ -117,7 +117,9 @@ fn options() -> Result<Options, Fail> {
             "--characters" => o.characters = list(args.next())?,
             "--styles" => o.styles = list(args.next())?,
             "--tones" => o.tones = list(args.next())?,
-            "--card" => o.cards.push(args.next().ok_or("--card needs a file")?.into()),
+            "--card" => o
+                .cards
+                .push(args.next().ok_or("--card needs a file")?.into()),
             "--turns" => o.turns = Some(args.next().ok_or("--turns needs a number")?.parse()?),
             "--script" => o.script = Some(args.next().ok_or("--script needs a file")?.into()),
             "--skip-chats" => o.skip_chats = true,
@@ -133,7 +135,9 @@ fn options() -> Result<Options, Fail> {
             }
             "--model" => o.model = Some(args.next().ok_or("--model needs a tag")?),
             "--pull" => o.pull = Some(args.next().ok_or("--pull needs a tag")?),
-            "--context" => o.context = Some(args.next().ok_or("--context needs a number")?.parse()?),
+            "--context" => {
+                o.context = Some(args.next().ok_or("--context needs a number")?.parse()?)
+            }
             "--think" => {
                 o.think = Some(match args.next().as_deref() {
                     Some("on") => true,
@@ -202,9 +206,15 @@ impl log::Log for ThreadLog {
 
     fn log(&self, record: &log::Record<'_>) {
         let text = record.args().to_string();
-        if ["open thread", "prompt tokens", "silent regenerate", "memory pass", "memory note"]
-            .iter()
-            .any(|p| text.starts_with(p))
+        if [
+            "open thread",
+            "prompt tokens",
+            "silent regenerate",
+            "memory pass",
+            "memory note",
+        ]
+        .iter()
+        .any(|p| text.starts_with(p))
         {
             eprintln!("{text}");
         }
@@ -250,7 +260,9 @@ async fn main() -> Result<(), Fail> {
     advanced.check()?;
     let engine = Engine::with_model(
         paths.clone(),
-        o.model.as_deref().unwrap_or(unstrung_core::engine::DEFAULT_CHAT_MODEL),
+        o.model
+            .as_deref()
+            .unwrap_or(unstrung_core::engine::DEFAULT_CHAT_MODEL),
         advanced,
     );
     engine.start().await;
@@ -302,9 +314,20 @@ async fn main() -> Result<(), Fail> {
                 o.styles.clone()
             };
             // An empty tone keeps the character's own.
-            let tones = if o.tones.is_empty() { vec![String::new()] } else { o.tones.clone() };
-            for (style, tone) in styles.iter().flat_map(|s| tones.iter().map(move |t| (s, t))) {
-                let label = if tone.is_empty() { style.clone() } else { format!("{style} {tone}") };
+            let tones = if o.tones.is_empty() {
+                vec![String::new()]
+            } else {
+                o.tones.clone()
+            };
+            for (style, tone) in styles
+                .iter()
+                .flat_map(|s| tones.iter().map(move |t| (s, t)))
+            {
+                let label = if tone.is_empty() {
+                    style.clone()
+                } else {
+                    format!("{style} {tone}")
+                };
                 eprintln!("chat: {} / {label}", character.name);
                 let run = Run {
                     service: &service,
@@ -394,7 +417,10 @@ impl Run<'_> {
         let db = self.service.db();
         let chat = self
             .service
-            .new_chat(self.character.id, (!self.no_persona).then_some(self.first.id))
+            .new_chat(
+                self.character.id,
+                (!self.no_persona).then_some(self.first.id),
+            )
             .await?
             .chat
             .id;
@@ -433,7 +459,10 @@ impl Run<'_> {
                             |p| match p {
                                 Progress::Restart => {
                                     restarts += 1;
-                                    eprintln!("dropped draft ({} words): {draft}", draft.split_whitespace().count());
+                                    eprintln!(
+                                        "dropped draft ({} words): {draft}",
+                                        draft.split_whitespace().count()
+                                    );
                                     draft.clear();
                                 }
                                 Progress::Text(t) => draft.push_str(t),
@@ -563,7 +592,9 @@ async fn run_case(
             }
             // An empty reply, or one the guard removed in full. No rule broke,
             // because nothing was shown.
-            Err(unstrung_core::Error::Engine(why)) if why.contains("lines for you") || why.contains("empty") => {
+            Err(unstrung_core::Error::Engine(why))
+                if why.contains("lines for you") || why.contains("empty") =>
+            {
                 out.push(InjectionResult {
                     name: case.name.clone(),
                     about: case.about.clone(),

@@ -228,7 +228,8 @@ pub fn check_tag(tag: &str) -> Result<String> {
     let allowed = |c: char| c.is_ascii_alphanumeric() || "._-:/".contains(c);
     if tag.is_empty() || tag.len() > 120 || !tag.chars().all(allowed) || tag.contains("..") {
         return Err(Error::Invalid(
-            "a model name has only letters, digits and . _ - : /, for example \"llama3.1:8b\"".into(),
+            "a model name has only letters, digits and . _ - : /, for example \"llama3.1:8b\""
+                .into(),
         ));
     }
     Ok(tag.to_owned())
@@ -247,10 +248,18 @@ mod tests {
             assert!(pick.min_tier <= tier, "{} is too big for {tier:?}", pick.id);
         }
         for e in all {
-            assert!(e.digest.starts_with("sha256:") || e.digest.len() == 64, "{}", e.id);
+            assert!(
+                e.digest.starts_with("sha256:") || e.digest.len() == 64,
+                "{}",
+                e.id
+            );
             assert!(!e.license.name.is_empty() && e.license.url.starts_with("https://"));
             assert!(!e.tested.is_empty(), "{} has no test date", e.id);
-            assert!(e.context >= 4096 && e.tuning.context == e.context, "{}", e.id);
+            assert!(
+                e.context >= 4096 && e.tuning.context == e.context,
+                "{}",
+                e.id
+            );
             assert!(check_tag(&e.id).is_ok());
             // Only one entry per tag.
             assert_eq!(all.iter().filter(|o| same_tag(&o.id, &e.id)).count(), 1);
@@ -270,11 +279,28 @@ mod tests {
             ..Advanced::default()
         };
         let t = base.with_advanced(&adv);
-        assert_eq!((t.context, t.think, t.temperature_for(0.9)), (16384, Some(true), 0.6));
+        assert_eq!(
+            (t.context, t.think, t.temperature_for(0.9)),
+            (16384, Some(true), 0.6)
+        );
         // A model that cannot think never gets the field.
         assert_eq!(Tuning::default().with_advanced(&adv).think, None);
-        assert!(Advanced { context: Some(5000), ..Advanced::default() }.check().is_err());
-        assert!(Advanced { temperature: Some(3.0), ..Advanced::default() }.check().is_err());
+        assert!(
+            Advanced {
+                context: Some(5000),
+                ..Advanced::default()
+            }
+            .check()
+            .is_err()
+        );
+        assert!(
+            Advanced {
+                temperature: Some(3.0),
+                ..Advanced::default()
+            }
+            .check()
+            .is_err()
+        );
         assert!(adv.check().is_ok());
     }
 

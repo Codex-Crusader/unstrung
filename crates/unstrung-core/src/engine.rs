@@ -24,12 +24,21 @@ const HEALTH_INTERVAL: Duration = Duration::from_secs(3);
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum EngineStatus {
     Starting,
-    LoadingModel { model: String },
-    Ready { model: String },
+    LoadingModel {
+        model: String,
+    },
+    Ready {
+        model: String,
+    },
     /// The engine runs, but the default chat model is not installed.
     /// Downloads work in this state.
-    NoModel { model: String },
-    Error { message: String, detail: String },
+    NoModel {
+        model: String,
+    },
+    Error {
+        message: String,
+        detail: String,
+    },
 }
 
 pub struct Engine {

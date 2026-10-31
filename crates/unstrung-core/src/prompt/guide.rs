@@ -71,18 +71,51 @@ pub(super) struct Rule {
 
 /// The guide lines, in order.
 pub(super) const RULES: [Rule; 11] = [
-    Rule { fixes: Failure::GenericVoice, line: voice },
-    Rule { fixes: Failure::IgnoresStyle, line: style },
+    Rule {
+        fixes: Failure::GenericVoice,
+        line: voice,
+    },
+    Rule {
+        fixes: Failure::IgnoresStyle,
+        line: style,
+    },
     // After the long style line, so that the tone is nearer the end.
-    Rule { fixes: Failure::FlatTone, line: tone },
-    Rule { fixes: Failure::Repeats, line: new_opening },
-    Rule { fixes: Failure::DropsRequest, line: open_thread },
-    Rule { fixes: Failure::Passive, line: keep_talk_going },
-    Rule { fixes: Failure::Interview, line: vary_ending },
-    Rule { fixes: Failure::WrongName, line: persona_name },
-    Rule { fixes: Failure::ModelQuirk, line: model_extra },
-    Rule { fixes: Failure::FailedCheck, line: regenerate_note },
-    Rule { fixes: Failure::SpeaksForUser, line: user_turn },
+    Rule {
+        fixes: Failure::FlatTone,
+        line: tone,
+    },
+    Rule {
+        fixes: Failure::Repeats,
+        line: new_opening,
+    },
+    Rule {
+        fixes: Failure::DropsRequest,
+        line: open_thread,
+    },
+    Rule {
+        fixes: Failure::Passive,
+        line: keep_talk_going,
+    },
+    Rule {
+        fixes: Failure::Interview,
+        line: vary_ending,
+    },
+    Rule {
+        fixes: Failure::WrongName,
+        line: persona_name,
+    },
+    Rule {
+        fixes: Failure::ModelQuirk,
+        line: model_extra,
+    },
+    Rule {
+        fixes: Failure::FailedCheck,
+        line: regenerate_note,
+    },
+    Rule {
+        fixes: Failure::SpeaksForUser,
+        line: user_turn,
+    },
 ];
 
 /// The guide for `turn`, with `{{char}}` and `{{user}}` still in it.
@@ -96,7 +129,11 @@ fn voice(t: &Turn<'_>) -> Option<String> {
     if anchor.is_empty() {
         return None;
     }
-    let push = if t.push_character { "\nStay true to this voice in every line." } else { "" };
+    let push = if t.push_character {
+        "\nStay true to this voice in every line."
+    } else {
+        ""
+    };
     Some(format!("Voice of {{{{char}}}}: {anchor}{push}"))
 }
 
@@ -163,13 +200,15 @@ fn keep_talk_going(t: &Turn<'_>) -> Option<String> {
 /// the point.
 fn vary_ending(t: &Turn<'_>) -> Option<String> {
     (t.leads && t.short == 0 && t.ended_with_question).then(|| {
-        "Your last reply ended with a question. End this one on an action or a statement.".to_owned()
+        "Your last reply ended with a question. End this one on an action or a statement."
+            .to_owned()
     })
 }
 
 /// After a persona change, the history is full of the old name.
 fn persona_name(t: &Turn<'_>) -> Option<String> {
-    t.persona.then(|| "The person you talk to is named {{user}}.".to_owned())
+    t.persona
+        .then(|| "The person you talk to is named {{user}}.".to_owned())
 }
 
 fn model_extra(t: &Turn<'_>) -> Option<String> {

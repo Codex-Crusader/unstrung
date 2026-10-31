@@ -117,9 +117,28 @@ pub fn name_prefix(text: &str, character: &str) -> bool {
 
 /// Words that open a "weather and room" sentence.
 const SETTING_WORDS: [&str; 22] = [
-    "storm", "rain", "thunder", "lightning", "wind", "candle", "candlelight", "fire",
-    "fireplace", "flame", "flames", "shadows", "room", "air", "night", "manor", "house",
-    "walls", "window", "sky", "silence", "fog",
+    "storm",
+    "rain",
+    "thunder",
+    "lightning",
+    "wind",
+    "candle",
+    "candlelight",
+    "fire",
+    "fireplace",
+    "flame",
+    "flames",
+    "shadows",
+    "room",
+    "air",
+    "night",
+    "manor",
+    "house",
+    "walls",
+    "window",
+    "sky",
+    "silence",
+    "fog",
 ];
 
 /// True when the first sentence is about the setting: it has a setting word
@@ -256,13 +275,34 @@ mod tests {
 
     #[test]
     fn setting_and_dialogue() {
-        assert!(setting_opener("The storm roars outside, the thunder echoing.", "Ash"));
-        assert!(setting_opener("*The candlelight casts eerie shadows.* Hi.", "Ash"));
-        assert!(!setting_opener("*Ash sets a candle down.* The storm is loud.", "Ash"));
-        assert!(!setting_opener("\"Stay,\" Ash says as the rain falls.", "Ash"));
-        assert_eq!(dialogue_words("He said \"stay here now\" and left. \u{201c}Go.\u{201d}"), 4);
-        assert_eq!(dialogue_words("*Ash nods.* Stay here. *He waits.* Please."), 3);
-        assert!(narrates_user("Ash pours. Kai takes the glass, smiling.", "Kai"));
+        assert!(setting_opener(
+            "The storm roars outside, the thunder echoing.",
+            "Ash"
+        ));
+        assert!(setting_opener(
+            "*The candlelight casts eerie shadows.* Hi.",
+            "Ash"
+        ));
+        assert!(!setting_opener(
+            "*Ash sets a candle down.* The storm is loud.",
+            "Ash"
+        ));
+        assert!(!setting_opener(
+            "\"Stay,\" Ash says as the rain falls.",
+            "Ash"
+        ));
+        assert_eq!(
+            dialogue_words("He said \"stay here now\" and left. \u{201c}Go.\u{201d}"),
+            4
+        );
+        assert_eq!(
+            dialogue_words("*Ash nods.* Stay here. *He waits.* Please."),
+            3
+        );
+        assert!(narrates_user(
+            "Ash pours. Kai takes the glass, smiling.",
+            "Kai"
+        ));
         assert!(narrates_user("*Kai's hands shake.*", "Kai"));
         assert!(!narrates_user("\"Kai takes too long,\" Ash says.", "Kai"));
         assert!(!narrates_user("Ash looks at Kai. Kai, sit.", "Kai"));

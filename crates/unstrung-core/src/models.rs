@@ -119,12 +119,17 @@ pub async fn startup(db: &Db, engine_paths: &crate::paths::AppPaths) -> Result<S
         db.set_meta(META_HARDWARE, &fingerprint).await?;
     }
     if hardware_changed {
-        log::info!("the hardware changed: now {fingerprint}, tier {:?}", hardware.tier);
+        log::info!(
+            "the hardware changed: now {fingerprint}, tier {:?}",
+            hardware.tier
+        );
     }
     let model = match db.meta(META_MODEL).await? {
         Some(m) if !m.is_empty() => m,
-        _ => catalog::recommended(hardware.tier)
-            .map_or_else(|| crate::engine::DEFAULT_CHAT_MODEL.to_owned(), |e| e.id.clone()),
+        _ => catalog::recommended(hardware.tier).map_or_else(
+            || crate::engine::DEFAULT_CHAT_MODEL.to_owned(),
+            |e| e.id.clone(),
+        ),
     };
     let advanced = db
         .meta(META_ADVANCED)
@@ -198,10 +203,10 @@ impl ModelService {
 
     pub async fn page(&self) -> Result<ModelsPage> {
         let installed = self.engine.refresh_installed().await.unwrap_or_default();
-        let hardware = self.hardware.lock().map_or_else(
-            |_| Hardware::from_parts(None, 0, 0, false),
-            |h| h.clone(),
-        );
+        let hardware = self
+            .hardware
+            .lock()
+            .map_or_else(|_| Hardware::from_parts(None, 0, 0, false), |h| h.clone());
         let default_model = self.engine.model();
         Ok(ModelsPage {
             models: rows(&installed, hardware.tier, &default_model, |m| {
@@ -312,7 +317,8 @@ impl ModelService {
     pub async fn remove(&self, model: &str) -> Result<()> {
         if self.shared_folder() {
             return Err(Error::Invalid(
-                "this build shares its models with your own Ollama, so it does not remove them".into(),
+                "this build shares its models with your own Ollama, so it does not remove them"
+                    .into(),
             ));
         }
         if catalog::same_tag(model, &self.engine.model()) {
@@ -390,11 +396,14 @@ fn rows(
         out.push(ModelView {
             id: m.name.clone(),
             name: m.name.clone(),
-            description: [m.details.parameter_size.as_str(), m.details.quantization_level.as_str()]
-                .into_iter()
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-                .join(", "),
+            description: [
+                m.details.parameter_size.as_str(),
+                m.details.quantization_level.as_str(),
+            ]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(", "),
             size_bytes: m.size,
             installed: true,
             in_catalog: false,
@@ -433,8 +442,10 @@ impl Progress {
 
     fn add(&mut self, line: &crate::ollama::PullLine) {
         if !line.digest.is_empty() && line.total > 0 {
-            self.files
-                .insert(line.digest.clone(), (line.completed.min(line.total), line.total));
+            self.files.insert(
+                line.digest.clone(),
+                (line.completed.min(line.total), line.total),
+            );
         }
         if line.status.starts_with("verifying") || line.status.starts_with("writing") {
             self.state = DownloadState::Checking;
@@ -452,7 +463,11 @@ impl Progress {
         let bytes_per_second = match (self.samples.first(), self.samples.last()) {
             (Some((t0, b0)), Some((t1, b1))) if t1 > t0 => {
                 let secs = t1.duration_since(*t0).as_secs_f64();
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    clippy::cast_precision_loss
+                )]
                 let speed = (b1.saturating_sub(*b0) as f64 / secs) as u64;
                 speed
             }
@@ -488,7 +503,10 @@ mod tests {
         p.add(&line("b", 0, 10));
         p.add(&line("a", 100, 100));
         let v = p.view();
-        assert_eq!((v.completed, v.total, v.state), (100, 110, DownloadState::Downloading));
+        assert_eq!(
+            (v.completed, v.total, v.state),
+            (100, 110, DownloadState::Downloading)
+        );
         p.add(&PullLine {
             status: "verifying sha256 digest".into(),
             ..PullLine::default()
@@ -516,11 +534,18 @@ mod tests {
                 },
             },
         ];
-        let list = rows(&installed, Tier::Standard, "someone/custom:q4", |m| m.starts_with("someone"));
+        let list = rows(&installed, Tier::Standard, "someone/custom:q4", |m| {
+            m.starts_with("someone")
+        });
         let row = list.iter().find(|r| r.id == first.id).unwrap();
         assert!(row.installed && row.in_catalog && row.changed_upstream && !row.is_default);
         let custom = list.last().unwrap();
-        assert!(!custom.in_catalog && custom.is_default && custom.description == "8B" && custom.can_think);
+        assert!(
+            !custom.in_catalog
+                && custom.is_default
+                && custom.description == "8B"
+                && custom.can_think
+        );
         assert_eq!(list.len(), catalog::entries().len() + 1);
     }
 }

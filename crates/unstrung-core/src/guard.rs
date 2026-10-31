@@ -150,8 +150,14 @@ impl StartWatch {
         }
         self.held.push_str(piece);
         let words = words_of(&self.held);
-        let ended = self.held.ends_with(|c: char| !c.is_alphanumeric() && c != '\'');
-        let complete = if ended { words.len() } else { words.len().saturating_sub(1) };
+        let ended = self
+            .held
+            .ends_with(|c: char| !c.is_alphanumeric() && c != '\'');
+        let complete = if ended {
+            words.len()
+        } else {
+            words.len().saturating_sub(1)
+        };
         if repeats(&words[..complete], &self.others) {
             self.repeated = true;
             return String::new();
@@ -234,10 +240,15 @@ fn strip_labels(text: &str) -> String {
             .rev()
             .find(|&(_, c)| !(c.is_alphabetic() || c == ' ' || c == '\''))
             .map_or(0, |(i, c)| i + c.len_utf8());
-        let words: Vec<String> = head[start..].split_whitespace().map(str::to_lowercase).collect();
+        let words: Vec<String> = head[start..]
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .collect();
         let at = words.iter().position(|w| w == "new");
         let label = at.is_some_and(|n| {
-            words.get(n + 1).is_some_and(|w| LABEL_NOUNS.contains(&w.as_str()))
+            words
+                .get(n + 1)
+                .is_some_and(|w| LABEL_NOUNS.contains(&w.as_str()))
                 && n <= 1
                 && (words.len() == n + 2 || words.get(n + 2).is_some_and(|w| w == "about"))
                 && words.len() <= n + 5
@@ -277,7 +288,10 @@ fn strip_name_prefix<'a>(text: &'a str, char_name: &str) -> &'a str {
 /// the persona's body or things ("Kai's hands shake"). The quality check
 /// uses it on every sentence, the guard on line starts.
 pub fn narrates_user(sentence: &str, persona: &str) -> bool {
-    let mut words = sentence.trim_start().trim_start_matches('*').split_whitespace();
+    let mut words = sentence
+        .trim_start()
+        .trim_start_matches('*')
+        .split_whitespace();
     let (Some(first), Some(second)) = (words.next(), words.next()) else {
         return false;
     };
@@ -502,12 +516,24 @@ mod tests {
         assert_eq!(c("Sit.\n\n[Reply guide for Ren. Not part"), "Sit.");
         assert_eq!(c("a\n\n\n\nb"), "a\n\nb");
         // Labels copied from the reply guide go.
-        assert_eq!(c("*Ren nods.* Sure. New fact: My father kept old papers."), "*Ren nods.* Sure. My father kept old papers.");
-        assert_eq!(c("Fine.\nOne new thing: the lamp flickers."), "Fine.\nthe lamp flickers.");
+        assert_eq!(
+            c("*Ren nods.* Sure. New fact: My father kept old papers."),
+            "*Ren nods.* Sure. My father kept old papers."
+        );
+        assert_eq!(
+            c("Fine.\nOne new thing: the lamp flickers."),
+            "Fine.\nthe lamp flickers."
+        );
         assert_eq!(c("New detail about Ren: he limps."), "he limps.");
         // Other colons stay.
-        assert_eq!(c("Two things: rain and debt. It is 11:30."), "Two things: rain and debt. It is 11:30.");
-        assert_eq!(c("\"The new thing is: nobody pays.\""), "\"The new thing is: nobody pays.\"");
+        assert_eq!(
+            c("Two things: rain and debt. It is 11:30."),
+            "Two things: rain and debt. It is 11:30."
+        );
+        assert_eq!(
+            c("\"The new thing is: nobody pays.\""),
+            "\"The new thing is: nobody pays.\""
+        );
         assert_eq!(clean("Sit. Then we tal", "Ren", "Kai", true, false), "Sit.");
         assert_eq!(clean("“Sit.” Then", "Ren", "Kai", true, false), "“Sit.”");
     }
@@ -537,9 +563,13 @@ mod tests {
         let order = "stay here and keep an eye on the engine she orders";
         let earlier = format!("Mara nods. {order}.");
         assert_eq!(check(&format!("{filler} {order}."), &[&earlier]), None);
-        let paragraph = format!("{order} and do not touch the red valve until I come back with the torch");
+        let paragraph =
+            format!("{order} and do not touch the red valve until I come back with the torch");
         assert_eq!(
-            check(&format!("{filler} {paragraph}."), &[&format!("Mara nods. {paragraph}.")]),
+            check(
+                &format!("{filler} {paragraph}."),
+                &[&format!("Mara nods. {paragraph}.")]
+            ),
             Some(Problem::Repetition)
         );
     }
@@ -549,7 +579,10 @@ mod tests {
         let reply = "*Ren leans back.* What makes you think I can do better?\n\n\
                      User nods, pulling out a file. \"The guy's name is Akira Sato.\"\n\n\
                      Ren raises an eyebrow.";
-        assert_eq!(cut_at_user_line(reply, "User", false), "*Ren leans back.* What makes you think I can do better?");
+        assert_eq!(
+            cut_at_user_line(reply, "User", false),
+            "*Ren leans back.* What makes you think I can do better?"
+        );
         assert!(narrates_user("Kai's hands shake.", "Kai"));
         assert!(narrates_user("*Kai takes the glass.*", "Kai"));
         assert!(!narrates_user("\"Kai takes too long,\" Ash says.", "Kai"));
@@ -586,11 +619,17 @@ mod tests {
         };
         // A copy of the greeting never shows.
         let mut watch = StartWatch::new(&[greeting]);
-        assert_eq!(feed(&mut watch, "Welcome aboard. The engine is dead, and more."), "");
+        assert_eq!(
+            feed(&mut watch, "Welcome aboard. The engine is dead, and more."),
+            ""
+        );
         assert!(watch.repeated);
         // A copy that starts with other words is found by the 10-word run.
         let mut watch = StartWatch::new(&[greeting]);
-        feed(&mut watch, "Welcome aboard, Commander Stone. The engine is dead, the coffee is worse, and you are the first");
+        feed(
+            &mut watch,
+            "Welcome aboard, Commander Stone. The engine is dead, the coffee is worse, and you are the first",
+        );
         assert!(watch.repeated);
         // A new reply shows in full, after its first 20 words.
         let mut watch = StartWatch::new(&[greeting]);
@@ -616,13 +655,22 @@ mod tests {
     #[test]
     fn live_cut_stops_before_the_user_line() {
         // The user's line never shows, not even its first word.
-        let (shown, cut) = stream(&["Ren sits.", "\n\nKai", "'s jaw", " tightened.", "\nRen waits."]);
+        let (shown, cut) = stream(&[
+            "Ren sits.",
+            "\n\nKai",
+            "'s jaw",
+            " tightened.",
+            "\nRen waits.",
+        ]);
         assert_eq!((shown.as_str(), cut), ("Ren sits.\n\n", true));
         let (shown, cut) = stream(&["Ren sits.\n", "Kai: ", "Thanks.\n"]);
         assert_eq!((shown.as_str(), cut), ("Ren sits.\n", true));
         // Lines of the character stream as they come.
         let (shown, cut) = stream(&["Ren", " sits", " down.", "\nKai, he", " says, sit."]);
-        assert_eq!((shown.as_str(), cut), ("Ren sits down.\nKai, he says, sit.", false));
+        assert_eq!(
+            (shown.as_str(), cut),
+            ("Ren sits down.\nKai, he says, sit.", false)
+        );
         // At the start, the guard drops the user's line and keeps the rest.
         let (shown, cut) = stream(&["*Kai nods.*\n", "Ren lights a match."]);
         assert_eq!((shown.as_str(), cut), ("Ren lights a match.", false));

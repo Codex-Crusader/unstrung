@@ -32,8 +32,22 @@ const FACTS_PER_PASS: usize = 3;
 /// A sentence with one of these words reads like an instruction or is about
 /// the AI. It does not belong in the story notes.
 const OFF_STORY: [&str; 16] = [
-    "ai", "artificial", "model", "assistant", "chatbot", "bot", "prompt", "prompts", "rules",
-    "instruction", "instructions", "system", "ignore", "jailbreak", "roleplay", "pretend",
+    "ai",
+    "artificial",
+    "model",
+    "assistant",
+    "chatbot",
+    "bot",
+    "prompt",
+    "prompts",
+    "rules",
+    "instruction",
+    "instructions",
+    "system",
+    "ignore",
+    "jailbreak",
+    "roleplay",
+    "pretend",
 ];
 const STOP: [&str; 24] = [
     "that", "this", "with", "what", "where", "when", "about", "from", "have", "just", "your",
@@ -82,7 +96,11 @@ pub fn on_path(memories: &[Memory], path: &[Message]) -> Vec<Memory> {
             .filter(|m| !m.content.is_empty())
             .cloned()
     };
-    let mut facts: Vec<&Memory> = memories.iter().filter(|m| m.kind == "fact").filter(live).collect();
+    let mut facts: Vec<&Memory> = memories
+        .iter()
+        .filter(|m| m.kind == "fact")
+        .filter(live)
+        .collect();
     facts.sort_by_key(|m| (!m.is_pinned, m.origin != "user", m.id));
     newest("goal")
         .into_iter()
@@ -128,17 +146,16 @@ fn is_story(m: &Message) -> bool {
 }
 
 /// The question for one pass.
-pub fn pass_question(
-    char_name: &str,
-    user_name: &str,
-    old: &Recall,
-    chunk: &[Message],
-) -> String {
+pub fn pass_question(char_name: &str, user_name: &str, old: &Recall, chunk: &[Message]) -> String {
     let lines: Vec<String> = chunk
         .iter()
         .filter(|m| is_story(m))
         .map(|m| {
-            let name = if m.role == "user" { user_name } else { char_name };
+            let name = if m.role == "user" {
+                user_name
+            } else {
+                char_name
+            };
             let words: Vec<&str> = m.content.split_whitespace().take(MESSAGE_WORDS).collect();
             format!("{name}: {}", words.join(" "))
         })
@@ -203,7 +220,9 @@ pub fn parse_pass(answer: &str, user_lines: &[&str], names: &[&str]) -> PassAnsw
             }
         } else if in_facts {
             let item = l.trim_start_matches(['-', '*', '\u{2022}', ' ']);
-            let item = item.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ')').trim();
+            let item = item
+                .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ')')
+                .trim();
             if !item.is_empty() {
                 facts.push(item.to_owned());
             }
@@ -240,7 +259,10 @@ fn supported(fact: &str, user_words: &HashSet<String>, names: &[&str]) -> bool {
         return false;
     }
     let known: HashSet<String> = names.iter().flat_map(|n| content_words(n)).collect();
-    let backed = words.iter().filter(|w| user_words.contains(*w) || known.contains(*w)).count();
+    let backed = words
+        .iter()
+        .filter(|w| user_words.contains(*w) || known.contains(*w))
+        .count();
     let named = fact
         .split_whitespace()
         .skip(1)
@@ -274,7 +296,11 @@ pub fn clean(text: &str, max_words: usize) -> Option<String> {
 /// A memory that the user wrote or edited. It is the user's own text, so
 /// only the markup goes and it is capped. `None` when nothing is left.
 pub fn user_note(text: &str, kind: &str) -> Option<String> {
-    let max_words = if kind == "summary" { SUMMARY_WORDS } else { NOTE_WORDS };
+    let max_words = if kind == "summary" {
+        SUMMARY_WORDS
+    } else {
+        NOTE_WORDS
+    };
     Some(tidy(text, max_words)).filter(|t| !t.is_empty())
 }
 
@@ -282,11 +308,20 @@ pub fn user_note(text: &str, kind: &str) -> Option<String> {
 fn tidy(text: &str, max_words: usize) -> String {
     let kept: String = text
         .chars()
-        .filter(|c| !matches!(c, '{' | '}' | '[' | ']' | '<' | '>' | '*' | '"' | '`' | '#' | '\u{201c}' | '\u{201d}'))
+        .filter(|c| {
+            !matches!(
+                c,
+                '{' | '}' | '[' | ']' | '<' | '>' | '*' | '"' | '`' | '#' | '\u{201c}' | '\u{201d}'
+            )
+        })
         .map(|c| if c.is_control() { ' ' } else { c })
         .collect();
     let words: Vec<&str> = kept.split_whitespace().take(max_words).collect();
-    words.join(" ").trim_end_matches([',', ';', ':']).trim().to_owned()
+    words
+        .join(" ")
+        .trim_end_matches([',', ';', ':'])
+        .trim()
+        .to_owned()
 }
 
 /// The summary, sentence by sentence: a sentence that is off story is
@@ -302,7 +337,9 @@ fn clean_sentences(text: &str, max_words: usize) -> Option<String> {
 }
 
 fn off_story(lower: &str) -> bool {
-    lower.split(|c: char| !c.is_alphanumeric()).any(|w| OFF_STORY.contains(&w))
+    lower
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| OFF_STORY.contains(&w))
         || lower.contains("from now on")
         || lower.contains("you must")
 }

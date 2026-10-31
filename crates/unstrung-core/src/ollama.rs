@@ -534,7 +534,9 @@ mod tests {
             .unwrap();
         assert_eq!((line.total, line.completed), (4_683_073_184, 241_970));
         assert!(parse_pull_line(b"  ").unwrap().is_none());
-        assert!(parse_pull_line(br#"{"error":"pull model manifest: file does not exist"}"#).is_err());
+        assert!(
+            parse_pull_line(br#"{"error":"pull model manifest: file does not exist"}"#).is_err()
+        );
         let request = ChatRequest {
             model: "m",
             messages: &[],

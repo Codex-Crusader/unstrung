@@ -50,7 +50,10 @@ impl Hardware {
     }
 
     pub fn from_parts(gpu: Option<Gpu>, ram_bytes: u64, disk_free_bytes: u64, avx2: bool) -> Self {
-        let vram = gpu.as_ref().filter(|g| usable(g)).map_or(0, |g| g.vram_bytes);
+        let vram = gpu
+            .as_ref()
+            .filter(|g| usable(g))
+            .map_or(0, |g| g.vram_bytes);
         // Cards sold as "12 GB" or "6 GB" report a little less.
         let tier = if vram >= GIB * 23 / 2 {
             Tier::High
@@ -71,9 +74,10 @@ impl Hardware {
 
     /// Changes when the GPU or its driver changes. The core runs the check again then.
     pub fn fingerprint(&self) -> String {
-        self.gpu
-            .as_ref()
-            .map_or_else(|| "no gpu".to_owned(), |g| format!("{} | {}", g.name, g.driver))
+        self.gpu.as_ref().map_or_else(
+            || "no gpu".to_owned(),
+            |g| format!("{} | {}", g.name, g.driver),
+        )
     }
 }
 
@@ -122,7 +126,10 @@ fn gpus() -> Vec<Gpu> {
             }
             let vram = key
                 .get_value::<u64, _>("HardwareInformation.qwMemorySize")
-                .or_else(|_| key.get_value::<u32, _>("HardwareInformation.MemorySize").map(u64::from))
+                .or_else(|_| {
+                    key.get_value::<u32, _>("HardwareInformation.MemorySize")
+                        .map(u64::from)
+                })
                 .unwrap_or_default();
             Some(Gpu {
                 name: key.get_value("DriverDesc").unwrap_or_default(),
@@ -143,7 +150,10 @@ fn free_space(path: &Path) -> u64 {
     let disks = sysinfo::Disks::new_with_refreshed_list();
     // The disk with the longest mount point that holds the path.
     let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let target = target.to_string_lossy().trim_start_matches(r"\\?\").to_lowercase();
+    let target = target
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_lowercase();
     disks
         .list()
         .iter()
@@ -191,7 +201,10 @@ mod tests {
 
     #[test]
     fn vendors() {
-        assert_eq!(vendor_of(r"pci\ven_10de&dev_28a0&subsys_8bcd103c").as_deref(), Some("NVIDIA"));
+        assert_eq!(
+            vendor_of(r"pci\ven_10de&dev_28a0&subsys_8bcd103c").as_deref(),
+            Some("NVIDIA")
+        );
         assert_eq!(vendor_of(r"PCI\VEN_1002&DEV_15BF").as_deref(), Some("AMD"));
         assert_eq!(vendor_of("root\\basicdisplay"), None);
     }

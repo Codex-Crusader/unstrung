@@ -52,8 +52,17 @@ const THREAD_WORDS: usize = 15;
 /// An open thread with one of these words is about the AI, not the story.
 /// Keeping it would make the character come back to that question.
 const THREAD_OFF_STORY: [&str; 11] = [
-    "ai", "artificial", "model", "assistant", "chatbot", "bot", "prompt", "prompts", "rules",
-    "instructions", "system",
+    "ai",
+    "artificial",
+    "model",
+    "assistant",
+    "chatbot",
+    "bot",
+    "prompt",
+    "prompts",
+    "rules",
+    "instructions",
+    "system",
 ];
 
 const OOC_NOTE: &str = "(Note from {{user}}, not part of the story: {{note}}\n\
@@ -143,8 +152,16 @@ fn section(title: &str, lines: &[(&str, &str)]) -> String {
 /// Steps 5 and 6: what the chat remembers. Memory text came from the chat,
 /// so it is labeled as notes and comes after the rules and the card.
 fn notes(recall: &crate::memory::Recall, names: &Names<'_>, budget: u32) -> String {
-    let summary = recall.summary.as_deref().map(str::trim).filter(|s| !s.is_empty());
-    let goal = recall.goal.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let summary = recall
+        .summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let goal = recall
+        .goal
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     if summary.is_none() && goal.is_none() && recall.facts.is_empty() {
         return String::new();
     }
@@ -211,8 +228,16 @@ pub fn open_thread_question(
         .rev()
         .take(THREAD_MESSAGES)
         .map(|m| {
-            let name = if m.role == "user" { user_name } else { char_name };
-            let words: Vec<&str> = m.content.split_whitespace().take(THREAD_MESSAGE_WORDS).collect();
+            let name = if m.role == "user" {
+                user_name
+            } else {
+                char_name
+            };
+            let words: Vec<&str> = m
+                .content
+                .split_whitespace()
+                .take(THREAD_MESSAGE_WORDS)
+                .collect();
             format!("{name}: {}", words.join(" "))
         })
         .collect::<Vec<_>>()
@@ -242,7 +267,8 @@ pub fn clean_open_thread(answer: &str) -> Option<String> {
         answer.lines().find_map(|l| {
             let l = l.trim().trim_start_matches(['*', '-', ' ']);
             let head = l.get(..name.len())?;
-            head.eq_ignore_ascii_case(name).then(|| l[name.len()..].trim().to_owned())
+            head.eq_ignore_ascii_case(name)
+                .then(|| l[name.len()..].trim().to_owned())
         })
     };
     let done = field("done:").unwrap_or_default().to_lowercase();
@@ -252,23 +278,45 @@ pub fn clean_open_thread(answer: &str) -> Option<String> {
     let line = field("request:")?;
     let cleaned: String = line
         .chars()
-        .filter(|c| !matches!(c, '{' | '}' | '[' | ']' | '<' | '>' | '*' | '"' | '`' | '\u{201c}' | '\u{201d}'))
+        .filter(|c| {
+            !matches!(
+                c,
+                '{' | '}' | '[' | ']' | '<' | '>' | '*' | '"' | '`' | '\u{201c}' | '\u{201d}'
+            )
+        })
         .collect();
     let mut words: Vec<&str> = cleaned.split_whitespace().collect();
-    if words
-        .first()
-        .is_some_and(|w| matches!(w.to_lowercase().trim_end_matches([',', ':', '.']), "yes" | "answer"))
-    {
+    if words.first().is_some_and(|w| {
+        matches!(
+            w.to_lowercase().trim_end_matches([',', ':', '.']),
+            "yes" | "answer"
+        )
+    }) {
         words.remove(0);
     }
-    let text = words.into_iter().take(THREAD_WORDS).collect::<Vec<_>>().join(" ");
-    let text = text.trim_end_matches(['.', ',', ';', ':']).trim().to_owned();
+    let text = words
+        .into_iter()
+        .take(THREAD_WORDS)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let text = text
+        .trim_end_matches(['.', ',', ';', ':'])
+        .trim()
+        .to_owned();
     let lower = text.to_lowercase();
     let empty = ["nothing", "none", "no", "n/a"];
     let off_story = lower
         .split(|c: char| !c.is_alphanumeric())
         .any(|w| THREAD_OFF_STORY.contains(&w));
-    if off_story || text.is_empty() || empty.iter().any(|e| lower == *e || lower.starts_with(&format!("{e} ")) || lower.starts_with(&format!("{e},")) || lower.starts_with(&format!("{e}."))) {
+    if off_story
+        || text.is_empty()
+        || empty.iter().any(|e| {
+            lower == *e
+                || lower.starts_with(&format!("{e} "))
+                || lower.starts_with(&format!("{e},"))
+                || lower.starts_with(&format!("{e}."))
+        })
+    {
         return None;
     }
     Some(text)
@@ -335,7 +383,9 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     let system = names.fill(SYSTEM_RULES)
         + &fit(&names.fill(&card), card_budget)
         + &fit(&names.fill(&persona), persona_budget)
-        + &input.recall.map_or_else(String::new, |r| notes(r, &names, memory_budget));
+        + &input
+            .recall
+            .map_or_else(String::new, |r| notes(r, &names, memory_budget));
 
     // 9: end reminder. It goes in the user role, because chat templates move
     // every system message to the top of the prompt.

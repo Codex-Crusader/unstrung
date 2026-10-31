@@ -176,7 +176,9 @@ pub fn summary(s: &Summary<'_>) -> String {
          Repeats | Speaks for user | Narrates user | Guard cut user lines | Name prefix (raw / final) | Persona trait claims | \
          Wrong persona name | Macro left | Avg seconds |\n",
     );
-    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
+    out.push_str(
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+    );
     let mut keys: Vec<(&str, &str)> = Vec::new();
     for r in s.replies {
         let key = (r.character.as_str(), r.style.as_str());
@@ -355,10 +357,12 @@ pub fn transcript(s: &Summary<'_>) -> String {
             let _ = writeln!(out, "> {line}");
         }
         if !r.raw.is_empty() && r.raw.trim() != r.text.trim() {
-            out.push_str("
+            out.push_str(
+                "
 The model wrote this before the guard:
 
-");
+",
+            );
             for line in r.raw.lines() {
                 let _ = writeln!(out, ">> {line}");
             }
