@@ -30,6 +30,8 @@ pub enum EngineStatus {
     Ready {
         model: String,
     },
+    /// No engine in the app folder yet. First run or Models offer the download.
+    NotInstalled,
     /// The engine runs, but the default chat model is not installed.
     /// Downloads work in this state.
     NoModel {
@@ -239,7 +241,11 @@ impl Engine {
 
     async fn try_start(self: &Arc<Self>) -> Result<()> {
         self.status.send_replace(EngineStatus::Starting);
-        let exe = sidecar::find_ollama(&self.paths).ok_or_else(sidecar::missing_engine)?;
+        let Some(exe) = sidecar::find_ollama(&self.paths) else {
+            log::info!("no chat engine installed yet");
+            self.status.send_replace(EngineStatus::NotInstalled);
+            return Ok(());
+        };
         let paths = self.paths.clone();
         let sidecar = tokio::task::spawn_blocking(move || {
             sidecar::stop_leftover(&paths);

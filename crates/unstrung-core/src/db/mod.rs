@@ -21,6 +21,17 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
+/// "pending" while the welcome flow runs, then "done". "existing" on a
+/// database from before the welcome flow.
+pub const FIRST_RUN_KEY: &str = "first_run";
+pub const FIRST_RUN_PENDING: &str = "pending";
+
+impl Db {
+    pub async fn first_run_pending(&self) -> Result<bool> {
+        Ok(self.meta(FIRST_RUN_KEY).await?.as_deref() == Some(FIRST_RUN_PENDING))
+    }
+}
+
 pub fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -49,6 +60,17 @@ impl Db {
             .await?;
         MIGRATOR.run(&pool).await?;
         let db = Self { pool };
+        // A new database starts the welcome flow ("pending", until it ends
+        // with "done"). A database from before the welcome flow existed has
+        // an app_version from an earlier start, and is already set up.
+        if db.meta(FIRST_RUN_KEY).await?.is_none() {
+            let state = if db.meta("app_version").await?.is_some() {
+                "existing"
+            } else {
+                FIRST_RUN_PENDING
+            };
+            db.set_meta(FIRST_RUN_KEY, state).await?;
+        }
         let schema = MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default();
         db.set_meta("schema_version", &schema.to_string()).await?;
         db.set_meta("app_version", env!("CARGO_PKG_VERSION"))

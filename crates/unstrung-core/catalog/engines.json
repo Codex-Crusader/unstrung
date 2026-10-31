@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "ollama": {
+    "version": "0.40.13",
+    "license": { "name": "MIT", "url": "https://github.com/ollama/ollama/blob/main/LICENSE" },
+    "hosts": ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"],
+    "packages": [
+      {
+        "id": "base",
+        "file": "ollama-windows-amd64.zip",
+        "url": "https://github.com/ollama/ollama/releases/download/v0.40.13/ollama-windows-amd64.zip",
+        "size": 1601969847,
+        "sha256": "7afa38624fa62ee5d8293422d0ab084c1bb4603134c7f4dafce11a033b57cc19",
+        "unpacked_size": 2249796111
+      },
+      {
+        "id": "amd",
+        "gpu": "amd",
+        "file": "ollama-windows-amd64-rocm.zip",
+        "url": "https://github.com/ollama/ollama/releases/download/v0.40.13/ollama-windows-amd64-rocm.zip",
+        "size": 257076385,
+        "sha256": "2ab082d5414d51ef4cd675543c976770743c90e3cad0d9deb540160ae3b25573",
+        "unpacked_size": 1033747104
+      }
+    ]
+  }
+}

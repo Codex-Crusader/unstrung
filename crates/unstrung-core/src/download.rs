@@ -215,7 +215,7 @@ fn range_start(value: &str) -> Option<u64> {
         .ok()
 }
 
-fn file_len(path: &Path) -> u64 {
+pub(crate) fn file_len(path: &Path) -> u64 {
     std::fs::metadata(path).map_or(0, |m| m.len())
 }
 

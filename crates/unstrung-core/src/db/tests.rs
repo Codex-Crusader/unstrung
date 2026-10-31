@@ -133,3 +133,39 @@ async fn personas_and_world_info() {
     db.delete_character(id).await.unwrap();
     assert_eq!(db.world_entry_count(id).await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn first_run_stays_pending_until_done() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("app.db");
+    let db = Db::open(&file).await.unwrap();
+    assert!(db.first_run_pending().await.unwrap());
+    db.close().await;
+    // Closing the app during the welcome flow keeps it pending.
+    let db = Db::open(&file).await.unwrap();
+    assert!(db.first_run_pending().await.unwrap());
+    db.set_meta(FIRST_RUN_KEY, "done").await.unwrap();
+    db.close().await;
+    let db = Db::open(&file).await.unwrap();
+    assert!(!db.first_run_pending().await.unwrap());
+}
+
+#[tokio::test]
+async fn a_database_from_before_the_welcome_flow_skips_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("app.db");
+    let db = Db::open(&file).await.unwrap();
+    // An older build had no first-run flag.
+    sqlx::query("DELETE FROM meta WHERE key = ?")
+        .bind(FIRST_RUN_KEY)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    db.close().await;
+    let db = Db::open(&file).await.unwrap();
+    assert_eq!(
+        db.meta(FIRST_RUN_KEY).await.unwrap().as_deref(),
+        Some("existing")
+    );
+    assert!(!db.first_run_pending().await.unwrap());
+}

@@ -8,8 +8,10 @@ mod commands;
 mod creator;
 mod instance;
 mod logfile;
+mod notify;
 mod safe;
 mod selftest;
+mod setup;
 mod state;
 
 use safe::StartInfo;
@@ -164,6 +166,15 @@ fn main() {
             safe::diagnostic_report,
             safe::repair_check,
             safe::repair_fix,
+            setup::setup_state,
+            setup::pick_folder,
+            setup::check_folder,
+            setup::set_location,
+            setup::engine_install,
+            setup::engine_install_cancel,
+            setup::finish_first_run,
+            notify::set_notify,
+            notify::get_notify,
         ])
         .setup(move |app| {
             // Held until the process ends.
@@ -186,6 +197,7 @@ fn main() {
                         start_engine(app.handle(), &state.engine, &state.models);
                         send_memory_changes(app.handle(), &state.chats);
                         app.manage(state);
+                        setup::forward_progress(app.handle());
                     }
                     Err(e) => {
                         log::error!("the chat data did not open: {e}");
@@ -245,12 +257,15 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     );
     let engine = Engine::with_model(paths.clone(), &startup.model, startup.advanced.clone());
     let models = ModelService::new(engine.clone(), db.clone(), &startup);
+    let notify = db.meta(notify::META_KEY).await?.as_deref() != Some("off");
     let chats = Arc::new(ChatService::new(db, engine.clone()));
     Ok(AppState {
+        setup: unstrung_core::engine_setup::EngineSetup::new(paths.clone()),
         paths,
         engine,
         chats,
         models,
+        notify: std::sync::atomic::AtomicBool::new(notify),
     })
 }
 
@@ -275,6 +290,12 @@ fn start_engine(app: &tauri::AppHandle, engine: &Arc<Engine>, models: &Arc<Model
     tauri::async_runtime::spawn(async move {
         while downloads.changed().await.is_ok() {
             let current = downloads.borrow_and_update().clone();
+            if current
+                .as_ref()
+                .is_some_and(|d| d.state == unstrung_core::models::DownloadState::Done)
+            {
+                notify::job_done(&handle, notify::Job::Model);
+            }
             if let Err(e) = handle.emit(DOWNLOAD_EVENT, current) {
                 log::warn!("could not send the download progress: {e}");
             }

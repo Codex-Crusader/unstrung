@@ -13,12 +13,21 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 
 const LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
 
-/// Where the engine binary is. `engines/ollama` first. Until the engine download
-/// exists (Phase 4), the Ollama that is installed for this Windows user is a fallback.
+/// Set in a debug build to act like a release build with no engine, for
+/// testing the first run and the engine download.
+pub const NO_FALLBACK_ENV: &str = "UNSTRUNG_DEV_NO_ENGINE_FALLBACK";
+
+/// Where the engine binary is: `engines/ollama`, which the engine download
+/// fills. Debug builds also use the Ollama that is installed for this Windows
+/// user, so development needs no download. Release builds never do, so the
+/// version is always the one that the catalog pins and checks.
 pub fn find_ollama(paths: &AppPaths) -> Option<PathBuf> {
     let own = paths.engines().join("ollama").join("ollama.exe");
     if own.is_file() {
         return Some(own);
+    }
+    if !cfg!(debug_assertions) || std::env::var_os(NO_FALLBACK_ENV).is_some() {
+        return None;
     }
     let installed = PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
         .join("Programs")

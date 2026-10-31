@@ -6,6 +6,7 @@
 use crate::error::{Error, Result};
 use crate::location::Location;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 /// Overrides the app folder. Tests and the self-test use it, so they never touch real data.
 pub const HOME_ENV: &str = "UNSTRUNG_HOME";
@@ -16,8 +17,9 @@ pub const DEV_MODELS_ENV: &str = "UNSTRUNG_DEV_OLLAMA_MODELS";
 #[derive(Debug, Clone)]
 pub struct AppPaths {
     root: PathBuf,
-    /// From `location.json`, read once at start.
-    location: Location,
+    /// From `location.json`. Shared by every copy, so a change in the
+    /// storage step reaches the engine on its next start.
+    location: Arc<RwLock<Location>>,
 }
 
 impl AppPaths {
@@ -33,12 +35,35 @@ impl AppPaths {
     }
 
     pub fn at(root: PathBuf) -> Self {
-        let location = Location::load(&root);
+        let location = Arc::new(RwLock::new(Location::load(&root)));
         Self { root, location }
     }
 
-    pub fn location(&self) -> &Location {
-        &self.location
+    pub fn location(&self) -> Location {
+        self.location
+            .read()
+            .map_or_else(|e| e.into_inner().clone(), |l| l.clone())
+    }
+
+    /// Saves a new location to `location.json` and uses it from now on.
+    pub fn set_location(&self, location: Location) -> Result<()> {
+        location.save(&self.root)?;
+        let mut current = self
+            .location
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *current = location;
+        Ok(())
+    }
+
+    /// The models folder (chat, vision and image models).
+    pub fn models(&self) -> PathBuf {
+        self.location().models(&self.root)
+    }
+
+    /// The library folder (gallery pictures).
+    pub fn library(&self) -> PathBuf {
+        self.location().library(&self.root)
     }
 
     /// Creates the folders that the app writes to.
@@ -98,7 +123,7 @@ impl AppPaths {
     /// The models folder of the private chat engine (`OLLAMA_MODELS`), in the
     /// models folder from `location.json` (default `<app folder>\models`).
     pub fn ollama_models(&self) -> PathBuf {
-        self.location.models(&self.root).join("ollama")
+        self.models().join("ollama")
     }
 
     /// Joins a path that the database stores (relative to the app folder).

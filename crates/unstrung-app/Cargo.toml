@@ -19,5 +19,11 @@ tauri = { version = "2.12", features = ["isolation"] }
 tokio = { version = "1", features = ["sync", "time", "fs", "net"] }
 unstrung-core.workspace = true
 
+# Windows only, without the Linux portal and GTK backends, which pull in
+# crates that cargo audit flags as unmaintained.
+[target.'cfg(windows)'.dependencies]
+rfd = { version = "0.17", default-features = false }
+tauri-winrt-notification = "0.7"
+
 [build-dependencies]
 tauri-build = { version = "2.5", features = ["isolation"] }

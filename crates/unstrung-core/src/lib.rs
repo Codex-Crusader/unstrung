@@ -10,6 +10,7 @@ pub mod chat;
 pub mod db;
 pub mod download;
 pub mod engine;
+pub mod engine_setup;
 pub mod error;
 pub mod files;
 pub mod guard;
