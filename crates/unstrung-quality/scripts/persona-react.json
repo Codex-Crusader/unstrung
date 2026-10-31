@@ -1,0 +1,21 @@
+{
+  "name": "persona-react",
+  "about": "The character must react to who the user is. The persona's job and looks are only in the persona, never in the user's lines, so a reply that names them used the persona. The user starts as Kai (a mechanic and traveler with brass goggles) and switches to Nora (a journalist with round glasses and a notebook). After the switch, a reply that still says Kai is a wrong name.",
+  "turns": [
+    { "say": "hi there" },
+    { "say": "so what do you make of me?",
+      "expect": ["goggles", "goggle", "jacket", "olive", "stubble", "hair", "mechanic", "traveler", "traveller", "hands", "grease", "oil", "wanderer", "drifter"] },
+    { "say": "go on, guess what i do for a living",
+      "expect": ["mechanic", "engine", "engines", "machine", "machines", "fix", "fixer", "repair", "repairs", "tinker", "tinkerer", "tools", "wrench", "grease", "goggles", "hands"] },
+    { "say": "and where do you think i'm from?",
+      "expect": ["travel", "traveler", "traveller", "travelling", "traveling", "road", "roads", "wander", "wanderer", "drifter", "everywhere", "nowhere", "passing", "move", "moving", "settle"] },
+    { "persona": "Nora" },
+    { "say": "hello again" },
+    { "say": "so what do you make of me?",
+      "expect": ["glasses", "spectacles", "scarf", "mustard", "notebook", "notes", "denim", "journalist", "reporter", "writer", "pen", "questions", "hair"] },
+    { "say": "go on, guess what i do for a living",
+      "expect": ["journalist", "reporter", "writer", "write", "writes", "writing", "news", "newspaper", "paper", "story", "stories", "article", "articles", "notebook", "notes", "questions", "press"] },
+    { "say": "and what do you think i want from you?",
+      "expect": ["story", "questions", "quote", "interview", "scoop", "notebook", "notes", "write", "article", "journalist", "reporter"] }
+  ]
+}
