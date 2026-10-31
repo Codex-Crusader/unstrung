@@ -58,6 +58,7 @@
     "allow-download-model",
     "allow-stop-download",
     "allow-import-model-file",
+    "allow-open-windows-security",
     "allow-remove-model",
     "allow-set-default-model",
     "allow-set-advanced",

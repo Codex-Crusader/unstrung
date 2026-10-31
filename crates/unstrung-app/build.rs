@@ -52,6 +52,7 @@ const COMMANDS: &[&str] = &[
     "download_model",
     "stop_download",
     "import_model_file",
+    "open_windows_security",
     "remove_model",
     "set_default_model",
     "set_advanced",

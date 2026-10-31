@@ -144,6 +144,7 @@ fn main() {
             commands::download_model,
             commands::stop_download,
             commands::import_model_file,
+            commands::open_windows_security,
             commands::remove_model,
             commands::set_default_model,
             commands::set_advanced,

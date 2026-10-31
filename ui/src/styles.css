@@ -2236,3 +2236,18 @@ body > iframe {
 .import-file .welcome-warning {
   flex-basis: 100%;
 }
+
+.antivirus-tip {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.antivirus-tip p {
+  margin: 0;
+}
+
+.antivirus-tip .folder-path {
+  flex: none;
+}

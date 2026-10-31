@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import type { UiError } from "../api";
+import { useEffect, useState, type ReactNode } from "react";
+import { openWindowsSecurity, setupState, type UiError } from "../api";
 import { strings } from "../strings";
 import { Icon } from "./Icon";
 
@@ -30,6 +30,48 @@ export function ErrorNote({ error, lead, children }: { error: UiError; lead?: st
         </button>
       )}
       {open && <code className="error-detail">{detail}</code>}
+      {error.tip === "antivirus" && <AntivirusTip />}
+    </div>
+  );
+}
+
+/** The models folder to exclude, with a copy button and a way to Windows Security. */
+function AntivirusTip() {
+  const s = strings.antivirus;
+  const [folder, setFolder] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    void setupState().then((state) => {
+      setFolder(state.models);
+    });
+  }, []);
+  return (
+    <div className="antivirus-tip">
+      <p>{s.tip}</p>
+      <code className="folder-path">{folder}</code>
+      <div className="safe-actions">
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={!folder}
+          onClick={() => {
+            void navigator.clipboard.writeText(folder).then(() => {
+              setCopied(true);
+            });
+          }}
+        >
+          {copied ? s.copied : s.copy}
+        </button>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={() => {
+            void openWindowsSecurity();
+          }}
+        >
+          {s.open}
+        </button>
+      </div>
     </div>
   );
 }

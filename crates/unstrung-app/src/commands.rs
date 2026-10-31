@@ -17,6 +17,25 @@ use unstrung_core::presets::StyleSettings;
 pub struct UiError {
     pub message: String,
     pub detail: String,
+    /// A tip that the page shows under the error, for example "antivirus".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tip: Option<&'static str>,
+}
+
+/// How many "file in use" errors this run saw. From the second one, the
+/// error carries the antivirus tip, because real-time scanners lock files.
+static FILE_IN_USE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// A file that another program holds open (Windows sharing or lock violation).
+fn file_in_use(e: &Error) -> bool {
+    match e {
+        Error::Io(io) => matches!(io.raw_os_error(), Some(32 | 33)),
+        Error::Engine(text) => {
+            let text = text.to_lowercase();
+            text.contains("being used by another process") || text.contains("sharing violation")
+        }
+        _ => false,
+    }
 }
 
 impl From<Error> for UiError {
@@ -26,6 +45,17 @@ impl From<Error> for UiError {
             return Self {
                 message: sentence(message),
                 detail: why.clone(),
+                tip: None,
+            };
+        }
+        if file_in_use(&e) {
+            log::warn!("command failed, file in use: {e}");
+            let seen = FILE_IN_USE.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            return Self {
+                message: "Another program is using a file that Unstrung needs. Wait a moment, then try again."
+                    .to_owned(),
+                detail: e.to_string(),
+                tip: (seen >= 2).then_some("antivirus"),
             };
         }
         let message = match &e {
@@ -69,6 +99,7 @@ impl From<Error> for UiError {
         Self {
             message,
             detail: e.to_string(),
+            tip: None,
         }
     }
 }
@@ -529,6 +560,18 @@ pub async fn import_model_file(state: State<'_, AppState>) -> CmdResult<Option<S
     }
 }
 
+/// Opens Windows Security, for the antivirus tip. The app never changes
+/// antivirus settings itself.
+#[tauri::command]
+pub fn open_windows_security() -> CmdResult<()> {
+    #[cfg(windows)]
+    std::process::Command::new("explorer.exe")
+        .arg("windowsdefender:")
+        .spawn()
+        .map_err(Error::from)?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn stop_download(state: State<'_, AppState>) {
     state.models.stop_download();
@@ -576,6 +619,22 @@ pub async fn set_character_model(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_locked_file_gets_the_antivirus_tip_the_second_time() {
+        let locked = || Error::Io(std::io::Error::from_raw_os_error(32));
+        assert!(file_in_use(&locked()));
+        assert!(file_in_use(&Error::Engine(
+            "open blob: The process cannot access the file because it is being used by another process.".into()
+        )));
+        assert!(!file_in_use(&Error::Io(std::io::Error::from_raw_os_error(
+            5
+        ))));
+        let _ = UiError::from(locked());
+        let second = UiError::from(locked());
+        assert_eq!(second.tip, Some("antivirus"));
+        assert!(UiError::from(Error::Busy).tip.is_none());
+    }
 
     #[test]
     fn rejected_file_keeps_the_reason_in_details() {

@@ -91,7 +91,9 @@ function useSafeSelfTest() {
         if (!report.includes("%USERPROFILE%")) return await fail("the report does not mask the user folder");
         if (/[A-Z]:[\\/]Users[\\/]/i.test(report)) return await fail("the report shows a user folder");
         const found = await repairCheck();
-        if (found.length !== 3) return await fail(`quick repair returned ${String(found.length)} findings`);
+        const areas = ["engine", "engine_files", "data", "location", "models", "hardware", "temp_files"];
+        if (found.map((f) => f.area).join() !== areas.join())
+          return await fail(`quick repair returned ${found.map((f) => f.area).join()}`);
         if (found.find((f) => f.area === "data")?.state !== "ok") return await fail("quick repair: the test data failed");
         const fixed = await repairFix();
         if (fixed.some((f) => f.state === "can_fix" || f.state === "needs_action"))

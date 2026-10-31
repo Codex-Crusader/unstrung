@@ -92,6 +92,7 @@ pub async fn stage_upload(state: State<'_, AppState>, request: Request<'_>) -> C
         .map_err(|e| UiError {
             message: "The picture could not be read.".into(),
             detail: e.to_string(),
+            tip: None,
         })?
         .map_err(UiError::from)
 }
@@ -144,6 +145,7 @@ pub async fn import_card(
         .map_err(|e| UiError {
             message: "The card could not be read.".into(),
             detail: e.to_string(),
+            tip: None,
         })?
         .map_err(UiError::from)
 }

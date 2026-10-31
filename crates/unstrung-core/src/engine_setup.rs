@@ -453,6 +453,15 @@ fn bad_files(
     Ok(bad)
 }
 
+/// Repair: makes the app treat the engine as not installed, so the next
+/// start offers "Install", which replaces the whole engine folder.
+pub fn forget_install(paths: &AppPaths) -> Result<()> {
+    match std::fs::remove_file(folder(paths).join(STAMP)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
+        _ => Ok(()),
+    }
+}
+
 /// Full repair: the engine files that are missing or changed. Empty when the
 /// engine is fine. Fails when Unstrung did not install the engine.
 pub fn verify(paths: &AppPaths, cancel: &CancellationToken) -> Result<Vec<String>> {

@@ -137,6 +137,8 @@ export interface DeleteUndo {
 export interface UiError {
   message: string;
   detail: string;
+  /** "antivirus": another program keeps locking files. */
+  tip?: "antivirus";
 }
 
 export type ReplyEvent =
@@ -506,6 +508,8 @@ export const importModelFile = () => invoke<string | null>("import_model_file");
 /** A download or an import is running. */
 export const downloadRunning = (d: Download | null) =>
   d !== null && (d.state === "downloading" || d.state === "importing" || d.state === "checking");
+
+export const openWindowsSecurity = () => invoke<null>("open_windows_security");
 
 export const recentChats = () => invoke<RecentChat[]>("recent_chats");
 
