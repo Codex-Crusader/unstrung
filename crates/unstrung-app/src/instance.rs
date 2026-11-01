@@ -154,7 +154,8 @@ fn act(app: &AppHandle, wish: Wish) {
     if wish == Wish::Safe && !in_safe_start {
         // No question first: the user chose the safe start shortcut, and a
         // broken window may not be able to show a question. Chats are saved
-        // as they happen, so a restart loses at most an unsent draft.
+        // as they happen, so a restart loses an unsent draft and cuts off a
+        // reply that is still being written.
         log::warn!("a second start asked for safe start: restarting");
         match relaunch(app, true) {
             Ok(()) => return,
