@@ -619,8 +619,9 @@ impl PictureService {
         // The chat model comes back whether the picture worked or not.
         if freed && let Some(client) = client {
             let model = chat_model.to_owned();
+            let context = self.chats.engine().tuning_for(&model).context;
             tokio::spawn(async move {
-                if let Err(e) = client.load(&model, KEEP_ALIVE).await {
+                if let Err(e) = client.load(&model, KEEP_ALIVE, context).await {
                     log::warn!("the chat model did not load again after a picture: {e}");
                 }
             });

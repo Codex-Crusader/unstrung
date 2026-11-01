@@ -63,7 +63,9 @@ impl From<Error> for UiError {
                 "The chat engine is not ready yet. Wait until the status bar says Ready, then try again."
                     .to_owned()
             }
-            Error::Busy => "A reply is still being written. Wait, or press Stop.".to_owned(),
+            Error::Busy => {
+                "A reply or a picture is still being made. Wait, or press Stop.".to_owned()
+            }
             Error::Timeout(secs) => format!(
                 "No reply after {secs} seconds. Try again, or pick a smaller model on the Models screen."
             ),

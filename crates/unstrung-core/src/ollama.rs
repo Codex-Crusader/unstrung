@@ -387,8 +387,15 @@ impl Client {
     }
 
     /// Loads a model into memory. A chat request with no messages only loads the model.
-    pub async fn load(&self, model: &str, keep_alive: &str) -> Result<()> {
-        let body = serde_json::json!({ "model": model, "messages": [], "keep_alive": keep_alive });
+    /// Loads a model with the context size that the chat uses. Another size
+    /// makes the engine load the model again at the next reply.
+    pub async fn load(&self, model: &str, keep_alive: &str, num_ctx: u32) -> Result<()> {
+        let body = serde_json::json!({
+            "model": model,
+            "messages": [],
+            "keep_alive": keep_alive,
+            "options": { "num_ctx": num_ctx },
+        });
         self.http
             .post(format!("{}/api/chat", self.base))
             .timeout(Duration::from_secs(300))

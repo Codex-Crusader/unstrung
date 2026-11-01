@@ -144,7 +144,10 @@ impl Engine {
         self.status.send_replace(EngineStatus::LoadingModel {
             model: model.to_owned(),
         });
-        if let Err(e) = client.load(model, KEEP_ALIVE).await {
+        if let Err(e) = client
+            .load(model, KEEP_ALIVE, self.tuning_for(model).context)
+            .await
+        {
             self.set_error(&e);
             return Err(e);
         }
@@ -273,7 +276,9 @@ impl Engine {
         self.status.send_replace(EngineStatus::LoadingModel {
             model: model.clone(),
         });
-        client.load(&model, KEEP_ALIVE).await?;
+        client
+            .load(&model, KEEP_ALIVE, self.tuning_for(&model).context)
+            .await?;
         self.status.send_replace(EngineStatus::Ready { model });
         Ok(())
     }

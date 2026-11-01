@@ -110,7 +110,10 @@ export function ChatScreen({
   }, [openChatId]);
 
   const openChatIdForPictures = view?.chat.id;
+  // The listener below lives as long as the screen, so it reads the open chat here.
+  const shownChat = useRef<number | null>(null);
   useEffect(() => {
+    shownChat.current = openChatIdForPictures ?? null;
     if (openChatIdForPictures === undefined) return;
     let active = true;
     chatPictures(openChatIdForPictures)
@@ -133,8 +136,20 @@ export function ChatScreen({
       .catch(() => {
         // Pictures stay off.
       });
+    // Events, not the command, drive the progress: after a switch to another
+    // screen and back, a running picture still shows and still lands here.
     const off = onPainting((p) => {
-      if (p) setPainting((now) => (now && now.chat_id === p.chat_id ? p : now));
+      const here = shownChat.current;
+      if (p) {
+        if (p.chat_id === here) setPainting(p);
+        return;
+      }
+      setPainting(null);
+      if (here !== null) {
+        chatPictures(here).then(setPictures, () => {
+          // The list stays as it is.
+        });
+      }
     });
     return () => {
       void off.then((f) => {
@@ -300,7 +315,7 @@ export function ChatScreen({
     setPainting({ chat_id: chatId, message_id: messageId, phase: "scene", step: 0, total: 0 });
     paintPicture(chatId, messageId, wish)
       .then((p) => {
-        if (p) setPictures((all) => [...all, p]);
+        if (p) setPictures((all) => (all.some((x) => x.id === p.id) ? all : [...all, p]));
       })
       .catch((e: unknown) => {
         setError(toUiError(e));
