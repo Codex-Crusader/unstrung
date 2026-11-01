@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
-import { pictureUrl, type Character, type Persona, type Picture, type RegenMode, type ViewMessage } from "../api";
+import type { Character, Painting, Persona, Picture, RegenMode, ViewMessage } from "../api";
+import { FadeImage, PaintingCard } from "./PictureViewer";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { MessageText } from "./MessageText";
@@ -17,23 +18,6 @@ export interface MessageActions {
   picture: (messageId: number) => void;
 }
 
-/** A picture under its message. A click shows it larger. */
-function MessagePicture({ picture }: { picture: Picture }) {
-  const [big, setBig] = useState(false);
-  return (
-    <button
-      type="button"
-      className={big ? "message-picture expanded" : "message-picture"}
-      aria-label={strings.chat.openPicture}
-      aria-expanded={big}
-      onClick={() => {
-        setBig(!big);
-      }}
-    >
-      <img src={pictureUrl(picture)} alt={strings.chat.picture} />
-    </button>
-  );
-}
 
 export function MessageItem({
   message,
@@ -43,6 +27,9 @@ export function MessageItem({
   locked,
   actions,
   pictures,
+  painting,
+  isNew,
+  onOpenPicture,
 }: {
   message: ViewMessage;
   character: Character;
@@ -54,6 +41,11 @@ export function MessageItem({
   actions: MessageActions;
   /** The pictures made for this message. */
   pictures: Picture[];
+  /** A picture being made for this message. */
+  painting: Painting | null;
+  /** True for a picture made while the chat is open: it develops into view. */
+  isNew: (id: number) => boolean;
+  onOpenPicture: (id: number) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const menu = useRef<HTMLDetailsElement>(null);
@@ -94,9 +86,24 @@ export function MessageItem({
         {editing === null ? (
           <>
             <MessageText text={message.content} />
-            {pictures.map((p) => (
-              <MessagePicture key={p.id} picture={p} />
-            ))}
+            {(pictures.length > 0 || painting) && (
+              <div className="message-pictures">
+                {pictures.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="message-picture"
+                    aria-label={strings.chat.openPicture}
+                    onClick={() => {
+                      onOpenPicture(p.id);
+                    }}
+                  >
+                    <FadeImage picture={p} alt={strings.chat.picture} develop={isNew(p.id)} />
+                  </button>
+                ))}
+                {painting && <PaintingCard painting={painting} />}
+              </div>
+            )}
           </>
         ) : (
           <form

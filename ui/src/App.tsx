@@ -225,6 +225,9 @@ function MainApp() {
               chatId={screen.chatId}
               personas={personas}
               onBack={home}
+              onUseAsAvatar={(characterId, staged) => {
+                setScreen({ name: "creator", characterId, picture: staged });
+              }}
             />
           )}
           {screen.name === "creator" && (

@@ -2290,13 +2290,6 @@ body > iframe {
   outline-offset: 2px;
 }
 
-.picture-view img {
-  display: block;
-  max-width: 100%;
-  max-height: 70vh;
-  border-radius: var(--radius);
-}
-
 .message-picture {
   display: block;
   margin-top: 8px;
@@ -2313,18 +2306,295 @@ body > iframe {
   border-radius: var(--radius);
 }
 
-.message-picture.expanded {
-  cursor: zoom-out;
-}
 
-.message-picture.expanded img {
-  max-width: 100%;
-  max-height: 85vh;
-}
-
-.painting-line {
+/* Pictures, part 2: the setup card, chips, the viewer and the develop effect. */
+.pictures .setup-card,
+.empty-pictures {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 10px;
+  max-width: 560px;
+  margin: 24px auto;
+  padding: 28px 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+}
+
+.setup-card h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 20px;
+}
+
+.setup-card p,
+.empty-pictures p {
+  margin: 0;
+}
+
+.setup-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+}
+
+.setup-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.setup-progress progress {
+  width: 100%;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chip-on {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--accent-text);
+}
+
+.picture-thumb {
+  position: relative;
+}
+
+.picture-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 10px 8px;
+  font-size: 13px;
+  text-align: left;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+}
+
+.picture-settings {
+  margin-top: 28px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-line);
+}
+
+.picture-settings summary {
+  cursor: pointer;
+  font-weight: 600;
   color: var(--text-soft);
+}
+
+/* A picture fades in when it has loaded. A new one develops: soft to sharp. */
+.fade-image {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.fade-image.loaded {
+  opacity: 1;
+}
+
+.fade-image.develop {
+  filter: blur(18px) saturate(0.4) brightness(1.15);
+  transform: scale(0.97);
+  transition:
+    opacity 1.2s ease,
+    filter 1.6s ease,
+    transform 1.6s ease;
+}
+
+.fade-image.develop.loaded {
+  filter: none;
+  transform: none;
+}
+
+/* Pictures of one message sit side by side. */
+.message-pictures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.message-pictures .message-picture {
+  margin: 0;
+  cursor: zoom-in;
+}
+
+.message-pictures .message-picture img {
+  width: min(260px, 100%);
+  max-height: 60vh;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.painting-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(260px, 100%);
+  aspect-ratio: 1;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-soft);
+  border-radius: var(--radius);
+  border: 1px dashed var(--panel-line);
+  background: var(--panel);
+  animation: painting-glow 2.4s ease-in-out infinite;
+}
+
+.painting-card .icon {
+  width: 32px;
+  height: 32px;
+  color: var(--accent);
+}
+
+.painting-card progress {
+  width: 80%;
+}
+
+@keyframes painting-glow {
+  50% {
+    background: var(--accent-soft);
+  }
+}
+
+/* The viewer: one picture over the page. */
+dialog.viewer {
+  width: min(1100px, 94vw);
+  max-height: 94vh;
+  padding: 14px 18px 18px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+dialog.viewer::backdrop {
+  background: rgba(10, 8, 6, 0.72);
+}
+
+.viewer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.viewer-title {
+  font-weight: 600;
+}
+
+.viewer-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.viewer-frame {
+  position: relative;
+  display: grid;
+}
+
+.viewer-frame > img {
+  grid-area: 1 / 1;
+  display: block;
+  max-width: 100%;
+  max-height: calc(94vh - 190px);
+  border-radius: var(--radius);
+}
+
+.viewer-frame.busy > img {
+  filter: brightness(0.6);
+  transition: filter 0.4s ease;
+}
+
+.viewer-progress {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.viewer-progress .painting-card {
+  background: var(--surface);
+  border-style: solid;
+}
+
+.viewer-arrow {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.viewer-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.viewer-note {
+  margin: 10px 0 0;
+  text-align: center;
+  color: var(--text-soft);
+}
+
+.viewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.viewer-actions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.viewer-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.button.danger-fill {
+  background: var(--bad);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-image,
+  .fade-image.develop,
+  .viewer-frame.busy > img {
+    transition: none;
+    filter: none;
+    transform: none;
+  }
+
+  .painting-card {
+    animation: none;
+  }
 }

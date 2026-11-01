@@ -36,6 +36,7 @@ import {
   picturesPage,
   type Painting,
   type Picture,
+  type Staged,
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
@@ -46,6 +47,7 @@ import { MessageItem, type MessageActions } from "./MessageItem";
 import { MessageText } from "./MessageText";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
+import { PictureViewer, withCharacter } from "./PictureViewer";
 
 type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; text: string };
 
@@ -61,6 +63,7 @@ export function ChatScreen({
   chatId: startChat,
   personas,
   onBack,
+  onUseAsAvatar,
 }: {
   status: EngineStatus;
   characterId: number;
@@ -68,6 +71,7 @@ export function ChatScreen({
   chatId?: number | undefined;
   personas: Persona[];
   onBack: () => void;
+  onUseAsAvatar: (characterId: number, staged: Staged) => void;
 }) {
   const [view, setView] = useState<ChatView | null>(null);
   const [pending, setPending] = useState<ViewMessage | null>(null);
@@ -84,6 +88,9 @@ export function ChatScreen({
   const [memoryTick, setMemoryTick] = useState(0);
   const [draft, setDraft] = useState("");
   const [pictures, setPictures] = useState<Picture[]>([]);
+  // The pictures the chat had when it opened. Later ones develop into view.
+  const [oldPictures, setOldPictures] = useState<Set<number>>(new Set());
+  const [openPicture, setOpenPicture] = useState<number | null>(null);
   // Set while a picture is made, from the click until the command returns.
   const [painting, setPainting] = useState<Painting | null>(null);
   const [picturesReady, setPicturesReady] = useState(false);
@@ -118,7 +125,9 @@ export function ChatScreen({
     let active = true;
     chatPictures(openChatIdForPictures)
       .then((p) => {
-        if (active) setPictures(p);
+        if (!active) return;
+        setPictures(p);
+        setOldPictures(new Set(p.map((x) => x.id)));
       })
       .catch(() => {
         // Without the list, the chat shows no pictures.
@@ -467,15 +476,12 @@ export function ChatScreen({
               locked={locked}
               actions={actions}
               pictures={pictures.filter((p) => p.message_id === m.id)}
+              painting={painting && (painting.message_id ?? last?.id) === m.id ? painting : null}
+              isNew={(id) => !oldPictures.has(id)}
+              onOpenPicture={setOpenPicture}
             />
           ))}
           {streaming}
-          {painting && (
-            <p className="painting-line" role="status">
-              <Icon name="picture" />
-              {strings.chat.painting(painting.phase, painting.step, painting.total)}
-            </p>
-          )}
           {!busy && view.branches.length > 0 && (
             <p className="system-note">
               {strings.chat.hiddenBranch(view.branches.length)}{" "}
@@ -585,6 +591,29 @@ export function ChatScreen({
           )}
         </form>
       </section>
+      {openPicture !== null && (
+        <PictureViewer
+          pictures={pictures.map((p) => withCharacter(p, character.id, name))}
+          openId={openPicture}
+          onOpen={setOpenPicture}
+          onClose={() => {
+            setOpenPicture(null);
+          }}
+          onMade={(p) => {
+            setPictures((all) => (all.some((x) => x.id === p.id) ? all : [...all, p]));
+            setOpenPicture(p.id);
+          }}
+          onDeleted={(id) => {
+            const at = pictures.findIndex((p) => p.id === id);
+            const next = pictures[at + 1] ?? pictures[at - 1];
+            setPictures((all) => all.filter((p) => p.id !== id));
+            setOpenPicture(next ? next.id : null);
+          }}
+          onUseAsAvatar={(_, staged) => {
+            onUseAsAvatar(character.id, staged);
+          }}
+        />
+      )}
       {listOpen && (
         <ChatList
           characterId={character.id}
