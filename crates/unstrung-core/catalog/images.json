@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "hosts": ["huggingface.co", ".hf.co"],
+  "components": [
+    {
+      "id": "z-image-turbo-q4k",
+      "file": "z_image_turbo-Q4_K.gguf",
+      "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/c61c0e422dc8b541b7548cf33a4ef8302b0f8085/z_image_turbo-Q4_K.gguf",
+      "size": 3864250304,
+      "sha256": "14b375ab4f226bc5378f68f37e899ef3c2242b8541e61e2bc1aff40976086fbd"
+    },
+    {
+      "id": "flux2-klein-4b-q4",
+      "file": "flux-2-klein-4b-Q4_0.gguf",
+      "url": "https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF/resolve/3b1f5a9dc3abb32238b053aeb3d823c30afdacbd/flux-2-klein-4b-Q4_0.gguf",
+      "size": 2460378560,
+      "sha256": "d1023499ef3f2f82ff7c50e6778495195c1b6cc34835741778868428111f9ff4"
+    },
+    {
+      "id": "qwen3-4b-q4km",
+      "file": "Qwen3-4B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/22c9fc8a8c7700b76a1789366280a6a5a1ad1120/Qwen3-4B-Q4_K_M.gguf",
+      "size": 2497281312,
+      "sha256": "f6f851777709861056efcdad3af01da38b31223a3ba26e61a4f8bf3a2195813a"
+    },
+    {
+      "id": "flux1-ae",
+      "file": "flux1-ae.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Z-Image-Turbo/resolve/6fc90a3b1b653e935a0d175e260736de25b84df5/split_files/vae/ae.safetensors",
+      "size": 335304388,
+      "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+    },
+    {
+      "id": "flux2-vae",
+      "file": "flux2-vae.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/5b3abca5c0dc1ecd4eaf3340868d09063fc1c965/split_files/vae/flux2-vae.safetensors",
+      "size": 336211292,
+      "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
+    }
+  ],
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "parts": { "diffusion_model": "z-image-turbo-q4k", "llm": "qwen3-4b-q4km", "vae": "flux1-ae" },
+      "min_tier": "standard",
+      "recommended_for": ["standard", "high"],
+      "license": { "name": "Apache 2.0", "url": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo" },
+      "mature_ok": true,
+      "ref_images": false,
+      "sampler": "euler",
+      "steps": 9,
+      "cfg_scale": 1.0,
+      "description": "Detailed pictures in many styles, from photos to anime.",
+      "tested": ""
+    },
+    {
+      "id": "flux2-klein-4b",
+      "name": "FLUX.2 klein 4B",
+      "parts": { "diffusion_model": "flux2-klein-4b-q4", "llm": "qwen3-4b-q4km", "vae": "flux2-vae" },
+      "min_tier": "basic",
+      "recommended_for": ["basic"],
+      "license": { "name": "Apache 2.0", "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B" },
+      "mature_ok": false,
+      "ref_images": true,
+      "sampler": "euler",
+      "steps": 4,
+      "cfg_scale": 1.0,
+      "description": "Smaller and faster. Works without a graphics card, but slowly.",
+      "tested": ""
+    }
+  ]
+}

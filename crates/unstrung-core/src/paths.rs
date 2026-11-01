@@ -126,6 +126,16 @@ impl AppPaths {
         self.models().join("ollama")
     }
 
+    /// The image model files, in the models folder.
+    pub fn image_models(&self) -> PathBuf {
+        self.models().join("image")
+    }
+
+    /// The generated pictures, one folder per chat, in the library folder.
+    pub fn gallery(&self) -> PathBuf {
+        self.library().join("gallery")
+    }
+
     /// Joins a path that the database stores (relative to the app folder).
     /// Rejects anything that could leave the root: `..`, absolute paths, drive prefixes.
     pub fn stored(&self, relative: &str) -> Result<PathBuf> {

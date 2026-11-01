@@ -39,9 +39,7 @@ impl Fetcher {
         let allowed: Vec<String> = hosts.iter().map(|h| h.to_ascii_lowercase()).collect();
         let policy = reqwest::redirect::Policy::custom(move |attempt| {
             let url = attempt.url().clone();
-            let host_ok = url
-                .host_str()
-                .is_some_and(|h| allowed.iter().any(|a| a == &h.to_ascii_lowercase()));
+            let host_ok = url.host_str().is_some_and(|h| host_allowed(&allowed, h));
             let scheme_ok = url.scheme() == "https" || !https_only;
             if attempt.previous().len() >= MAX_REDIRECTS {
                 attempt.error("too many redirects")
@@ -189,6 +187,15 @@ impl Fetcher {
 }
 
 /// A lost connection or a timeout is "no internet", which a retry resumes.
+/// An entry that starts with a dot allows every host under it: ".hf.co"
+/// allows "us.aws.cdn.hf.co", because download CDNs change the host by region.
+fn host_allowed(allowed: &[String], host: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    allowed
+        .iter()
+        .any(|a| *a == host || (a.starts_with('.') && host.ends_with(a.as_str())))
+}
+
 fn offline_or_http(e: reqwest::Error) -> Error {
     if e.is_connect() || e.is_timeout() {
         Error::Offline(e.to_string())
@@ -463,6 +470,16 @@ pub(crate) mod tests {
             .is_err()
         );
         assert!(!target.exists());
+    }
+
+    #[test]
+    fn a_dot_entry_allows_the_hosts_under_it() {
+        let allowed = vec!["github.com".to_owned(), ".hf.co".to_owned()];
+        assert!(host_allowed(&allowed, "GitHub.com"));
+        assert!(host_allowed(&allowed, "us.aws.cdn.hf.co"));
+        assert!(!host_allowed(&allowed, "hf.co.evil.example"));
+        assert!(!host_allowed(&allowed, "evilhf.co"));
+        assert!(!host_allowed(&allowed, "api.github.com"));
     }
 
     #[test]
