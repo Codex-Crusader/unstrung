@@ -12,14 +12,18 @@ pub use memories::Memory;
 pub use messages::{Message, NewMessage};
 pub use personas::{Persona, PersonaFields};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
+
+/// Copies made before a migration. The newest ones stay.
+const KEEP_BACKUPS: usize = 3;
+const BACKUP_PREFIX: &str = "before-schema-";
 
 /// "pending" while the welcome flow runs, then "done". "existing" on a
 /// database from before the welcome flow.
@@ -37,6 +41,41 @@ pub fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
         .unwrap_or_default()
+}
+
+async fn quick_check(pool: &SqlitePool) -> Result<bool> {
+    let row: (String,) = sqlx::query_as("PRAGMA quick_check").fetch_one(pool).await?;
+    Ok(row.0 == "ok")
+}
+
+/// Copies the database into the `backups` folder next to it (see
+/// `AppPaths::backups`) and keeps the newest `KEEP_BACKUPS` copies.
+async fn backup(pool: &SqlitePool, db_path: &Path, schema: i64) -> Result<PathBuf> {
+    let dir = db_path.with_file_name("backups");
+    std::fs::create_dir_all(&dir)?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let file = dir.join(format!("{BACKUP_PREFIX}{schema}-{stamp}.db"));
+    sqlx::query("VACUUM INTO ?")
+        .bind(file.to_string_lossy().into_owned())
+        .execute(pool)
+        .await?;
+    let mut copies: Vec<(u128, PathBuf)> = std::fs::read_dir(&dir)?
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            let rest = name.strip_prefix(BACKUP_PREFIX)?.strip_suffix(".db")?;
+            Some((rest.rsplit('-').next()?.parse().ok()?, e.path()))
+        })
+        .collect();
+    copies.sort_unstable_by_key(|c| std::cmp::Reverse(c.0));
+    for (_, old) in copies.iter().skip(KEEP_BACKUPS) {
+        if let Err(e) = std::fs::remove_file(old) {
+            log::warn!("could not delete the old copy {}: {e}", old.display());
+        }
+    }
+    Ok(file)
 }
 
 #[derive(Clone)]
@@ -58,6 +97,33 @@ impl Db {
             .max_connections(1)
             .connect_with(options)
             .await?;
+        let newest = MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default();
+        // A new database has no migrations table, so nothing is pending.
+        let applied: Option<i64> = sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations")
+            .fetch_one(&pool)
+            .await
+            .ok()
+            .flatten();
+        let ok = quick_check(&pool).await?;
+        match applied {
+            Some(applied) if applied < newest => {
+                // A migration writes to the file: never to a damaged one, and
+                // never without a copy to go back to.
+                if !ok {
+                    return Err(Error::Damaged(
+                        "the chats file is damaged, so this update does not change it".into(),
+                    ));
+                }
+                let copy = backup(&pool, path, applied).await?;
+                log::info!("database copied to {} before the update", copy.display());
+            }
+            _ if !ok => {
+                // Phase 7 adds snapshots and the restore screen. Until then
+                // the chats stay usable.
+                log::error!("the database failed its quick check");
+            }
+            _ => {}
+        }
         MIGRATOR.run(&pool).await?;
         let db = Self { pool };
         // A new database starts the welcome flow ("pending", until it ends
@@ -71,8 +137,7 @@ impl Db {
             };
             db.set_meta(FIRST_RUN_KEY, state).await?;
         }
-        let schema = MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default();
-        db.set_meta("schema_version", &schema.to_string()).await?;
+        db.set_meta("schema_version", &newest.to_string()).await?;
         db.set_meta("app_version", env!("CARGO_PKG_VERSION"))
             .await?;
         db.set_meta("prompt_version", &crate::prompt::PROMPT_VERSION.to_string())
@@ -112,10 +177,7 @@ impl Db {
     }
 
     pub async fn quick_check(&self) -> Result<bool> {
-        let row: (String,) = sqlx::query_as("PRAGMA quick_check")
-            .fetch_one(&self.pool)
-            .await?;
-        Ok(row.0 == "ok")
+        quick_check(&self.pool).await
     }
 
     pub async fn meta(&self, key: &str) -> Result<Option<String>> {

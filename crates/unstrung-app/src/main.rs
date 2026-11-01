@@ -286,11 +286,8 @@ fn prefers_light_theme() -> bool {
 }
 
 async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
+    // Db::open checks the file for damage before it changes anything.
     let db = Db::open(&paths.database()).await?;
-    if !db.quick_check().await? {
-        // Phase 7 adds snapshots and the restore screen.
-        log::error!("the database failed its quick check");
-    }
     unstrung_core::avatar::clear_staging(&paths);
     starters::ensure(&db, &paths).await?;
     let startup = models::startup(&db, &paths).await?;

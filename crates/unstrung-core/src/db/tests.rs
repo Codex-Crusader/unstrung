@@ -214,3 +214,90 @@ async fn recent_chats_are_talked_in_newest_first_and_not_adult() {
     assert_eq!(recent[0].character_name, "Ren");
     assert_eq!(db.recent_chats(1).await.unwrap().len(), 1);
 }
+
+/// A database made by an older app: only the first `count` migrations.
+async fn old_database(dir: &Path, count: usize) -> std::path::PathBuf {
+    let sql = dir.join("old-migrations");
+    std::fs::create_dir_all(&sql).unwrap();
+    let mut files: Vec<_> = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    files.sort();
+    for f in files.iter().take(count) {
+        std::fs::copy(f, sql.join(f.file_name().unwrap())).unwrap();
+    }
+    let file = dir.join("app.db");
+    let options = SqliteConnectOptions::new()
+        .filename(&file)
+        .create_if_missing(true);
+    let pool = SqlitePoolOptions::new()
+        .connect_with(options)
+        .await
+        .unwrap();
+    sqlx::migrate::Migrator::new(sql.as_path())
+        .await
+        .unwrap()
+        .run(&pool)
+        .await
+        .unwrap();
+    pool.close().await;
+    file
+}
+
+fn copies(dir: &Path) -> Vec<String> {
+    std::fs::read_dir(dir.join("backups")).map_or(Vec::new(), |entries| {
+        entries
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect()
+    })
+}
+
+#[tokio::test]
+async fn an_update_copies_the_database_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = old_database(dir.path(), 3).await;
+    Db::open(&file).await.unwrap().close().await;
+    let made = copies(dir.path());
+    assert_eq!(made.len(), 1, "{made:?}");
+    assert!(made[0].starts_with("before-schema-3-"), "{made:?}");
+    let copy = dir.path().join("backups").join(&made[0]);
+    assert_eq!(
+        Db::integrity_check_file(&copy).await.unwrap(),
+        Some(Vec::new())
+    );
+    // Opening again changes nothing, so it makes no second copy.
+    Db::open(&file).await.unwrap().close().await;
+    assert_eq!(copies(dir.path()).len(), 1);
+}
+
+#[tokio::test]
+async fn a_new_database_makes_no_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    Db::open(&dir.path().join("app.db"))
+        .await
+        .unwrap()
+        .close()
+        .await;
+    assert!(copies(dir.path()).is_empty());
+}
+
+#[tokio::test]
+async fn only_the_newest_copies_stay() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("app.db");
+    let db = Db::open(&file).await.unwrap();
+    let mut made = Vec::new();
+    for _ in 0..KEEP_BACKUPS + 2 {
+        made.push(backup(&db.pool, &file, 4).await.unwrap());
+    }
+    db.close().await;
+    let mut left = copies(dir.path());
+    left.sort();
+    let mut newest: Vec<String> = made[2..]
+        .iter()
+        .map(|p| p.file_name().unwrap().to_str().unwrap().to_owned())
+        .collect();
+    newest.sort();
+    assert_eq!(left, newest);
+}

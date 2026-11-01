@@ -90,6 +90,9 @@ impl From<Error> for UiError {
             Error::Engine(_) | Error::Http(_) | Error::Json(_) => {
                 "The chat engine did not answer. Try again.".to_owned()
             }
+            Error::Damaged(_) => {
+                "Your chats file is damaged. Open Unstrung in safe start and run Repair.".to_owned()
+            }
             Error::Db(_) | Error::Migrate(_) | Error::Io(_) => {
                 "Unstrung could not read or save your data. Try again. If it fails again, restart Unstrung."
                     .to_owned()

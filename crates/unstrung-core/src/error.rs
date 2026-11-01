@@ -36,4 +36,7 @@ pub enum Error {
     /// for the user, with what to do. `why` is the technical reason.
     #[error("{message} ({why})")]
     Rejected { message: String, why: String },
+    /// The database failed its damage check.
+    #[error("damaged data: {0}")]
+    Damaged(String),
 }
