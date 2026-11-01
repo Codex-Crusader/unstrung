@@ -74,6 +74,11 @@ export function App() {
 function FirstRunGate() {
   const [firstRun, setFirstRun] = useState<boolean | null>(null);
   useEffect(() => {
+    // The window loaded, so the next start is a normal one. Also in the
+    // welcome flow, which tells the user they can close it during downloads.
+    void startOk().catch(() => {
+      // Only the start count stays. The next start still opens normally once.
+    });
     setupState()
       .then((s) => {
         setFirstRun(s.first_run);
@@ -109,10 +114,6 @@ function MainApp() {
     let active = true;
     const unlisten = onStatus((next) => {
       if (active) setStatus(next);
-    });
-    // The window loaded, so the next start is a normal one.
-    void startOk().catch(() => {
-      // Only the start count stays. The next start still opens normally once.
     });
     // Events only report changes, so read the state once at the start.
     void getStatus().then((current) => {
