@@ -550,7 +550,8 @@ function rowText(progress: EngineProgress | null, installed: boolean): string {
     case "stopped":
       return s.stopped;
     case "failed":
-      return progress.error;
+      // The error note below shows why, with the technical text under Details.
+      return s.notDone;
   }
 }
 

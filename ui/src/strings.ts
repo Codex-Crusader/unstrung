@@ -338,6 +338,7 @@ export const strings = {
     checkingFiles: "Checking the files",
     done: "Done",
     stopped: "Stopped",
+    notDone: "Not done",
     stop: "Stop",
     resume: "Resume",
     retry: "Retry",
