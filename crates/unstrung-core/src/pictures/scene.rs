@@ -193,6 +193,31 @@ fn person_text(label: &str, p: &Person) -> String {
 
 /// Adds the content rules' terms. Distilled models (cfg 1) ignore the
 /// negative prompt, so the rules also steer the positive prompt.
+/// Framings for a second picture of the same scene. A turbo model changes
+/// little between seeds, so a new seed alone gives almost the same picture.
+const FRAMINGS: [&str; 8] = [
+    "close-up",
+    "medium shot",
+    "wide shot",
+    "full body shot",
+    "seen from a low angle",
+    "seen from a high angle",
+    "seen from the side",
+    "over-the-shoulder view",
+];
+
+/// `positive` with a framing that `seed` picks, other than the framing it has
+/// now. Removes an earlier framing, so the prompt holds at most one.
+pub fn varied(positive: &str, seed: i64) -> String {
+    let parts: Vec<&str> = positive.split(", ").collect();
+    let old = parts.iter().find(|p| FRAMINGS.contains(p)).copied();
+    let choices: Vec<&str> = FRAMINGS.iter().copied().filter(|f| Some(*f) != old).collect();
+    let pick = choices[usize::try_from(seed.unsigned_abs() % choices.len() as u64).unwrap_or(0)];
+    let mut kept: Vec<&str> = parts.into_iter().filter(|p| !FRAMINGS.contains(p)).collect();
+    kept.push(pick);
+    kept.join(", ")
+}
+
 pub fn with_rules(positive: &str, rules: Rules) -> Prompts {
     let mut pos = positive.to_owned();
     if rules.no_nudity {
@@ -215,6 +240,20 @@ pub fn with_rules(positive: &str, rules: Rules) -> Prompts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_variation_changes_the_framing_and_keeps_one() {
+        let first = varied("anime, a tavern, fully clothed", 3);
+        let framing = |p: &str| p.split(", ").filter(|x| FRAMINGS.contains(x)).count();
+        assert_eq!(framing(&first), 1);
+        assert!(first.starts_with("anime, a tavern, fully clothed, "));
+        for seed in 0..40 {
+            let next = varied(&first, seed);
+            assert_eq!(framing(&next), 1);
+            assert_ne!(first.rsplit(", ").next(), next.rsplit(", ").next(), "{next}");
+            assert!(next.contains("fully clothed"));
+        }
+    }
 
     #[test]
     fn reads_a_scene_and_cleans_it() {

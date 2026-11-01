@@ -643,8 +643,7 @@ export const selectPictureModel = (id: string) => invoke<null>("select_picture_m
 export const removePictureModel = (id: string) => invoke<null>("remove_picture_model", { id });
 export const paintPicture = (chatId: number, messageId: number | null, wish: string) =>
   invoke<Picture | null>("paint_picture", { chatId, messageId, wish });
-export const repaintPicture = (id: number, sameSeed: boolean) =>
-  invoke<Picture | null>("repaint_picture", { id, sameSeed });
+export const repaintPicture = (id: number) => invoke<Picture | null>("repaint_picture", { id });
 export const stagePicture = (id: number) => invoke<Staged>("stage_picture", { id });
 export const exportPicture = (id: number, name: string) => invoke<boolean>("export_picture", { id, name });
 export const chatPictures = (chatId: number) => invoke<Picture[]>("chat_pictures", { chatId });

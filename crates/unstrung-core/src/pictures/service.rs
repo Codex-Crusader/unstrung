@@ -417,10 +417,10 @@ impl PictureService {
         result
     }
 
-    /// Paints a gallery picture again from its saved prompt: with the same
-    /// seed (`same_seed`), or a new one for a variation. The ages are checked
-    /// again, because a character or persona can change after a picture.
-    pub async fn repaint(&self, image_id: i64, same_seed: bool) -> Result<Image> {
+    /// A variation of a gallery picture: its saved prompt with a new seed and
+    /// another framing. The ages are checked again, because a character or
+    /// persona can change after a picture.
+    pub async fn repaint(&self, image_id: i64) -> Result<Image> {
         let old = self.chats.db().image(image_id).await?;
         let model = self.selected().await?.ok_or(Error::NotReady)?;
         let exe = self.ready_engine(model)?;
@@ -433,14 +433,10 @@ impl PictureService {
                 persona_age: persona.as_ref().and_then(|p| p.age),
             };
             safety::check(&old.prompt, people, false, false).map_err(blocked)?;
+            let seed = runner::new_seed();
             let prompts = scene::Prompts {
-                positive: old.prompt.clone(),
+                positive: scene::varied(&old.prompt, seed),
                 negative: old.negative_prompt.clone(),
-            };
-            let seed = if same_seed {
-                old.seed
-            } else {
-                runner::new_seed()
             };
             self.render(
                 model,
@@ -522,8 +518,23 @@ impl PictureService {
         // The adult setting comes in Phase 7. Until then pictures are made with it off.
         let checked = format!("{positive}, {wish}");
         let rules = safety::check(&checked, people, false, input.scene.sexual).map_err(blocked)?;
-        let prompts = scene::with_rules(&positive, rules);
         let seed = runner::new_seed();
+        // A second picture of the same message gets another framing, or it
+        // comes out almost the same.
+        let again = message_id.is_some()
+            && self
+                .chats
+                .db()
+                .chat_images(chat_id)
+                .await?
+                .iter()
+                .any(|i| i.message_id == message_id);
+        let positive = if again {
+            scene::varied(&positive, seed)
+        } else {
+            positive
+        };
+        let prompts = scene::with_rules(&positive, rules);
         self.render(
             model,
             exe,

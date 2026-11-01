@@ -52,14 +52,10 @@ pub async fn paint_picture(
     }
 }
 
-/// Paints a gallery picture again: the same seed, or a new one (a variation).
+/// A variation of a gallery picture: a new seed and another framing.
 #[tauri::command]
-pub async fn repaint_picture(
-    state: State<'_, AppState>,
-    id: i64,
-    same_seed: bool,
-) -> CmdResult<Option<Image>> {
-    match state.pictures.repaint(id, same_seed).await {
+pub async fn repaint_picture(state: State<'_, AppState>, id: i64) -> CmdResult<Option<Image>> {
+    match state.pictures.repaint(id).await {
         Ok(image) => Ok(Some(image)),
         Err(unstrung_core::error::Error::Cancelled) => Ok(None),
         Err(e) => Err(e.into()),

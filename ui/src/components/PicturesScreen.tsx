@@ -14,7 +14,9 @@ import {
   selectPictureModel,
   stopPictureDownload,
   toUiError,
+  onPainting,
   type GalleryPicture,
+  type Painting,
   type PictureDownload,
   type PictureModel,
   type PicturesPage,
@@ -152,26 +154,44 @@ function PictureView({
   onClose: () => void;
   onOpenChat: (characterId: number, chatId: number) => void;
   onDeleted: () => void;
-  onMade: () => void;
+  onMade: (picture: GalleryPicture) => void;
   onUseAsAvatar: (picture: GalleryPicture, staged: Staged) => void;
 }) {
   const s = strings.pictures;
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<UiError | null>(null);
-  const [working, setWorking] = useState(false);
+  const [painting, setPainting] = useState<Painting | null>(null);
   const [saved, setSaved] = useState(false);
-  const again = (sameSeed: boolean) => {
+  const [fresh, setFresh] = useState(false);
+  const working = painting !== null;
+  useEffect(() => {
+    const off = onPainting((p) => {
+      if (p) setPainting((now) => (now ? p : now));
+    });
+    return () => {
+      void off.then((f) => {
+        f();
+      });
+    };
+  }, []);
+  const vary = () => {
     setError(null);
-    setWorking(true);
-    repaintPicture(picture.id, sameSeed)
+    setFresh(false);
+    setPainting({ chat_id: picture.chat_id, message_id: picture.message_id, phase: "scene", step: 0, total: 0 });
+    repaintPicture(picture.id)
       .then((p) => {
-        if (p) onMade();
+        if (!p) return;
+        // The new picture opens here, so the result shows where the user looks.
+        onMade({ ...p, character_id: picture.character_id, character_name: picture.character_name });
+        setFresh(true);
+        setSaved(false);
+        setConfirm(false);
       })
       .catch((e: unknown) => {
         setError(toUiError(e));
       })
       .finally(() => {
-        setWorking(false);
+        setPainting(null);
       });
   };
   return (
@@ -181,10 +201,11 @@ function PictureView({
         {picture.character_name} · {new Date(picture.created_at).toLocaleString()}
       </p>
       {error && <ErrorNote error={error} />}
-      {working && (
+      {fresh && !working && <p className="hint">{s.newVariation}</p>}
+      {painting && (
         <p className="painting-line" role="status">
           <Icon name="picture" />
-          {s.repainting}
+          {strings.chat.painting(painting.phase, painting.step, painting.total)}
           <button
             type="button"
             className="button button-quiet"
@@ -210,22 +231,10 @@ function PictureView({
           type="button"
           className="button button-quiet"
           disabled={working}
-          onClick={() => {
-            again(true);
-          }}
+          title={s.variationHint}
+          onClick={vary}
         >
           <Icon name="regenerate" />
-          {s.again}
-        </button>
-        <button
-          type="button"
-          className="button button-quiet"
-          disabled={working}
-          onClick={() => {
-            again(false);
-          }}
-        >
-          <Icon name="picture" />
           {s.variation}
         </button>
         <button
@@ -397,7 +406,10 @@ export function PicturesScreen({
               setOpen(null);
               load();
             }}
-            onMade={load}
+            onMade={(p) => {
+              setOpen(p);
+              load();
+            }}
             onUseAsAvatar={onUseAsAvatar}
           />
         ) : shown.length === 0 ? (
