@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name, avatar_path, tagline, personality, scenario, greeting,\n                    example_dialogue, voice_anchor, appearance_tags, default_tone,\n                    default_reply_style, default_reply_custom, art_style, model_override, age, is_adult AS \"is_adult: bool\",\n                    created_at\n             FROM characters ORDER BY created_at, id",
+  "query": "SELECT id, name, avatar_path, tagline, personality, scenario, greeting,\n                    example_dialogue, voice_anchor, appearance_tags, outfit, default_tone,\n                    default_reply_style, default_reply_custom, art_style, model_override, age, is_adult AS \"is_adult: bool\",\n                    created_at\n             FROM characters WHERE id = ?",
   "describe": {
     "columns": [
       {
-        "name": "id!",
+        "name": "id",
         "ordinal": 0,
         "type_info": "Integer"
       },
@@ -54,53 +54,59 @@
         "type_info": "Text"
       },
       {
-        "name": "default_tone",
+        "name": "outfit",
         "ordinal": 10,
         "type_info": "Text"
       },
       {
-        "name": "default_reply_style",
+        "name": "default_tone",
         "ordinal": 11,
         "type_info": "Text"
       },
       {
-        "name": "default_reply_custom",
+        "name": "default_reply_style",
         "ordinal": 12,
         "type_info": "Text"
       },
       {
-        "name": "art_style",
+        "name": "default_reply_custom",
         "ordinal": 13,
         "type_info": "Text"
       },
       {
-        "name": "model_override",
+        "name": "art_style",
         "ordinal": 14,
         "type_info": "Text"
       },
       {
-        "name": "age",
+        "name": "model_override",
         "ordinal": 15,
-        "type_info": "Integer"
+        "type_info": "Text"
       },
       {
-        "name": "is_adult: bool",
+        "name": "age",
         "ordinal": 16,
         "type_info": "Integer"
       },
       {
-        "name": "created_at",
+        "name": "is_adult: bool",
         "ordinal": 17,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 18,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       false,
       false,
       true,
+      false,
       false,
       false,
       false,
@@ -118,5 +124,5 @@
       false
     ]
   },
-  "hash": "c827f2594371a2fbe709d8c229a8cec4417978e7fc58aa9c45c264c2b548d4ea"
+  "hash": "0474e3e3507ee8643cc8919e7ae3dc0bb803710c868cc06ccfaf59598e6450f7"
 }

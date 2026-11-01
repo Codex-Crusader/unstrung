@@ -83,6 +83,7 @@ pub fn check_character(f: &CharacterFields) -> Result<CharacterFields> {
         example_dialogue: text(&f.example_dialogue, MAX_EXAMPLES, "the example dialogue")?,
         voice_anchor: line(&f.voice_anchor, MAX_ANCHOR, "the voice")?,
         appearance_tags: line(&f.appearance_tags, MAX_TAGS, "the appearance tags")?,
+        outfit: line(&f.outfit, MAX_TAGS, "the outfit")?,
         default_tone: f.default_tone.clone(),
         default_reply_style: f.default_reply_style.clone(),
         default_reply_custom: custom_style(&f.default_reply_style, &f.default_reply_custom)?,
@@ -117,6 +118,7 @@ pub fn check_persona(f: &PersonaFields) -> Result<PersonaFields> {
         name: required(line(&f.name, MAX_NAME, "the name")?, "the name")?,
         description: text(&f.description, MAX_PERSONA_DESCRIPTION, "the description")?,
         appearance_tags: line(&f.appearance_tags, MAX_TAGS, "the appearance tags")?,
+        outfit: line(&f.outfit, MAX_TAGS, "the outfit")?,
         age: f.age,
     };
     if let Some(age) = out.age

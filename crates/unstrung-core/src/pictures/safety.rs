@@ -94,6 +94,14 @@ const EXPLICIT: &[&str] = &[
     "undressing",
     "strip",
     "stripping",
+    // Story clothes come from the chat model, so "no clothes" counts too.
+    "undresses",
+    "unclothed",
+    "wearing nothing",
+    "nothing on",
+    "no clothes",
+    "without clothes",
+    "without clothing",
     "uncensored",
 ];
 
@@ -138,6 +146,26 @@ const SUGGESTIVE: &[&str] = &[
     "revealing",
     "see-through",
     "wet clothes",
+    // Revealing clothes, for story outfits.
+    "bras",
+    "thongs",
+    "bikinis",
+    "swimsuit",
+    "swimsuits",
+    "swimwear",
+    "bathing suit",
+    "negligee",
+    "skimpy",
+    "corset",
+    "stockings",
+    "fishnet",
+    "fishnets",
+    "miniskirt",
+    "crop top",
+    "shirtless",
+    "only a towel",
+    "just a towel",
+    "in a towel",
     "in bed",
 ];
 
@@ -513,6 +541,36 @@ mod tests {
                 false,
                 ok(true, false),
             ),
+            // Story clothes: revealing ones never pass with a minor possible,
+            // and "nothing" counts as nudity.
+            (
+                "one person: short hair, wearing black lace lingerie",
+                MINOR_CHARACTER,
+                false,
+                false,
+                Err(MinorInChat),
+            ),
+            (
+                "one person: wearing a swimsuit, a beach",
+                NO_PERSONA_AGE,
+                true,
+                false,
+                Err(MinorInChat),
+            ),
+            (
+                "one person: wearing nothing, a bedroom",
+                ADULTS,
+                false,
+                false,
+                Err(AdultOff),
+            ),
+            (
+                "one person: wearing a red evening dress, a ballroom",
+                MINOR_CHARACTER,
+                false,
+                false,
+                ok(true, false),
+            ),
         ];
         for (prompt, people, adult, scene, want) in cases {
             assert_eq!(
@@ -521,6 +579,24 @@ mod tests {
                 "{prompt:?} adult={adult} scene={scene}"
             );
         }
+    }
+
+    #[test]
+    fn a_story_outfit_cannot_dress_a_minor_in_lingerie() {
+        use crate::pictures::scene::{Person, Who, fallback, positive};
+        let character = Person {
+            appearance: "short brown hair",
+            outfit: "school uniform",
+        };
+        let mut scene = fallback("she sits by the window", "");
+        scene.who = Who::Character;
+        scene.character_outfit = "lingerie".into();
+        let prompt = positive(&scene, "", &character, None);
+        assert_eq!(
+            check(&prompt, MINOR_CHARACTER, false, false),
+            Err(Block::MinorInChat),
+            "{prompt}"
+        );
     }
 
     #[test]

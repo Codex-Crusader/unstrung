@@ -42,6 +42,7 @@ export interface Character {
   example_dialogue: string;
   voice_anchor: string;
   appearance_tags: string;
+  outfit: string;
   art_style: string;
   default_tone: string;
   default_reply_style: string;
@@ -58,6 +59,7 @@ export interface Persona {
   avatar_path: string | null;
   description: string;
   appearance_tags: string;
+  outfit: string;
   age: number | null;
   is_default: boolean;
 }
@@ -319,6 +321,7 @@ export interface CharacterFields {
   example_dialogue: string;
   voice_anchor: string;
   appearance_tags: string;
+  outfit: string;
   art_style: string;
   default_tone: string;
   default_reply_style: string;
@@ -331,6 +334,7 @@ export interface PersonaFields {
   name: string;
   description: string;
   appearance_tags: string;
+  outfit: string;
   age: number | null;
 }
 

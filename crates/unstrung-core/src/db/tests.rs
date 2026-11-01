@@ -55,7 +55,7 @@ async fn message_tree_survives_a_reopen() {
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
     assert_eq!(
         db.meta("schema_version").await.unwrap().as_deref(),
-        Some("5")
+        Some("6")
     );
     let summaries = db.chat_summaries(id).await.unwrap();
     assert_eq!(summaries[0].message_count, 4);
@@ -217,7 +217,7 @@ async fn recent_chats_are_talked_in_newest_first_and_not_adult() {
 }
 
 /// A database made by an older app: only the first `count` migrations.
-async fn old_database(dir: &Path, count: usize) -> std::path::PathBuf {
+pub(crate) async fn old_database(dir: &Path, count: usize) -> std::path::PathBuf {
     let sql = dir.join("old-migrations");
     std::fs::create_dir_all(&sql).unwrap();
     let mut files: Vec<_> = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"))

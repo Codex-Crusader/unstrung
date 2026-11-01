@@ -17,7 +17,7 @@ import { PictureField } from "./PictureField";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
 
-const EMPTY: PersonaFields = { name: "", description: "", appearance_tags: "", age: null };
+const EMPTY: PersonaFields = { name: "", description: "", appearance_tags: "", outfit: "", age: null };
 const DESCRIPTION_TOKENS = 100;
 
 type Editing = { persona: Persona | null; fields: PersonaFields; avatar: AvatarChange };
@@ -58,6 +58,7 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
             name: persona.name,
             description: persona.description,
             appearance_tags: persona.appearance_tags,
+            outfit: persona.outfit,
             age: persona.age,
           }
         : EMPTY,
@@ -133,6 +134,19 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
                   setEditing({ ...editing, fields: { ...editing.fields, appearance_tags: e.target.value } });
                 }}
               />
+              <span className="field-hint">{strings.personas.tagsHint}</span>
+            </label>
+            <label className="field">
+              <span className="field-label">{strings.personas.outfit}</span>
+              <input
+                type="text"
+                maxLength={400}
+                value={editing.fields.outfit}
+                onChange={(e) => {
+                  setEditing({ ...editing, fields: { ...editing.fields, outfit: e.target.value } });
+                }}
+              />
+              <span className="field-hint">{strings.personas.outfitHint}</span>
             </label>
             <label className="field field-short">
               <span className="field-label">{strings.personas.age}</span>

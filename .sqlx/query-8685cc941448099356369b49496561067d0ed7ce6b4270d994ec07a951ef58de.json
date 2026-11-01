@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE personas SET name = ?, description = ?, appearance_tags = ?, outfit = ?, age = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "8685cc941448099356369b49496561067d0ed7ce6b4270d994ec07a951ef58de"
+}

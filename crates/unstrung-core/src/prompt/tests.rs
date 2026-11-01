@@ -12,6 +12,7 @@ fn ren() -> Character {
         example_dialogue: "{{user}}: Hi\n{{char}}: Talk.".into(),
         voice_anchor: "Short, dry sentences.".into(),
         appearance_tags: "trench coat".into(),
+        outfit: String::new(),
         default_tone: "dark".into(),
         default_reply_style: "conversational".into(),
         default_reply_custom: String::new(),
@@ -30,6 +31,7 @@ fn kai() -> Persona {
         avatar_path: None,
         description: "A mechanic.".into(),
         appearance_tags: "goggles".into(),
+        outfit: String::new(),
         age: Some(25),
         is_default: false,
     }

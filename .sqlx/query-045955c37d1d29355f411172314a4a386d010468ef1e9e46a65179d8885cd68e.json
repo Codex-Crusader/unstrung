@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE characters SET name = ?, tagline = ?, personality = ?, scenario = ?,\n                    greeting = ?, example_dialogue = ?, voice_anchor = ?, appearance_tags = ?,\n                    outfit = ?, default_tone = ?, default_reply_style = ?, default_reply_custom = ?,\n                    art_style = ?, age = ?, is_adult = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 16
+    },
+    "nullable": []
+  },
+  "hash": "045955c37d1d29355f411172314a4a386d010468ef1e9e46a65179d8885cd68e"
+}

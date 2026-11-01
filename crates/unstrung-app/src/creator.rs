@@ -219,6 +219,7 @@ async fn run_test(
         example_dialogue: f.example_dialogue,
         voice_anchor: f.voice_anchor,
         appearance_tags: f.appearance_tags,
+        outfit: f.outfit,
         default_tone: f.default_tone,
         default_reply_style: f.default_reply_style,
         default_reply_custom: f.default_reply_custom,

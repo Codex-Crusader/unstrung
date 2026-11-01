@@ -35,6 +35,7 @@ const EMPTY: CharacterFields = {
   example_dialogue: "",
   voice_anchor: "",
   appearance_tags: "",
+  outfit: "",
   art_style: "",
   default_tone: "casual",
   default_reply_style: "conversational",
@@ -53,6 +54,7 @@ function fieldsOf(c: Character): CharacterFields {
     example_dialogue: c.example_dialogue,
     voice_anchor: c.voice_anchor,
     appearance_tags: c.appearance_tags,
+    outfit: c.outfit,
     art_style: c.art_style,
     default_tone: c.default_tone,
     default_reply_style: c.default_reply_style,
@@ -382,6 +384,16 @@ export function CreatorScreen({
               value={fields.appearance_tags}
               onChange={(e) => {
                 set("appearance_tags", e.target.value);
+              }}
+            />
+          </Field>
+          <Field label={strings.creator.outfit} hint={strings.creator.outfitHint}>
+            <input
+              type="text"
+              maxLength={400}
+              value={fields.outfit}
+              onChange={(e) => {
+                set("outfit", e.target.value);
               }}
             />
           </Field>

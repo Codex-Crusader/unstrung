@@ -130,6 +130,16 @@ impl Names<'_> {
     }
 }
 
+/// The looks and the usual outfit as one line, as the card had them before
+/// the outfit got its own field.
+fn appearance(looks: &str, outfit: &str) -> String {
+    [looks.trim(), outfit.trim()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn section(title: &str, lines: &[(&str, &str)]) -> String {
     let mut out = format!("\n## {title}\n");
     for (label, value) in lines {
@@ -341,6 +351,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     let memory_budget = shares * MEMORY_SHARE / 100;
 
     // 1 to 3: rules, character card, persona.
+    let character_looks = appearance(&character.appearance_tags, &character.outfit);
     let card = section(
         "You are {{char}}",
         &[
@@ -348,7 +359,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
             ("Name", &character.name),
             ("Personality", &character.personality),
             ("Scenario", &character.scenario),
-            ("Appearance", &character.appearance_tags),
+            ("Appearance", &character_looks),
         ],
     );
     let persona = match input.persona {
@@ -360,7 +371,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
                     "{{user}} is another person. Their traits are not yours.",
                 ),
                 ("About {{user}}", &p.description),
-                ("Appearance", &p.appearance_tags),
+                ("Appearance", &appearance(&p.appearance_tags, &p.outfit)),
             ],
         ),
         // With no persona, "User" is a placeholder, and small models make up

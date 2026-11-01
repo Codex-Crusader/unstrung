@@ -203,4 +203,4 @@ impl Db {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

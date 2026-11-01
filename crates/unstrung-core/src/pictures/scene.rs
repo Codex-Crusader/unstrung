@@ -33,6 +33,11 @@ pub struct Scene {
     /// treat it as one more signal and never as permission.
     #[serde(default)]
     pub sexual: bool,
+    /// Clothes that the story changed, for each person. Empty: the usual outfit.
+    #[serde(default)]
+    pub character_outfit: String,
+    #[serde(default)]
+    pub persona_outfit: String,
 }
 
 /// The JSON schema for the `format` option of the chat request.
@@ -45,9 +50,11 @@ pub fn schema() -> serde_json::Value {
             "mood": { "type": "string" },
             "camera": { "type": "string" },
             "who": { "type": "string", "enum": ["character", "persona", "both", "nobody"] },
-            "sexual": { "type": "boolean" }
+            "sexual": { "type": "boolean" },
+            "character_outfit": { "type": "string" },
+            "persona_outfit": { "type": "string" }
         },
-        "required": ["setting", "action", "mood", "camera", "who", "sexual"]
+        "required": ["setting", "action", "mood", "camera", "who", "sexual", "character_outfit", "persona_outfit"]
     })
 }
 
@@ -71,7 +78,11 @@ character. {user} is the user.\n\
 - camera: the shot, for example \"close-up\", \"medium shot\" or \"wide shot\".\n\
 - who: \"character\", \"persona\" (the user), \"both\" or \"nobody\".\n\
 - sexual: true if the moment is sexual or shows nudity, else false.\n\
-Do not describe faces, hair, bodies or clothes: the painter already knows them. \
+- character_outfit: what the character wears now, only if the chat says that \
+the character changed clothes, for example \"a red evening dress\". Else \
+an empty string.\n\
+- persona_outfit: the same for the user.\n\
+Do not describe faces, hair or bodies: the painter already knows them. \
 Write in English.\n"
     ));
     if !wish.trim().is_empty() {
@@ -90,6 +101,8 @@ pub fn parse(answer: &str) -> Option<Scene> {
         &mut scene.action,
         &mut scene.mood,
         &mut scene.camera,
+        &mut scene.character_outfit,
+        &mut scene.persona_outfit,
     ] {
         *field = clean(field);
     }
@@ -111,6 +124,8 @@ pub fn fallback(last_message: &str, wish: &str) -> Scene {
         camera: "medium shot".into(),
         who: Who::Both,
         sexual: false,
+        character_outfit: String::new(),
+        persona_outfit: String::new(),
     }
 }
 
@@ -134,7 +149,10 @@ fn clean(text: &str) -> String {
 
 /// A person who can be in the picture, as the database has them.
 pub struct Person<'a> {
+    /// The looks: the same in every picture.
     pub appearance: &'a str,
+    /// What the person usually wears.
+    pub outfit: &'a str,
 }
 
 /// The prompts for the image engine.
@@ -158,11 +176,14 @@ pub fn positive(
     if !art_style.trim().is_empty() {
         parts.push(art_style.trim().to_owned());
     }
-    let people: Vec<&Person> = match (scene.who, persona) {
+    // Each person with the clothes the story gave them, if any. Without a
+    // persona the character is drawn, and keeps the character's own clothes.
+    let as_character = (character, scene.character_outfit.as_str());
+    let people: Vec<(&Person, &str)> = match (scene.who, persona) {
         (Who::Nobody, _) => Vec::new(),
-        (Who::Character, _) | (Who::Both | Who::Persona, None) => vec![character],
-        (Who::Persona, Some(p)) => vec![p],
-        (Who::Both, Some(p)) => vec![character, p],
+        (Who::Character, _) | (Who::Both | Who::Persona, None) => vec![as_character],
+        (Who::Persona, Some(p)) => vec![(p, scene.persona_outfit.as_str())],
+        (Who::Both, Some(p)) => vec![as_character, (p, scene.persona_outfit.as_str())],
     };
     match people.as_slice() {
         [] => {}
@@ -182,12 +203,20 @@ pub fn positive(
     parts.join(", ")
 }
 
-fn person_text(label: &str, p: &Person) -> String {
-    let tags = clean(p.appearance);
+fn person_text(label: &str, (p, story_outfit): &(&Person, &str)) -> String {
+    let outfit = if story_outfit.is_empty() {
+        clean(p.outfit)
+    } else {
+        format!("wearing {story_outfit}")
+    };
+    let tags: Vec<String> = [clean(p.appearance), outfit]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect();
     if tags.is_empty() {
         label.to_owned()
     } else {
-        format!("{label}: {tags}")
+        format!("{label}: {}", tags.join(", "))
     }
 }
 
@@ -289,10 +318,12 @@ mod tests {
     #[test]
     fn the_prompt_uses_the_tags_of_the_people_in_the_scene() {
         let character = Person {
-            appearance: "silver hair, red eyes, black coat",
+            appearance: "silver hair, red eyes",
+            outfit: "black coat",
         };
         let persona = Person {
-            appearance: "short brown hair, green jacket",
+            appearance: "short brown hair",
+            outfit: "green jacket",
         };
         let mut scene = parse("{\"setting\": \"a tavern\", \"action\": \"the character pours tea\", \"mood\": \"calm\", \"camera\": \"close-up\", \"who\": \"character\", \"sexual\": false}").unwrap();
         let p = positive(&scene, "anime", &character, Some(&persona));
@@ -311,6 +342,63 @@ mod tests {
         assert!(positive(&scene, "", &character, None).contains("silver hair"));
         scene.who = Who::Nobody;
         assert!(!positive(&scene, "", &character, Some(&persona)).contains("hair"));
+    }
+
+    #[test]
+    fn clothes_from_the_story_replace_the_usual_outfit_of_that_person() {
+        let character = Person {
+            appearance: "silver hair",
+            outfit: "black coat",
+        };
+        let persona = Person {
+            appearance: "brown hair",
+            outfit: "green jacket",
+        };
+        let mut scene = fallback("they dance", "");
+        scene.who = Who::Both;
+        // No change in the story: the usual outfits.
+        let p = positive(&scene, "", &character, Some(&persona));
+        assert!(p.contains("first person: silver hair, black coat"), "{p}");
+        assert!(p.contains("second person: brown hair, green jacket"), "{p}");
+        // Each person gets their own new clothes.
+        scene.character_outfit = "a red evening dress".into();
+        scene.persona_outfit = "a grey suit".into();
+        let p = positive(&scene, "", &character, Some(&persona));
+        assert!(
+            p.contains("first person: silver hair, wearing a red evening dress"),
+            "{p}"
+        );
+        assert!(
+            p.contains("second person: brown hair, wearing a grey suit"),
+            "{p}"
+        );
+        assert!(
+            !p.contains("black coat") && !p.contains("green jacket"),
+            "{p}"
+        );
+        // Only the character changed.
+        scene.persona_outfit.clear();
+        let p = positive(&scene, "", &character, Some(&persona));
+        assert!(p.contains("brown hair, green jacket"), "{p}");
+        // With no persona the character is drawn: the user's clothes never
+        // dress the character.
+        scene.who = Who::Persona;
+        scene.character_outfit.clear();
+        scene.persona_outfit = "a grey suit".into();
+        let p = positive(&scene, "", &character, None);
+        assert!(
+            p.contains("silver hair, black coat") && !p.contains("grey suit"),
+            "{p}"
+        );
+    }
+
+    #[test]
+    fn an_old_answer_without_outfits_still_reads() {
+        let scene = parse(
+            r#"{"setting": "a tavern", "action": "x", "mood": "", "camera": "", "who": "both"}"#,
+        )
+        .unwrap();
+        assert!(scene.character_outfit.is_empty() && scene.persona_outfit.is_empty());
     }
 
     #[test]

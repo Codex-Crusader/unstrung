@@ -41,7 +41,7 @@ export interface Tip {
 export function checkCard(f: CharacterFields): { tips: Tip[]; tokens: number } {
   const tips: Tip[] = [];
   const tokens = estimateTokens(
-    [f.personality, f.scenario, f.appearance_tags, f.example_dialogue].join("\n"),
+    [f.personality, f.scenario, f.appearance_tags, f.outfit, f.example_dialogue].join("\n"),
   );
   if (onlyTraits(f.personality)) {
     tips.push({ key: "traits", text: strings.check.traits });

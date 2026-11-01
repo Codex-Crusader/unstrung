@@ -341,6 +341,12 @@ fn from_value(value: &Value) -> Result<ParsedCard> {
             "appearance_tags",
             &mut notes,
         ),
+        outfit: cut(
+            own_text("outfit").replace('\n', " "),
+            MAX_TAGS,
+            "outfit",
+            &mut notes,
+        ),
         default_tone: preset("default_tone", TONES, "casual"),
         default_reply_style: preset("default_reply_style", STYLES, "conversational"),
         default_reply_custom: String::new(),

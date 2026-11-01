@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, name, avatar_path, description, appearance_tags, age,\n                    is_default AS \"is_default: bool\"\n             FROM personas WHERE id = ?",
+  "query": "SELECT id AS \"id!\", name, avatar_path, description, appearance_tags, outfit, age,\n                    is_default AS \"is_default: bool\"\n             FROM personas ORDER BY is_default DESC, name COLLATE NOCASE, id",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Integer"
       },
@@ -29,18 +29,23 @@
         "type_info": "Text"
       },
       {
-        "name": "age",
+        "name": "outfit",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "age",
+        "ordinal": 6,
         "type_info": "Integer"
       },
       {
         "name": "is_default: bool",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
@@ -48,9 +53,10 @@
       true,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "54e6ce78851dd06e29bf198c8236e058147eb15f1cecae2f82b586401f9266ba"
+  "hash": "03974d6b062bf2365624ed44844328a2c8f96ca259b14990ea2de80d9a8e6ff6"
 }

@@ -22,6 +22,8 @@ struct StarterCharacter {
     examples: &'static str,
     anchor: &'static str,
     tags: &'static str,
+    outfit: &'static str,
+    art_style: &'static str,
     tone: &'static str,
     style: &'static str,
     age: i64,
@@ -33,6 +35,7 @@ struct StarterPersona {
     name: &'static str,
     description: &'static str,
     tags: &'static str,
+    outfit: &'static str,
     age: i64,
 }
 
@@ -54,7 +57,9 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Then we make a new one. Voss does not leave crew behind, and she does not leave cargo either.",
         anchor: "Calm, clipped orders. Dry jokes under pressure. Calls the crew by their surname. \
             Never panics out loud.",
-        tags: "short silver hair, scar on left cheek, grey eyes, worn navy flight jacket, sci-fi",
+        tags: "short silver hair, scar on left cheek, grey eyes",
+        outfit: "worn navy flight jacket",
+        art_style: "sci-fi",
         tone: "dramatic",
         style: "conversational",
         age: 41,
@@ -75,7 +80,9 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Dragons? Oh, they dislike being looked up. But a riddle might coax one out. What has pages but never reads?",
         anchor: "Warm and slow. Old-fashioned words (\"indeed\", \"my dear\"). Answers questions \
             with riddles. Often loses his train of thought.",
-        tags: "long white beard, round spectacles, deep green robes, ink-stained fingers, fantasy",
+        tags: "long white beard, round spectacles, ink-stained fingers",
+        outfit: "deep green robes",
+        art_style: "fantasy",
         tone: "wholesome",
         style: "storyteller",
         age: 74,
@@ -96,7 +103,9 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: My price is already low. That is why the lights flicker. *He taps ash into a coffee cup.* Talk, and we will see.",
         anchor: "Short, dry sentences. Sarcastic, tired, honest. Calls people \"kid\". \
             Never uses exclamation marks.",
-        tags: "messy black hair, stubble, loose tie, long grey trench coat, cigarette smoke, rain, noir",
+        tags: "messy black hair, stubble",
+        outfit: "loose tie, long grey trench coat",
+        art_style: "noir",
         tone: "dark",
         style: "conversational",
         age: 34,
@@ -117,7 +126,9 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Regular it is. Oops, almost dropped the cup. Do you work nearby?",
         anchor: "Warm, quick and chatty. Asks small personal questions. Remembers names and \
             orders. Apologizes when she drops things.",
-        tags: "auburn hair in a messy bun, freckles, green apron, cozy cafe, soft light",
+        tags: "auburn hair in a messy bun, freckles",
+        outfit: "green apron",
+        art_style: "",
         tone: "casual",
         style: "texting",
         age: 27,
@@ -139,7 +150,9 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Something that was here before me. It is patient. I would ask you to be patient too.",
         anchor: "Quiet, polite and formal. Short answers that hold something back. Speaks of the \
             house as if it is alive. Never raises their voice.",
-        tags: "pale skin, long dark coat, black hair, candle light, old manor, gothic",
+        tags: "pale skin, black hair",
+        outfit: "long dark coat",
+        art_style: "gothic",
         tone: "dark",
         style: "storyteller",
         age: 29,
@@ -152,7 +165,8 @@ const PERSONAS: &[StarterPersona] = &[
         avatar: include_bytes!("../assets/starters/kai.png"),
         name: "Kai",
         description: "A traveler and mechanic who is good with his hands and bad at staying in one place.",
-        tags: "messy brown hair, stubble, brass goggles, worn olive jacket",
+        tags: "messy brown hair, stubble",
+        outfit: "brass goggles, worn olive jacket",
         age: 25,
     },
     StarterPersona {
@@ -160,7 +174,8 @@ const PERSONAS: &[StarterPersona] = &[
         avatar: include_bytes!("../assets/starters/nora.png"),
         name: "Nora",
         description: "A journalist who asks too many questions and writes everything down.",
-        tags: "wavy brown hair, round glasses, mustard scarf, denim jacket, notebook",
+        tags: "wavy brown hair, round glasses",
+        outfit: "mustard scarf, denim jacket",
         age: 24,
     },
 ];
@@ -190,10 +205,11 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
             example_dialogue: c.examples.into(),
             voice_anchor: c.anchor.into(),
             appearance_tags: c.tags.into(),
+            outfit: c.outfit.into(),
             default_tone: c.tone.into(),
             default_reply_style: c.style.into(),
             default_reply_custom: String::new(),
-            art_style: String::new(),
+            art_style: c.art_style.into(),
             age: c.age,
             is_adult: false,
         };
@@ -210,6 +226,7 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
             name: p.name.into(),
             description: p.description.into(),
             appearance_tags: p.tags.into(),
+            outfit: p.outfit.into(),
             age: Some(p.age),
         };
         let id = db.insert_persona(&fields, Some(p.key)).await?;
@@ -223,6 +240,119 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The starter tags before migration 0006 split them.
+    const OLD_CHARACTERS: &[(&str, &str)] = &[
+        (
+            "mara_voss",
+            "short silver hair, scar on left cheek, grey eyes, worn navy flight jacket, sci-fi",
+        ),
+        (
+            "elden_thorne",
+            "long white beard, round spectacles, deep green robes, ink-stained fingers, fantasy",
+        ),
+        (
+            "ren_kagami",
+            "messy black hair, stubble, loose tie, long grey trench coat, cigarette smoke, rain, noir",
+        ),
+        (
+            "june_hale",
+            "auburn hair in a messy bun, freckles, green apron, cozy cafe, soft light",
+        ),
+        (
+            "ash",
+            "pale skin, long dark coat, black hair, candle light, old manor, gothic",
+        ),
+    ];
+    const OLD_PERSONAS: &[(&str, &str)] = &[
+        (
+            "kai",
+            "messy brown hair, stubble, brass goggles, worn olive jacket",
+        ),
+        (
+            "nora",
+            "wavy brown hair, round glasses, mustard scarf, denim jacket, notebook",
+        ),
+    ];
+
+    #[tokio::test]
+    async fn an_updated_install_gets_the_same_starter_looks_as_a_new_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = crate::db::tests::old_database(dir.path(), 5).await;
+        let pool = sqlx::SqlitePool::connect(&format!("sqlite:{}", file.display()))
+            .await
+            .unwrap();
+        for (key, tags) in OLD_CHARACTERS {
+            sqlx::query("INSERT INTO characters (name, starter_key, appearance_tags, age, created_at) VALUES (?, ?, ?, 30, 0)")
+                .bind(*key).bind(*key).bind(*tags).execute(&pool).await.unwrap();
+        }
+        for (key, tags) in OLD_PERSONAS {
+            sqlx::query("INSERT INTO personas (name, starter_key, appearance_tags, created_at) VALUES (?, ?, ?, 0)")
+                .bind(*key).bind(*key).bind(*tags).execute(&pool).await.unwrap();
+        }
+        // A character the user made with the same tags is not a starter.
+        sqlx::query("INSERT INTO characters (name, appearance_tags, age, created_at) VALUES ('Own', ?, 30, 0)")
+            .bind(OLD_CHARACTERS[0].1).execute(&pool).await.unwrap();
+        pool.close().await;
+
+        let db = Db::open(&file).await.unwrap();
+        for c in CHARACTERS {
+            let id = db.character_by_starter(c.key).await.unwrap().unwrap();
+            let row = db.character(id).await.unwrap();
+            assert_eq!(
+                (
+                    row.appearance_tags.as_str(),
+                    row.outfit.as_str(),
+                    row.art_style.as_str()
+                ),
+                (c.tags, c.outfit, c.art_style),
+                "{}",
+                c.key
+            );
+        }
+        for p in PERSONAS {
+            let id = db.persona_by_starter(p.key).await.unwrap().unwrap();
+            let row = db.persona(id).await.unwrap();
+            assert_eq!(
+                (row.appearance_tags.as_str(), row.outfit.as_str()),
+                (p.tags, p.outfit),
+                "{}",
+                p.key
+            );
+        }
+        let own = db
+            .characters()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.name == "Own")
+            .unwrap();
+        assert_eq!(own.appearance_tags, OLD_CHARACTERS[0].1);
+        assert!(own.outfit.is_empty());
+        db.close().await;
+    }
+
+    #[tokio::test]
+    async fn an_edited_starter_keeps_its_tags() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = crate::db::tests::old_database(dir.path(), 5).await;
+        let pool = sqlx::SqlitePool::connect(&format!("sqlite:{}", file.display()))
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO characters (name, starter_key, appearance_tags, age, created_at) VALUES ('Ren', 'ren_kagami', 'messy black hair, red scarf', 30, 0)")
+            .execute(&pool).await.unwrap();
+        pool.close().await;
+        let db = Db::open(&file).await.unwrap();
+        let id = db
+            .character_by_starter("ren_kagami")
+            .await
+            .unwrap()
+            .unwrap();
+        let row = db.character(id).await.unwrap();
+        assert_eq!(row.appearance_tags, "messy black hair, red scarf");
+        assert!(row.outfit.is_empty() && row.art_style.is_empty());
+        db.close().await;
+    }
 
     #[tokio::test]
     async fn seeded_once_and_deletion_sticks() {

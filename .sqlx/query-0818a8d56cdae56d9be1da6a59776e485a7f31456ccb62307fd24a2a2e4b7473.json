@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO personas (starter_key, name, description, appearance_tags, outfit, age, created_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0818a8d56cdae56d9be1da6a59776e485a7f31456ccb62307fd24a2a2e4b7473"
+}

@@ -501,9 +501,11 @@ impl PictureService {
 
         let character = scene::Person {
             appearance: &input.character.appearance_tags,
+            outfit: &input.character.outfit,
         };
         let persona = input.persona.as_ref().map(|p| scene::Person {
             appearance: &p.appearance_tags,
+            outfit: &p.outfit,
         });
         let positive = scene::positive(
             &input.scene,

@@ -825,7 +825,7 @@ function PersonaStep({ onDone }: { onDone: () => void }) {
             e.preventDefault();
             const clean = name.trim();
             if (!clean) return;
-            savePersona(null, { name: clean, description: "", appearance_tags: "", age: null }, { kind: "keep" })
+            savePersona(null, { name: clean, description: "", appearance_tags: "", outfit: "", age: null }, { kind: "keep" })
               .then((p) => {
                 use(p.id);
               })

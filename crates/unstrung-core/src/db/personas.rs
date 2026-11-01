@@ -9,6 +9,9 @@ pub struct Persona {
     pub avatar_path: Option<String>,
     pub description: String,
     pub appearance_tags: String,
+    /// What the persona usually wears. A picture can show other clothes.
+    #[serde(default)]
+    pub outfit: String,
     pub age: Option<i64>,
     pub is_default: bool,
 }
@@ -18,6 +21,9 @@ pub struct PersonaFields {
     pub name: String,
     pub description: String,
     pub appearance_tags: String,
+    /// What the persona usually wears. A picture can show other clothes.
+    #[serde(default)]
+    pub outfit: String,
     pub age: Option<i64>,
 }
 
@@ -25,7 +31,7 @@ impl Db {
     pub async fn persona(&self, id: i64) -> Result<Persona> {
         sqlx::query_as!(
             Persona,
-            r#"SELECT id, name, avatar_path, description, appearance_tags, age,
+            r#"SELECT id, name, avatar_path, description, appearance_tags, outfit, age,
                     is_default AS "is_default: bool"
              FROM personas WHERE id = ?"#,
             id
@@ -38,7 +44,7 @@ impl Db {
     pub async fn personas(&self) -> Result<Vec<Persona>> {
         let rows = sqlx::query_as!(
             Persona,
-            r#"SELECT id AS "id!", name, avatar_path, description, appearance_tags, age,
+            r#"SELECT id AS "id!", name, avatar_path, description, appearance_tags, outfit, age,
                     is_default AS "is_default: bool"
              FROM personas ORDER BY is_default DESC, name COLLATE NOCASE, id"#
         )
@@ -72,12 +78,13 @@ impl Db {
     ) -> Result<i64> {
         let now = now_ms();
         let id = sqlx::query_scalar!(
-            r#"INSERT INTO personas (starter_key, name, description, appearance_tags, age, created_at)
-             VALUES (?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
+            r#"INSERT INTO personas (starter_key, name, description, appearance_tags, outfit, age, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
             starter_key,
             f.name,
             f.description,
             f.appearance_tags,
+            f.outfit,
             f.age,
             now
         )
@@ -88,11 +95,12 @@ impl Db {
 
     pub async fn update_persona(&self, id: i64, f: &PersonaFields) -> Result<()> {
         let done = sqlx::query!(
-            "UPDATE personas SET name = ?, description = ?, appearance_tags = ?, age = ?
+            "UPDATE personas SET name = ?, description = ?, appearance_tags = ?, outfit = ?, age = ?
              WHERE id = ?",
             f.name,
             f.description,
             f.appearance_tags,
+            f.outfit,
             f.age,
             id
         )
