@@ -29,10 +29,13 @@ export function FadeImage({
   develop = false,
   className,
   onShown,
+  lazy = false,
 }: {
   picture: { id: number; created_at: number };
   alt: string;
   develop?: boolean;
+  /** For long grids: the picture loads when it scrolls near. */
+  lazy?: boolean;
   className?: string;
   onShown?: () => void;
 }) {
@@ -45,6 +48,10 @@ export function FadeImage({
       className={classes}
       src={pictureUrl(picture)}
       alt={alt}
+      // shortcut: the grid shows the full 1024 px file, about 4 MB once decoded;
+      // write a small thumbnail file next to each picture when galleries reach hundreds.
+      loading={lazy ? "lazy" : undefined}
+      decoding="async"
       onLoad={() => {
         setLoaded(true);
       }}

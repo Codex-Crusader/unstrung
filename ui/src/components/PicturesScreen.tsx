@@ -24,6 +24,8 @@ function gb(bytes: number): string {
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
 }
 
+/** More names than this show as one list instead of buttons. */
+const MAX_CHIPS = 8;
 
 /** The model that "Turn on pictures" sets up. */
 function firstChoice(page: PicturesPage): PictureModel | undefined {
@@ -147,7 +149,9 @@ export function PicturesScreen({
   };
 
   const people = [...new Map(pictures.map((p) => [p.character_id, p.character_name])).entries()];
-  const shown = who === null ? pictures : pictures.filter((p) => p.character_id === who);
+  // A deleted chat can take the chosen character's last picture with it.
+  const active = people.some(([id]) => id === who) ? who : null;
+  const shown = active === null ? pictures : pictures.filter((p) => p.character_id === active);
   const ready = page !== null && picturesReady(page);
 
   return (
@@ -159,12 +163,30 @@ export function PicturesScreen({
 
       {(ready || pictures.length > 0) && (
         <>
-          {people.length > 1 && (
+          {people.length > MAX_CHIPS && (
+            <label className="field picture-who">
+              <span>{s.show}</span>
+              <select
+                value={active ?? ""}
+                onChange={(e) => {
+                  setWho(e.target.value === "" ? null : Number(e.target.value));
+                }}
+              >
+                <option value="">{s.everyone}</option>
+                {people.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {people.length > 1 && people.length <= MAX_CHIPS && (
             <div className="chips" role="group" aria-label={s.show}>
               <button
                 type="button"
-                className={who === null ? "chip chip-on" : "chip"}
-                aria-pressed={who === null}
+                className={active === null ? "chip chip-on" : "chip"}
+                aria-pressed={active === null}
                 onClick={() => {
                   setWho(null);
                 }}
@@ -175,8 +197,8 @@ export function PicturesScreen({
                 <button
                   key={id}
                   type="button"
-                  className={who === id ? "chip chip-on" : "chip"}
-                  aria-pressed={who === id}
+                  className={active === id ? "chip chip-on" : "chip"}
+                  aria-pressed={active === id}
                   onClick={() => {
                     setWho(id);
                   }}
@@ -204,7 +226,7 @@ export function PicturesScreen({
                       setOpen(p.id);
                     }}
                   >
-                    <FadeImage picture={p} alt="" />
+                    <FadeImage picture={p} alt="" lazy />
                     <span className="picture-name">{p.character_name}</span>
                   </button>
                 </li>

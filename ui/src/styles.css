@@ -2647,3 +2647,8 @@ dialog.viewer::backdrop {
   height: 100%;
   min-width: 40px;
 }
+
+.picture-who {
+  max-width: 280px;
+  margin-bottom: 14px;
+}
