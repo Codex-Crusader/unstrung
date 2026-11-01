@@ -716,12 +716,18 @@ async fn free_gpu(client: &crate::ollama::Client, model: &str) -> bool {
         return false;
     }
     let started = Instant::now();
-    while started.elapsed() < UNLOAD_WAIT {
+    loop {
         match client.loaded().await {
-            Ok(l) if l.iter().all(|m| m.name != model) => break,
+            Ok(l) if l.iter().all(|m| m.name != model) => {
+                log::info!("chat model unloaded for a picture: {model}");
+                break;
+            }
+            _ if started.elapsed() >= UNLOAD_WAIT => {
+                log::warn!("the chat model is still loaded after the wait: {model}");
+                break;
+            }
             _ => tokio::time::sleep(Duration::from_millis(250)).await,
         }
     }
-    log::info!("chat model unloaded for a picture: {model}");
     true
 }
