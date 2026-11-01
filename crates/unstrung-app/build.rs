@@ -41,6 +41,8 @@ const COMMANDS: &[&str] = &[
     "remove_picture_model",
     "paint_picture",
     "repaint_picture",
+    "stage_picture",
+    "export_picture",
     "chat_pictures",
     "gallery",
     "delete_picture",

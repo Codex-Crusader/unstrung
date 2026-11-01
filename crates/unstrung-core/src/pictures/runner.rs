@@ -242,6 +242,146 @@ mod tests {
         assert_ne!(a, b);
     }
 
+    /// One real picture on this PC's graphics card. Installs the image engine
+    /// from the zips in `UNSTRUNG_TEST_ENGINE_ZIPS` and downloads Z-Image
+    /// Turbo (6.70 GB) into `UNSTRUNG_TEST_HOME`, kept for the next run:
+    /// `cargo test -p unstrung-core paints_one_real_picture -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore = "downloads 6.70 GB and runs the real engine"]
+    async fn paints_one_real_picture() {
+        use crate::download::{Fetcher, Source};
+        use crate::engine_setup::{self as setup, Engine, EngineSetup};
+        let home = std::path::PathBuf::from(std::env::var_os("UNSTRUNG_TEST_HOME").unwrap());
+        let zips = std::path::PathBuf::from(std::env::var_os("UNSTRUNG_TEST_ENGINE_ZIPS").unwrap());
+        let paths = crate::paths::AppPaths::at(home);
+        paths.ensure().unwrap();
+        let hw = crate::hardware::Hardware::check(&paths.models());
+        let gpu = (hw.tier != crate::hardware::Tier::Basic)
+            .then(|| hw.gpu.clone())
+            .flatten();
+        println!(
+            "tier {:?}, gpu {:?}",
+            hw.tier,
+            gpu.as_ref().map(|g| &g.name)
+        );
+        if setup::installed_version(&paths, Engine::Image).as_deref()
+            != Some(setup::release(Engine::Image).version.as_str())
+        {
+            let downloads = Engine::Image.downloads(&paths);
+            std::fs::create_dir_all(&downloads).unwrap();
+            for p in setup::packages_for(Engine::Image, gpu.as_ref()) {
+                std::fs::copy(zips.join(&p.file), downloads.join(&p.file)).unwrap();
+            }
+            let s = EngineSetup::new(paths.clone(), Engine::Image);
+            s.prepare(gpu.as_ref()).await.unwrap();
+            s.replace().unwrap();
+        }
+        let model = catalog::model("z-image-turbo").unwrap();
+        let dir = paths.image_models();
+        std::fs::create_dir_all(&dir).unwrap();
+        let fetcher = Fetcher::new(&catalog::catalog().hosts).unwrap();
+        for (_, c) in model.components() {
+            if catalog::on_disk(&dir, c) {
+                continue;
+            }
+            println!("downloading {} ({} bytes)", c.file, c.size);
+            let source = Source {
+                url: c.url.clone(),
+                size: c.size,
+                sha256: c.sha256.clone(),
+            };
+            let mut last = 0;
+            let mut progress = |done: u64| {
+                if done - last > 500_000_000 {
+                    last = done;
+                    println!("  {} MB", done / 1_000_000);
+                }
+            };
+            fetcher
+                .fetch(
+                    &source,
+                    &catalog::path_of(&dir, c),
+                    &CancellationToken::new(),
+                    &mut progress,
+                )
+                .await
+                .unwrap();
+        }
+
+        let size = if gpu.is_some() { 1024 } else { 512 };
+        let prompts = super::super::scene::Prompts {
+            positive: "a cozy tavern at night, warm lantern light, wooden tables, a woman with red hair in a green cloak smiling, detailed illustration, fully clothed"
+                .into(),
+            negative: "blurry, low quality, nudity".into(),
+        };
+        let out = paths.gallery().join("test").join("real.png");
+        std::fs::create_dir_all(out.parent().unwrap()).unwrap();
+        let job = Job {
+            model,
+            models_dir: &dir,
+            prompts: &prompts,
+            width: size,
+            height: size,
+            seed: 42,
+            output: &out,
+        };
+        let exe = setup::folder(&paths, Engine::Image).join(Engine::Image.exe());
+        let mut cmd = Command::new(exe);
+        cmd.args(args(&job));
+        // Peak graphics memory, read from nvidia-smi once a second.
+        let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = done.clone();
+        let watcher = std::thread::spawn(move || {
+            let mut peak = 0u64;
+            while !flag.load(std::sync::atomic::Ordering::SeqCst) {
+                if let Ok(o) = Command::new("nvidia-smi")
+                    .args(["--query-gpu=memory.used", "--format=csv,noheader,nounits"])
+                    .output()
+                {
+                    let used = String::from_utf8_lossy(&o.stdout)
+                        .trim()
+                        .parse()
+                        .unwrap_or(0);
+                    peak = peak.max(used);
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            peak
+        });
+        let started = Instant::now();
+        let steps = std::sync::Mutex::new(Vec::new());
+        let log = paths.logs().join("sdcpp.log");
+        let result = run(
+            cmd,
+            &out,
+            &log,
+            Duration::from_secs(30 * 60),
+            &CancellationToken::new(),
+            &|s, t| {
+                println!("  step {s}/{t} at {:.1} s", started.elapsed().as_secs_f32());
+                steps.lock().unwrap().push((started.elapsed(), s));
+            },
+        );
+        done.store(true, std::sync::atomic::Ordering::SeqCst);
+        let peak = watcher.join().unwrap();
+        println!(
+            "result {result:?}, {:.1} s, peak VRAM {peak} MiB",
+            started.elapsed().as_secs_f32()
+        );
+        result.unwrap();
+        let png = std::fs::read(&out).unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+        let steps = steps.into_inner().unwrap();
+        // The steps must come one by one, not all at the end.
+        let first = steps.first().unwrap().0;
+        let last = steps.last().unwrap().0;
+        assert!(
+            steps.len() >= 3 && last - first > Duration::from_millis(500),
+            "{steps:?}"
+        );
+        println!("picture: {}", out.display());
+    }
+
     /// A fake engine: PowerShell prints progress lines and writes the file.
     #[cfg(windows)]
     fn fake(script: &str) -> Command {

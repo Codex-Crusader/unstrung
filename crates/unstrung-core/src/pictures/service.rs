@@ -645,6 +645,12 @@ impl PictureService {
         self.chats.db().image(id).await
     }
 
+    /// The file of a gallery picture.
+    pub async fn file(&self, id: i64) -> Result<std::path::PathBuf> {
+        let image = self.chats.db().image(id).await?;
+        crate::paths::join_safe(&self.paths.gallery(), &image.file_path)
+    }
+
     /// Deletes a picture and its file.
     pub async fn delete(&self, id: i64) -> Result<()> {
         let path = self.chats.db().delete_image(id).await?;

@@ -47,6 +47,8 @@
     "allow-remove-picture-model",
     "allow-paint-picture",
     "allow-repaint-picture",
+    "allow-stage-picture",
+    "allow-export-picture",
     "allow-chat-pictures",
     "allow-gallery",
     "allow-delete-picture",

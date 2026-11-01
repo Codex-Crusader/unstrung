@@ -9,6 +9,7 @@ import {
   startOk,
   type EngineStatus,
   type ImportDraft,
+  type Staged,
   type Persona,
   type StartView,
 } from "./api";
@@ -29,7 +30,7 @@ import figure from "./assets/figure.png";
 export type Screen =
   | { name: "home" }
   | { name: "chat"; characterId: number; chatId?: number }
-  | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number }
+  | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number; picture?: Staged }
   | { name: "personas" }
   | { name: "models" }
   | { name: "pictures" }
@@ -231,6 +232,7 @@ function MainApp() {
               key={screen.characterId ?? `new-${String(screen.draftKey ?? 0)}`}
               characterId={screen.characterId}
               draft={screen.draft ?? null}
+              picture={screen.picture ?? null}
               ready={ready}
               onSaved={(c) => {
                 setScreen({ name: "chat", characterId: c.id });
@@ -247,6 +249,9 @@ function MainApp() {
             <PicturesScreen
               onOpenChat={(characterId, chatId) => {
                 setScreen({ name: "chat", characterId, chatId });
+              }}
+              onUseAsAvatar={(p, staged) => {
+                setScreen({ name: "creator", characterId: p.character_id, picture: staged });
               }}
             />
           )}

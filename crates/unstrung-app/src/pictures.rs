@@ -3,6 +3,7 @@
 use crate::commands::CmdResult;
 use crate::state::AppState;
 use tauri::{Emitter, Manager, State};
+use unstrung_core::avatar::{self, Staged};
 use unstrung_core::db::{GalleryImage, Image};
 use unstrung_core::pictures::service::Page;
 
@@ -63,6 +64,58 @@ pub async fn repaint_picture(
         Err(unstrung_core::error::Error::Cancelled) => Ok(None),
         Err(e) => Err(e.into()),
     }
+}
+
+/// Stages a gallery picture as a new profile picture, like an upload. The
+/// creator then shows the crop.
+#[tauri::command]
+pub async fn stage_picture(state: State<'_, AppState>, id: i64) -> CmdResult<Staged> {
+    let bytes = tokio::fs::read(state.pictures.file(id).await?)
+        .await
+        .map_err(unstrung_core::error::Error::from)?;
+    let paths = state.paths.clone();
+    tauri::async_runtime::spawn_blocking(move || avatar::stage(&paths, &bytes))
+        .await
+        .map_err(|e| unstrung_core::error::Error::Engine(e.to_string()))?
+        .map_err(Into::into)
+}
+
+/// Saves a copy of a picture where the user picks. False when the user
+/// closes the dialog.
+#[tauri::command]
+pub async fn export_picture(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    id: i64,
+    name: String,
+) -> CmdResult<bool> {
+    let from = state.pictures.file(id).await?;
+    let safe: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-')
+        .take(60)
+        .collect();
+    let file = format!(
+        "{} {id}.png",
+        if safe.trim().is_empty() {
+            "Picture"
+        } else {
+            safe.trim()
+        }
+    );
+    let Some(to) = rfd::AsyncFileDialog::new()
+        .set_parent(&window)
+        .set_file_name(file)
+        .add_filter("PNG", &["png"])
+        .save_file()
+        .await
+    else {
+        return Ok(false);
+    };
+    tokio::fs::copy(from, to.path())
+        .await
+        .map_err(unstrung_core::error::Error::from)?;
+    Ok(true)
 }
 
 #[tauri::command]

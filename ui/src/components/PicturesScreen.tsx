@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   deletePicture,
   downloadPictureModel,
+  exportPicture,
+  stagePicture,
   gallery,
   onPictureDownload,
   picturesPage,
@@ -16,6 +18,7 @@ import {
   type PictureDownload,
   type PictureModel,
   type PicturesPage,
+  type Staged,
   type UiError,
 } from "../api";
 import { strings } from "../strings";
@@ -143,17 +146,20 @@ function PictureView({
   onOpenChat,
   onDeleted,
   onMade,
+  onUseAsAvatar,
 }: {
   picture: GalleryPicture;
   onClose: () => void;
   onOpenChat: (characterId: number, chatId: number) => void;
   onDeleted: () => void;
   onMade: () => void;
+  onUseAsAvatar: (picture: GalleryPicture, staged: Staged) => void;
 }) {
   const s = strings.pictures;
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<UiError | null>(null);
   const [working, setWorking] = useState(false);
+  const [saved, setSaved] = useState(false);
   const again = (sameSeed: boolean) => {
     setError(null);
     setWorking(true);
@@ -222,6 +228,38 @@ function PictureView({
           <Icon name="picture" />
           {s.variation}
         </button>
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={working}
+          onClick={() => {
+            setError(null);
+            stagePicture(picture.id).then(
+              (staged) => {
+                onUseAsAvatar(picture, staged);
+              },
+              (e: unknown) => {
+                setError(toUiError(e));
+              },
+            );
+          }}
+        >
+          <Icon name="personas" />
+          {s.useAsAvatar}
+        </button>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={() => {
+            setError(null);
+            exportPicture(picture.id, picture.character_name).then(setSaved, (e: unknown) => {
+              setError(toUiError(e));
+            });
+          }}
+        >
+          <Icon name="download" />
+          {saved ? s.exported : s.export}
+        </button>
         {confirm ? (
           <>
             <span>{s.deleteConfirm}</span>
@@ -258,7 +296,13 @@ function PictureView({
   );
 }
 
-export function PicturesScreen({ onOpenChat }: { onOpenChat: (characterId: number, chatId: number) => void }) {
+export function PicturesScreen({
+  onOpenChat,
+  onUseAsAvatar,
+}: {
+  onOpenChat: (characterId: number, chatId: number) => void;
+  onUseAsAvatar: (picture: GalleryPicture, staged: Staged) => void;
+}) {
   const s = strings.pictures;
   const [page, setPage] = useState<PicturesPage | null>(null);
   const [download, setDownload] = useState<PictureDownload | null>(null);
@@ -354,6 +398,7 @@ export function PicturesScreen({ onOpenChat }: { onOpenChat: (characterId: numbe
               load();
             }}
             onMade={load}
+            onUseAsAvatar={onUseAsAvatar}
           />
         ) : shown.length === 0 ? (
           <p className="muted">{s.empty}</p>

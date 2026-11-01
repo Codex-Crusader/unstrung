@@ -114,6 +114,7 @@ function Field({
 export function CreatorScreen({
   characterId,
   draft,
+  picture,
   ready,
   onSaved,
   onDeleted,
@@ -122,6 +123,8 @@ export function CreatorScreen({
   characterId: number | null;
   /** An imported card that is not saved yet. */
   draft: ImportDraft | null;
+  /** A staged new profile picture, for example from the gallery. */
+  picture?: Staged | null;
   ready: boolean;
   onSaved: (character: Character) => void;
   onDeleted: () => void;
@@ -129,15 +132,16 @@ export function CreatorScreen({
 }) {
   const [saved, setSaved] = useState<Character | null>(null);
   const [fields, setFields] = useState<CharacterFields>(draft?.fields ?? EMPTY);
+  const first = draft?.picture ?? picture ?? null;
   const [avatar, setAvatar] = useState<AvatarChange>(
-    draft?.picture ? { kind: "staged", token: draft.picture.token, crop: centerCrop(draft.picture) } : { kind: "keep" },
+    first ? { kind: "staged", token: first.token, crop: centerCrop(first) } : { kind: "keep" },
   );
   const [error, setError] = useState<UiError | null>(null);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [staged, setStaged] = useState<Staged | null>(draft?.picture ?? null);
+  const [staged, setStaged] = useState<Staged | null>(first);
   const [model, setModel] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
@@ -253,7 +257,7 @@ export function CreatorScreen({
               owner={saved}
               value={avatar}
               onChange={setAvatar}
-              initial={draft?.picture ?? null}
+              initial={first}
               onStaged={setStaged}
             />
           </div>

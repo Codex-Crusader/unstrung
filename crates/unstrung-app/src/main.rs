@@ -148,6 +148,8 @@ fn main() {
             pictures::remove_picture_model,
             pictures::paint_picture,
             pictures::repaint_picture,
+            pictures::stage_picture,
+            pictures::export_picture,
             pictures::chat_pictures,
             pictures::gallery,
             pictures::delete_picture,
