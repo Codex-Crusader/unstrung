@@ -192,6 +192,7 @@ async function checkCreator(show: (screen: Screen) => void, renId: number): Prom
     example_dialogue: "",
     voice_anchor: "",
     appearance_tags: "",
+    art_style: "",
     default_tone: "wholesome",
     default_reply_style: "conversational",
     default_reply_custom: "",

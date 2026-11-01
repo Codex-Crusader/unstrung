@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import type { Character, Persona, RegenMode, ViewMessage } from "../api";
+import { pictureUrl, type Character, type Persona, type Picture, type RegenMode, type ViewMessage } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { MessageText } from "./MessageText";
@@ -14,6 +14,25 @@ export interface MessageActions {
   branch: (messageId: number) => void;
   remember: (message: ViewMessage) => void;
   remove: (messageId: number) => void;
+  picture: (messageId: number) => void;
+}
+
+/** A picture under its message. A click shows it larger. */
+function MessagePicture({ picture }: { picture: Picture }) {
+  const [big, setBig] = useState(false);
+  return (
+    <button
+      type="button"
+      className={big ? "message-picture expanded" : "message-picture"}
+      aria-label={strings.chat.openPicture}
+      aria-expanded={big}
+      onClick={() => {
+        setBig(!big);
+      }}
+    >
+      <img src={pictureUrl(picture.id)} alt={strings.chat.picture} />
+    </button>
+  );
 }
 
 export function MessageItem({
@@ -23,6 +42,7 @@ export function MessageItem({
   isLast,
   locked,
   actions,
+  pictures,
 }: {
   message: ViewMessage;
   character: Character;
@@ -32,6 +52,8 @@ export function MessageItem({
   /** True while a reply is written or the engine is not ready. */
   locked: boolean;
   actions: MessageActions;
+  /** The pictures made for this message. */
+  pictures: Picture[];
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const menu = useRef<HTMLDetailsElement>(null);
@@ -70,7 +92,12 @@ export function MessageItem({
           {message.role === "ooc" ? `${speaker} · ${strings.chat.oocLabel}` : speaker}
         </span>
         {editing === null ? (
-          <MessageText text={message.content} />
+          <>
+            <MessageText text={message.content} />
+            {pictures.map((p) => (
+              <MessagePicture key={p.id} picture={p} />
+            ))}
+          </>
         ) : (
           <form
             className="edit-form"
@@ -176,6 +203,10 @@ export function MessageItem({
                 {item("remember", strings.message.remember, () => {
                   actions.remember(message);
                 })}
+                {message.role !== "ooc" &&
+                  item("picture", strings.chat.pictureThis, () => {
+                    actions.picture(message.id);
+                  })}
                 {message.parent_id !== null &&
                   item(
                     "remove",

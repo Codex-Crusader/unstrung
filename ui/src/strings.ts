@@ -6,6 +6,7 @@ export const strings = {
     home: "Home",
     personas: "Personas",
     models: "Models",
+    pictures: "Pictures",
     main: "Main menu",
   },
   status: {
@@ -84,7 +85,9 @@ export const strings = {
     suggest: "Suggest from personality",
     suggesting: "Writing...",
     tags: "Appearance tags",
-    tagsHint: "Short tags, for pictures later: hair, eyes, clothes, setting.",
+    tagsHint: "Short tags for pictures: hair, eyes, clothes, setting.",
+    artStyle: "Art style",
+    artStyleHint: "How pictures of this character look, for example: watercolor, anime, photo.",
     tone: "Default tone",
     style: "Default reply style",
     model: "Model",
@@ -135,6 +138,7 @@ export const strings = {
       ["example_dialogue", "example dialogue"],
       ["voice_anchor", "voice"],
       ["appearance_tags", "appearance tags list"],
+      ["art_style", "art style"],
       ["extensions", "extra data from other apps"],
     ]),
   },
@@ -274,6 +278,46 @@ export const strings = {
     deleted: "Message deleted.",
     undo: "Undo",
     dismiss: "Dismiss",
+    pictureThis: "Picture this",
+    imagineHint: "Tip: /imagine and a few words makes a picture of the scene.",
+    painting: (phase: string, step: number, total: number) =>
+      phase === "scene"
+        ? "Reading the scene..."
+        : phase === "loading"
+          ? "Getting the picture engine ready..."
+          : `Painting, step ${String(step)} of ${String(total)}...`,
+    picturesOff: "Pictures are not set up yet. Open Pictures to download a picture model.",
+    picture: "Picture of the scene",
+    openPicture: "Open the picture",
+  },
+  pictures: {
+    title: "Pictures",
+    intro:
+      "Unstrung can paint the scene of a chat on your PC. The picture engine and a picture model download once.",
+    cpuOnly: "No graphics card for AI was found. Pictures are small and take several minutes each.",
+    engine: (size: string) => `The picture engine (${size}) downloads with your first picture model.`,
+    models: "Picture models",
+    recommended: "Recommended",
+    tooBig: "Too large for this PC",
+    adultOk: "Can make adult pictures",
+    inUse: "In use",
+    use: "Use",
+    download: (size: string) => `Download (${size})`,
+    remove: "Remove",
+    stop: "Stop",
+    license: "License",
+    untested: "Not tested on a real PC yet",
+    downloading: (part: string, done: string, total: string) =>
+      `${part === "engine" ? "Picture engine" : "Model"}: ${done} of ${total}`,
+    stopped: "The download stopped. Download again to continue.",
+    failed: "The download failed.",
+    gallery: "Gallery",
+    empty: "No pictures yet. In a chat, use Picture this on a message, or type /imagine.",
+    all: "All characters",
+    openChat: "Go to the chat",
+    delete: "Delete",
+    close: "Close",
+    deleteConfirm: "Delete this picture? This cannot be undone.",
   },
   antivirus: {
     tip: "An antivirus scan can lock model files while Unstrung reads them. Add this folder to the exclusions in Windows Security (Virus & threat protection, Manage settings, Exclusions):",

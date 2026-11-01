@@ -42,6 +42,7 @@ export interface Character {
   example_dialogue: string;
   voice_anchor: string;
   appearance_tags: string;
+  art_style: string;
   default_tone: string;
   default_reply_style: string;
   default_reply_custom: string;
@@ -318,6 +319,7 @@ export interface CharacterFields {
   example_dialogue: string;
   voice_anchor: string;
   appearance_tags: string;
+  art_style: string;
   default_tone: string;
   default_reply_style: string;
   default_reply_custom: string;
@@ -563,6 +565,95 @@ const AVATAR_BASE = navigator.userAgent.includes("Windows") ? "http://avatar.loc
 /** The URL of a picture that the user is cropping now. */
 export function stagedUrl(token: string): string {
   return `${AVATAR_BASE}/staged/${encodeURIComponent(token)}`;
+}
+
+/** A gallery picture, by its id. Its file never changes. */
+export function pictureUrl(id: number): string {
+  return `${AVATAR_BASE}/picture/${String(id)}`;
+}
+
+export interface Picture {
+  id: number;
+  chat_id: number;
+  message_id: number | null;
+  prompt: string;
+  seed: number;
+  image_model: string;
+  width: number;
+  height: number;
+  created_at: number;
+}
+
+export interface GalleryPicture extends Picture {
+  character_id: number;
+  character_name: string;
+}
+
+export interface PictureModel {
+  id: string;
+  name: string;
+  description: string;
+  size_bytes: number;
+  missing_bytes: number;
+  installed: boolean;
+  fits: boolean;
+  recommended: boolean;
+  selected: boolean;
+  mature_ok: boolean;
+  license_name: string;
+  license_url: string;
+  tested: boolean;
+}
+
+export interface PictureDownload {
+  model: string;
+  part: "engine" | "model";
+  state: "running" | "done" | "stopped" | "failed";
+  completed: number;
+  total: number;
+  bytes_per_second: number;
+  error: string;
+}
+
+export interface PicturesPage {
+  tier: Tier;
+  cpu_only: boolean;
+  engine_installed: boolean;
+  engine_download_bytes: number;
+  models: PictureModel[];
+  selected: string | null;
+  download: PictureDownload | null;
+}
+
+export interface Painting {
+  chat_id: number;
+  message_id: number | null;
+  phase: "scene" | "loading" | "painting";
+  step: number;
+  total: number;
+}
+
+export const picturesPage = () => invoke<PicturesPage>("pictures_page");
+export const downloadPictureModel = (id: string) => invoke<null>("download_picture_model", { id });
+export const stopPictureDownload = () => invoke<null>("stop_picture_download");
+export const selectPictureModel = (id: string) => invoke<null>("select_picture_model", { id });
+export const removePictureModel = (id: string) => invoke<null>("remove_picture_model", { id });
+export const paintPicture = (chatId: number, messageId: number | null, wish: string) =>
+  invoke<Picture | null>("paint_picture", { chatId, messageId, wish });
+export const chatPictures = (chatId: number) => invoke<Picture[]>("chat_pictures", { chatId });
+export const gallery = () => invoke<GalleryPicture[]>("gallery");
+export const deletePicture = (id: number) => invoke<null>("delete_picture", { id });
+
+export function onPictureDownload(handler: (download: PictureDownload | null) => void): Promise<UnlistenFn> {
+  return listen<PictureDownload | null>("picture-download", (event) => {
+    handler(event.payload);
+  });
+}
+
+export function onPainting(handler: (painting: Painting | null) => void): Promise<UnlistenFn> {
+  return listen<Painting | null>("picture-painting", (event) => {
+    handler(event.payload);
+  });
 }
 
 export function avatarUrl(kind: "character" | "persona", id: number, version: string): string {

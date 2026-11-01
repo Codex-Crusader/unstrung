@@ -23,6 +23,7 @@ import { strings } from "./strings";
 import { Icon } from "./components/Icon";
 import { SafeStart } from "./components/SafeStart";
 import { Welcome } from "./components/Welcome";
+import { PicturesScreen } from "./components/PicturesScreen";
 import figure from "./assets/figure.png";
 
 export type Screen =
@@ -31,6 +32,7 @@ export type Screen =
   | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number }
   | { name: "personas" }
   | { name: "models" }
+  | { name: "pictures" }
   | { name: "engine" };
 
 /** Closes open message menus on a click outside them, or on Escape. */
@@ -183,6 +185,16 @@ function MainApp() {
             <Icon name="models" />
             {strings.nav.models}
           </button>
+          <button
+            type="button"
+            className={screen.name === "pictures" ? "nav-item nav-current" : "nav-item"}
+            onClick={() => {
+              setScreen({ name: "pictures" });
+            }}
+          >
+            <Icon name="picture" />
+            {strings.nav.pictures}
+          </button>
         </nav>
         <main className="app-main">
           {screen.name === "home" && (
@@ -230,6 +242,13 @@ function MainApp() {
           {screen.name === "personas" && <PersonasScreen onChanged={loadPersonas} />}
           {screen.name === "models" && (
             <ModelsScreen engine={`${status.state}:${"model" in status ? status.model : ""}`} />
+          )}
+          {screen.name === "pictures" && (
+            <PicturesScreen
+              onOpenChat={(characterId, chatId) => {
+                setScreen({ name: "chat", characterId, chatId });
+              }}
+            />
           )}
           {screen.name === "engine" && <Welcome mode="engine" onDone={home} />}
         </main>

@@ -35,16 +35,20 @@ pub async fn remove_picture_model(state: State<'_, AppState>, id: String) -> Cmd
 }
 
 /// Makes a picture of a message (the latest one when `message_id` is empty).
-/// Stop (`stop_reply`) cancels it.
+/// Stop (`stop_reply`) cancels it, and then nothing comes back.
 #[tauri::command]
 pub async fn paint_picture(
     state: State<'_, AppState>,
     chat_id: i64,
     message_id: Option<i64>,
     wish: String,
-) -> CmdResult<Image> {
+) -> CmdResult<Option<Image>> {
     let wish: String = wish.chars().take(500).collect();
-    Ok(state.pictures.paint(chat_id, message_id, &wish).await?)
+    match state.pictures.paint(chat_id, message_id, &wish).await {
+        Ok(image) => Ok(Some(image)),
+        Err(unstrung_core::error::Error::Cancelled) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[tauri::command]

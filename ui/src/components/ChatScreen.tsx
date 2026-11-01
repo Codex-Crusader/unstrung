@@ -30,6 +30,12 @@ import {
   type ReplyHandler,
   type UiError,
   type ViewMessage,
+  chatPictures,
+  onPainting,
+  paintPicture,
+  picturesPage,
+  type Painting,
+  type Picture,
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
@@ -77,6 +83,10 @@ export function ChatScreen({
   // Counts the memory passes of this chat, so the panel loads again.
   const [memoryTick, setMemoryTick] = useState(0);
   const [draft, setDraft] = useState("");
+  const [pictures, setPictures] = useState<Picture[]>([]);
+  // Set while a picture is made, from the click until the command returns.
+  const [painting, setPainting] = useState<Painting | null>(null);
+  const [picturesReady, setPicturesReady] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -98,6 +108,40 @@ export function ChatScreen({
       });
     };
   }, [openChatId]);
+
+  const openChatIdForPictures = view?.chat.id;
+  useEffect(() => {
+    if (openChatIdForPictures === undefined) return;
+    let active = true;
+    chatPictures(openChatIdForPictures)
+      .then((p) => {
+        if (active) setPictures(p);
+      })
+      .catch(() => {
+        // Without the list, the chat shows no pictures.
+      });
+    return () => {
+      active = false;
+    };
+  }, [openChatIdForPictures]);
+
+  useEffect(() => {
+    picturesPage()
+      .then((p) => {
+        setPicturesReady(p.engine_installed && p.models.some((m) => m.selected && m.installed));
+      })
+      .catch(() => {
+        // Pictures stay off.
+      });
+    const off = onPainting((p) => {
+      if (p) setPainting((now) => (now && now.chat_id === p.chat_id ? p : now));
+    });
+    return () => {
+      void off.then((f) => {
+        f();
+      });
+    };
+  }, []);
 
   // The model picker in the header lists the installed models.
   useEffect(() => {
@@ -172,7 +216,7 @@ export function ChatScreen({
 
   const ready = status.state === "ready";
   const busy = reply.phase !== "idle";
-  const locked = busy || !ready;
+  const locked = busy || painting !== null || !ready;
 
   /** Starts a streamed reply. `after` is the message the reply answers. */
   const start = (after: number | null, run: (handler: ReplyHandler) => Promise<null>) => {
@@ -245,9 +289,36 @@ export function ChatScreen({
     shown = [...shown.slice(0, at + 1), pending];
   }
 
+  /** Makes a picture of a message, or of the latest one when `messageId` is null. */
+  const paint = (messageId: number | null, wish: string) => {
+    setError(null);
+    setHint(null);
+    if (!picturesReady) {
+      setHint(strings.chat.picturesOff);
+      return;
+    }
+    setPainting({ chat_id: chatId, message_id: messageId, phase: "scene", step: 0, total: 0 });
+    paintPicture(chatId, messageId, wish)
+      .then((p) => {
+        if (p) setPictures((all) => [...all, p]);
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      })
+      .finally(() => {
+        setPainting(null);
+      });
+  };
+
   const send = () => {
     if (!canSend) return;
     const text = draft;
+    const imagine = /^\/imagine\b\s*/i.exec(text);
+    if (imagine) {
+      setDraft("");
+      paint(null, text.slice(imagine[0].length));
+      return;
+    }
     start(last?.id ?? null, (h) => sendMessage(chatId, text, h));
   };
 
@@ -285,6 +356,9 @@ export function ChatScreen({
       setListOpen(false);
       setMemoryOpen(true);
       setMemoryDraft({ messageId: message.id, text: message.content.split(/\s+/).slice(0, 40).join(" ") });
+    },
+    picture: (id) => {
+      paint(id, "");
     },
     remove: (id) => {
       setError(null);
@@ -377,9 +451,16 @@ export function ChatScreen({
               isLast={i === shown.length - 1}
               locked={locked}
               actions={actions}
+              pictures={pictures.filter((p) => p.message_id === m.id)}
             />
           ))}
           {streaming}
+          {painting && (
+            <p className="painting-line" role="status">
+              <Icon name="picture" />
+              {strings.chat.painting(painting.phase, painting.step, painting.total)}
+            </p>
+          )}
           {!busy && view.branches.length > 0 && (
             <p className="system-note">
               {strings.chat.hiddenBranch(view.branches.length)}{" "}
@@ -468,7 +549,7 @@ export function ChatScreen({
                       ? strings.status.notInstalled
                       : strings.chat.notReady(name)
             }
-            title={strings.chat.oocHint}
+            title={`${strings.chat.oocHint} ${strings.chat.imagineHint}`}
             aria-label={strings.chat.placeholder(name)}
             disabled={!ready}
             onChange={(e) => {
@@ -476,7 +557,7 @@ export function ChatScreen({
             }}
             onKeyDown={onKeyDown}
           />
-          {busy ? (
+          {busy || painting ? (
             <button type="button" className="button button-stop" onClick={() => void stopReply()}>
               <Icon name="stop" />
               {strings.chat.stop}
