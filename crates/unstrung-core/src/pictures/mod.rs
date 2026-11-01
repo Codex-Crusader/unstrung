@@ -2,5 +2,6 @@
 //! image engine runs.
 
 pub mod catalog;
+pub mod runner;
 pub mod safety;
 pub mod scene;

@@ -160,15 +160,15 @@ impl Drop for Sidecar {
 }
 
 #[cfg(windows)]
-fn kill_on_close_job(child: &Child) -> Option<win32job::Job> {
+pub(crate) fn kill_on_close_job(child: &Child) -> Option<win32job::Job> {
     use std::os::windows::io::AsRawHandle;
     let mut info = win32job::ExtendedLimitInfo::new();
     info.limit_kill_on_job_close();
     let job = win32job::Job::create_with_limit_info(&info)
-        .map_err(|e| log::warn!("no job object for the chat engine: {e}"))
+        .map_err(|e| log::warn!("no job object for an engine: {e}"))
         .ok()?;
     job.assign_process(child.as_raw_handle() as isize)
-        .map_err(|e| log::warn!("could not add the chat engine to the job object: {e}"))
+        .map_err(|e| log::warn!("could not add an engine to the job object: {e}"))
         .ok()?;
     Some(job)
 }
@@ -178,7 +178,7 @@ fn free_port() -> Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-fn open_log(path: &Path) -> Result<File> {
+pub(crate) fn open_log(path: &Path) -> Result<File> {
     if std::fs::metadata(path).is_ok_and(|m| m.len() > LOG_ROTATE_BYTES) {
         let _ = std::fs::rename(path, path.with_extension("log.1"));
     }
