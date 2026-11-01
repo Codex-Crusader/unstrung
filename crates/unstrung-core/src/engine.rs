@@ -17,9 +17,8 @@ pub const DEFAULT_CHAT_MODEL: &str = "gemma4:e4b-it-qat";
 pub const KEEP_ALIVE: &str = "30m";
 
 const MAX_RESTARTS: u32 = 3;
-// The first start on a new PC is slow: the antivirus scans the new engine
-// files, and the engine looks for GPUs. On a CPU-only test PC the engine
-// answered after 27 seconds, so 30 was too short.
+// The engine answers only after it has looked for GPUs. On a CPU-only test PC
+// that took 27 to 33 seconds on every start, so 30 was too short.
 const READY_TIMEOUT: Duration = Duration::from_secs(120);
 const HEALTH_INTERVAL: Duration = Duration::from_secs(3);
 
