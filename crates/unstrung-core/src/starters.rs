@@ -175,7 +175,7 @@ const PERSONAS: &[StarterPersona] = &[
         name: "Nora",
         description: "A journalist who asks too many questions and writes everything down.",
         tags: "wavy brown hair, round glasses",
-        outfit: "mustard scarf, denim jacket",
+        outfit: "mustard scarf, denim jacket, notebook",
         age: 24,
     },
 ];

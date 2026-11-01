@@ -30,5 +30,5 @@ UPDATE personas SET appearance_tags = 'messy brown hair, stubble',
     outfit = 'brass goggles, worn olive jacket'
 WHERE starter_key = 'kai' AND appearance_tags = 'messy brown hair, stubble, brass goggles, worn olive jacket';
 UPDATE personas SET appearance_tags = 'wavy brown hair, round glasses',
-    outfit = 'mustard scarf, denim jacket'
+    outfit = 'mustard scarf, denim jacket, notebook'
 WHERE starter_key = 'nora' AND appearance_tags = 'wavy brown hair, round glasses, mustard scarf, denim jacket, notebook';
