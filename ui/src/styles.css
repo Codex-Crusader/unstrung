@@ -2142,21 +2142,6 @@ body > iframe {
 }
 
 /* Home: recent chats and search */
-.recent h2 {
-  margin: 0 0 10px;
-  font-family: var(--font-head);
-  font-size: 18px;
-}
-
-.recent-row {
-  list-style: none;
-  margin: 0 0 22px;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-}
-
 .recent-chat {
   width: 100%;
   display: flex;
@@ -2597,4 +2582,39 @@ dialog.viewer::backdrop {
   .painting-card {
     animation: none;
   }
+}
+
+/* Chats screen: one chat per row, newest first. */
+.chat-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-rows .recent-text {
+  flex: 1;
+}
+
+.chat-when {
+  flex: none;
+  margin-left: auto;
+}
+
+.in-use-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0 0 10px;
+}
+
+.in-use-line .card-tagline {
+  flex-basis: 100%;
+}
+
+.models-section details.more {
+  margin-top: 10px;
 }

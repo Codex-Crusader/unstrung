@@ -25,12 +25,14 @@ import { Icon } from "./components/Icon";
 import { SafeStart } from "./components/SafeStart";
 import { Welcome } from "./components/Welcome";
 import { PicturesScreen } from "./components/PicturesScreen";
+import { ChatsScreen } from "./components/ChatsScreen";
 import figure from "./assets/figure.png";
 
 export type Screen =
   | { name: "home" }
   | { name: "chat"; characterId: number; chatId?: number }
   | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number; picture?: Staged }
+  | { name: "chats" }
   | { name: "personas" }
   | { name: "models" }
   | { name: "pictures" }
@@ -168,6 +170,16 @@ function MainApp() {
           </button>
           <button
             type="button"
+            className={screen.name === "chats" ? "nav-item nav-current" : "nav-item"}
+            onClick={() => {
+              setScreen({ name: "chats" });
+            }}
+          >
+            <Icon name="chats" />
+            {strings.nav.chats}
+          </button>
+          <button
+            type="button"
             className={screen.name === "personas" ? "nav-item nav-current" : "nav-item"}
             onClick={() => {
               setScreen({ name: "personas" });
@@ -202,9 +214,6 @@ function MainApp() {
             <HomeScreen
               onOpen={(c) => {
                 setScreen({ name: "chat", characterId: c.id });
-              }}
-              onOpenChat={(characterId, chatId) => {
-                setScreen({ name: "chat", characterId, chatId });
               }}
               onCreate={() => {
                 setScreen({ name: "creator", characterId: null });
@@ -244,9 +253,21 @@ function MainApp() {
               onCancel={home}
             />
           )}
+          {screen.name === "chats" && (
+            <ChatsScreen
+              onOpenChat={(characterId, chatId) => {
+                setScreen({ name: "chat", characterId, chatId });
+              }}
+            />
+          )}
           {screen.name === "personas" && <PersonasScreen onChanged={loadPersonas} />}
           {screen.name === "models" && (
-            <ModelsScreen engine={`${status.state}:${"model" in status ? status.model : ""}`} />
+            <ModelsScreen
+              engine={`${status.state}:${"model" in status ? status.model : ""}`}
+              onOpenPictures={() => {
+                setScreen({ name: "pictures" });
+              }}
+            />
           )}
           {screen.name === "pictures" && (
             <PicturesScreen
@@ -255,6 +276,9 @@ function MainApp() {
               }}
               onUseAsAvatar={(p, staged) => {
                 setScreen({ name: "creator", characterId: p.character_id, picture: staged });
+              }}
+              onOpenModels={() => {
+                setScreen({ name: "models" });
               }}
             />
           )}

@@ -4,7 +4,6 @@ import {
   gallery,
   onPictureDownload,
   picturesPage,
-  removePictureModel,
   selectPictureModel,
   stopPictureDownload,
   toUiError,
@@ -19,15 +18,12 @@ import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
 import { FadeImage, PictureViewer } from "./PictureViewer";
+import { picturesReady } from "./PictureModels";
 
 function gb(bytes: number): string {
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
 }
 
-/** True when pictures can be made now. */
-function isReady(page: PicturesPage): boolean {
-  return page.engine_installed && page.models.some((m) => m.selected && m.installed);
-}
 
 /** The model that "Turn on pictures" sets up. */
 function firstChoice(page: PicturesPage): PictureModel | undefined {
@@ -98,90 +94,13 @@ function SetupCard({
   );
 }
 
-/** The picture model list, for people who want another model. Closed at first. */
-function Settings({
-  page,
-  busy,
-  act,
-}: {
-  page: PicturesPage;
-  busy: boolean;
-  act: (job: () => Promise<unknown>) => void;
-}) {
-  const s = strings.pictures;
-  return (
-    <details className="picture-settings">
-      <summary>{s.settings}</summary>
-      <p className="muted">{s.settingsText}</p>
-      <ul className="model-list">
-        {page.models.map((m) => (
-          <li key={m.id} className={m.selected ? "model-row model-default" : "model-row"}>
-            <div className="model-info">
-              <span className="model-name">
-                {m.name}
-                {m.recommended && <span className="badge">{s.recommended}</span>}
-              </span>
-              <span className="card-tagline">{m.description}</span>
-              <span className="muted" title={m.license_url}>
-                {gb(m.size_bytes)} · {s.license}: {m.license_name}
-              </span>
-            </div>
-            <div className="model-actions">
-              {!m.fits && !m.installed ? (
-                <span className="muted">{s.tooBig}</span>
-              ) : !m.installed ? (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  disabled={busy}
-                  onClick={() => {
-                    act(() => downloadPictureModel(m.id));
-                  }}
-                >
-                  <Icon name="download" />
-                  {s.download(gb(m.missing_bytes))}
-                </button>
-              ) : m.selected ? (
-                <span className="badge badge-strong">
-                  <Icon name="check" />
-                  {s.inUse}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() => {
-                    act(() => selectPictureModel(m.id));
-                  }}
-                >
-                  {s.use}
-                </button>
-              )}
-              {m.installed && (
-                <button
-                  type="button"
-                  className="link-button danger"
-                  disabled={busy}
-                  onClick={() => {
-                    act(() => removePictureModel(m.id));
-                  }}
-                >
-                  {s.remove}
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
 export function PicturesScreen({
   onOpenChat,
   onUseAsAvatar,
+  onOpenModels,
 }: {
   onOpenChat: (characterId: number, chatId: number) => void;
+  onOpenModels: () => void;
   onUseAsAvatar: (picture: GalleryPicture, staged: Staged) => void;
 }) {
   const s = strings.pictures;
@@ -229,7 +148,7 @@ export function PicturesScreen({
 
   const people = [...new Map(pictures.map((p) => [p.character_id, p.character_name])).entries()];
   const shown = who === null ? pictures : pictures.filter((p) => p.character_id === who);
-  const ready = page !== null && isReady(page);
+  const ready = page !== null && picturesReady(page);
 
   return (
     <section className="page pictures">
@@ -295,8 +214,12 @@ export function PicturesScreen({
         </>
       )}
 
-      {page && (ready || download?.state === "running") && (
-        <Settings page={page} busy={download?.state === "running"} act={act} />
+      {ready && (
+        <p className="picture-settings">
+          <button type="button" className="link-button" onClick={onOpenModels}>
+            {s.modelLink}
+          </button>
+        </p>
       )}
 
       {open !== null && (

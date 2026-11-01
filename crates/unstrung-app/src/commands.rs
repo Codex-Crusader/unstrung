@@ -281,7 +281,7 @@ pub async fn list_chats(
 }
 
 /// How many chats the "Recent chats" row on Home shows.
-const RECENT_CHATS: i64 = 6;
+const RECENT_CHATS: i64 = 100;
 
 #[tauri::command]
 pub async fn recent_chats(state: State<'_, AppState>) -> CmdResult<Vec<RecentChat>> {

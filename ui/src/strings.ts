@@ -4,6 +4,7 @@ export const strings = {
   appName: "Unstrung",
   nav: {
     home: "Home",
+    chats: "Chats",
     personas: "Personas",
     models: "Models",
     pictures: "Pictures",
@@ -33,7 +34,6 @@ export const strings = {
     importing: "Reading the card...",
     importHint: "A PNG or JSON card from another app (Character Card V1, V2 or V3).",
     restored: "The starter characters are back.",
-    recent: "Recent chats",
     search: "Search characters",
     noMatch: (query: string) => `No character matches "${query}".`,
     when: (ms: number) => {
@@ -152,7 +152,13 @@ export const strings = {
   },
   models: {
     title: "Models",
-    intro: "The AI that writes the replies. It runs on this PC, with no internet after the download.",
+    intro: "The AI that writes the replies and paints the pictures. It runs on this PC, with no internet after the download.",
+    chatTitle: "Chat",
+    moreChatModels: "Other chat models",
+    picturesTitle: "Pictures",
+    picturesOff: "Pictures are off.",
+    setUpPictures: "Turn on pictures",
+    morePictureModels: "Other picture models",
     yourPc: "Your PC",
     gpu: (name: string, gb: string) => `${name}, ${gb} GB`,
     noGpu: "No usable graphics card: replies are slower",
@@ -292,8 +298,16 @@ export const strings = {
     picture: "Picture of the scene",
     openPicture: "Open the picture",
   },
+  chatsPage: {
+    title: "Chats",
+    search: "Search chats",
+    noMatch: (query: string) => `No chat matches "${query}".`,
+    emptyTitle: "No chats yet",
+    emptyText: "Pick a character on Home to start your first chat.",
+  },
   pictures: {
     title: "Pictures",
+    modelLink: "Change the picture model in Models",
     setupTitle: "Make pictures of your chats",
     setupText:
       "Unstrung can paint what happens in a chat, right on your PC. Nothing is sent anywhere. You set this up once.",

@@ -211,9 +211,16 @@ const FRAMINGS: [&str; 8] = [
 pub fn varied(positive: &str, seed: i64) -> String {
     let parts: Vec<&str> = positive.split(", ").collect();
     let old = parts.iter().find(|p| FRAMINGS.contains(p)).copied();
-    let choices: Vec<&str> = FRAMINGS.iter().copied().filter(|f| Some(*f) != old).collect();
+    let choices: Vec<&str> = FRAMINGS
+        .iter()
+        .copied()
+        .filter(|f| Some(*f) != old)
+        .collect();
     let pick = choices[usize::try_from(seed.unsigned_abs() % choices.len() as u64).unwrap_or(0)];
-    let mut kept: Vec<&str> = parts.into_iter().filter(|p| !FRAMINGS.contains(p)).collect();
+    let mut kept: Vec<&str> = parts
+        .into_iter()
+        .filter(|p| !FRAMINGS.contains(p))
+        .collect();
     kept.push(pick);
     kept.join(", ")
 }
@@ -250,7 +257,11 @@ mod tests {
         for seed in 0..40 {
             let next = varied(&first, seed);
             assert_eq!(framing(&next), 1);
-            assert_ne!(first.rsplit(", ").next(), next.rsplit(", ").next(), "{next}");
+            assert_ne!(
+                first.rsplit(", ").next(),
+                next.rsplit(", ").next(),
+                "{next}"
+            );
             assert!(next.contains("fully clothed"));
         }
     }
