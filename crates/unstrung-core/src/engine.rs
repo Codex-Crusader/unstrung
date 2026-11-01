@@ -347,3 +347,54 @@ impl Engine {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An engine that exits at once: the start fails, three restarts fail,
+    /// then the status says so and no fourth restart happens.
+    #[cfg(windows)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_engine_that_exits_ends_in_an_error_after_three_restarts() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        paths.ensure().unwrap();
+        let exe = paths.engines().join("ollama").join("ollama.exe");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        // where.exe exits with code 1 when it gets "serve". The debug build
+        // points the engine at ~/.ollama/models; this fake engine never reads it.
+        let windows = std::env::var_os("SystemRoot").expect("SystemRoot");
+        std::fs::copy(
+            std::path::Path::new(&windows)
+                .join("System32")
+                .join("where.exe"),
+            &exe,
+        )
+        .unwrap();
+
+        let engine = Engine::new(paths);
+        engine.start().await;
+        assert!(matches!(engine.status(), EngineStatus::Error { .. }));
+        let mut status = engine.subscribe();
+        let health = tokio::spawn(Arc::clone(&engine).watch_health());
+        let ended = tokio::time::timeout(Duration::from_secs(90), async {
+            loop {
+                status.changed().await.unwrap();
+                if let EngineStatus::Error { detail, .. } = &*status.borrow()
+                    && detail.contains("after 3 restarts")
+                {
+                    return;
+                }
+            }
+        })
+        .await;
+        health.abort();
+        assert!(
+            ended.is_ok(),
+            "the restarts never ended: {:?}",
+            engine.status()
+        );
+        assert_eq!(*engine.restarts.lock().await, MAX_RESTARTS + 1);
+    }
+}
