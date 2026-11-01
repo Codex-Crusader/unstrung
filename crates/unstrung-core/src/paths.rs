@@ -139,16 +139,22 @@ impl AppPaths {
     /// Joins a path that the database stores (relative to the app folder).
     /// Rejects anything that could leave the root: `..`, absolute paths, drive prefixes.
     pub fn stored(&self, relative: &str) -> Result<PathBuf> {
-        let rel = Path::new(relative);
-        let plain = !relative.is_empty()
-            && rel
-                .components()
-                .all(|c| matches!(c, Component::Normal(part) if is_safe_part(part)));
-        if !plain {
-            return Err(Error::Invalid(format!("unsafe stored path: {relative}")));
-        }
-        Ok(self.root.join(rel))
+        join_safe(&self.root, relative)
     }
+}
+
+/// Joins a stored relative path to `base`. Rejects anything that could leave
+/// `base`: `..`, absolute paths, drive prefixes and device names.
+pub fn join_safe(base: &Path, relative: &str) -> Result<PathBuf> {
+    let rel = Path::new(relative);
+    let plain = !relative.is_empty()
+        && rel
+            .components()
+            .all(|c| matches!(c, Component::Normal(part) if is_safe_part(part)));
+    if !plain {
+        return Err(Error::Invalid(format!("unsafe stored path: {relative}")));
+    }
+    Ok(base.join(rel))
 }
 
 /// Windows device names (`CON`, `NUL`, `COM1`) open a device, not a file.

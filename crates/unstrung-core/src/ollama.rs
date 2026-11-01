@@ -41,6 +41,8 @@ pub struct ChatParams<'a> {
     /// For thinking models: `Some(false)` turns thinking off. `None` sends nothing,
     /// because a model without thinking rejects the field.
     pub think: Option<bool>,
+    /// A JSON schema that the answer must match (the `format` option).
+    pub format: Option<&'a serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +54,8 @@ struct ChatRequest<'a> {
     keep_alive: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     think: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<&'a serde_json::Value>,
 }
 
 impl<'a> ChatRequest<'a> {
@@ -63,6 +67,7 @@ impl<'a> ChatRequest<'a> {
             options: params.options,
             keep_alive: params.keep_alive,
             think: params.think,
+            format: params.format,
         }
     }
 }
@@ -602,7 +607,9 @@ mod tests {
             },
             keep_alive: "5m",
             think: None,
+            format: None,
         };
-        assert!(!serde_json::to_string(&request).unwrap().contains("think"));
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(!json.contains("think") && !json.contains("format"));
     }
 }

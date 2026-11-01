@@ -9,6 +9,7 @@ use crate::error::{Error, Result};
 use crate::guard::{self, Problem};
 use crate::memory;
 use crate::ollama::{ChatMessage, ChatParams, Options};
+use crate::pictures;
 use crate::presets::{self, StyleSettings};
 use crate::prompt::{self, PROMPT_VERSION, PromptInput};
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,9 @@ const THREAD_SHORT_WORDS: usize = 8;
 /// A memory pass reads up to 10 messages and writes a short summary and facts.
 const MEMORY_TOKENS: i32 = 400;
 const MEMORY_TIMEOUT: Duration = Duration::from_secs(90);
+/// The scene JSON is short.
+const SCENE_TOKENS: i32 = 300;
+const SCENE_TIMEOUT: Duration = Duration::from_secs(60);
 /// Open-thread answers kept in memory before the cache starts again.
 const THREAD_CACHE: usize = 1000;
 /// The end-reminder line for "Continue".
@@ -122,8 +126,19 @@ pub struct ChatService {
     memory_changed: watch::Sender<i64>,
 }
 
-/// Clears the "reply in progress" slot when the reply ends in any way.
-struct ReplyGuard<'a>(&'a Mutex<Option<CancellationToken>>);
+/// What the picture step gets from the chat.
+pub struct PictureScene {
+    pub scene: pictures::scene::Scene,
+    pub character: Character,
+    pub persona: Option<Persona>,
+    /// The chat model, to unload before the picture and load again after.
+    pub chat_model: String,
+    /// The message that the picture belongs to.
+    pub message_id: Option<i64>,
+}
+
+/// Clears the "reply in progress" slot when the reply or picture ends in any way.
+pub struct ReplyGuard<'a>(&'a Mutex<Option<CancellationToken>>);
 
 impl Drop for ReplyGuard<'_> {
     fn drop(&mut self) {
@@ -156,6 +171,10 @@ impl ChatService {
     /// Sends the chat id each time a memory pass changes what a chat remembers.
     pub fn subscribe_memory(&self) -> watch::Receiver<i64> {
         self.memory_changed.subscribe()
+    }
+
+    pub fn engine(&self) -> &Arc<Engine> {
+        &self.engine
     }
 
     pub fn db(&self) -> &Db {
@@ -1175,6 +1194,114 @@ impl ChatService {
         }
     }
 
+    /// Takes the one GPU slot for a picture, like a reply does: a reply and a
+    /// picture never run at the same time, and Stop ends either one.
+    pub fn begin_job(&self) -> Result<(CancellationToken, ReplyGuard<'_>)> {
+        let token = self.begin()?;
+        Ok((token, ReplyGuard(&self.current)))
+    }
+
+    /// The scene of a picture, from the chat model. `message_id` is the
+    /// message to picture, or the latest one when `None`. Falls back to a
+    /// plain scene when the model gives no usable answer twice.
+    pub async fn picture_scene(
+        &self,
+        chat_id: i64,
+        message_id: Option<i64>,
+        wish: &str,
+        token: &CancellationToken,
+    ) -> Result<PictureScene> {
+        let chat = self.db.chat(chat_id).await?;
+        let mut path = self.db.path_to_head(chat_id).await?;
+        if let Some(id) = message_id
+            && let Some(at) = path.iter().position(|m| m.id == id)
+        {
+            path.truncate(at + 1);
+        }
+        let character = self.db.character(chat.character_id).await?;
+        let persona = self.persona_of(&chat).await?;
+        let user_name = persona
+            .as_ref()
+            .map_or(prompt::NO_PERSONA_NAME, |p| p.name.as_str())
+            .to_owned();
+        let recent: Vec<&Message> = path
+            .iter()
+            .filter(|m| m.role == "user" || m.role == "assistant")
+            .collect();
+        let recent = &recent[recent
+            .len()
+            .saturating_sub(pictures::scene::RECENT_MESSAGES)..];
+        let lines: Vec<(String, String)> = recent
+            .iter()
+            .map(|m| {
+                let name = if m.role == "user" {
+                    user_name.clone()
+                } else {
+                    character.name.clone()
+                };
+                (name, m.content.clone())
+            })
+            .collect();
+        let last = recent.last().map_or("", |m| m.content.as_str());
+        let model = self.model_for(&chat, &character);
+        let tuning = self.engine.tuning_for(&model);
+        let client = self.engine.client()?;
+        let schema = pictures::scene::schema();
+        let messages = [
+            ChatMessage {
+                role: "system",
+                content: pictures::scene::SYSTEM.into(),
+            },
+            ChatMessage {
+                role: "user",
+                content: pictures::scene::question(&character.name, &user_name, &lines, wish),
+            },
+        ];
+        let options = Options {
+            temperature: 0.2,
+            min_p: 0.0,
+            top_p: 1.0,
+            top_k: 40,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.0,
+            repeat_last_n: 64,
+            // The chat's own size: another size makes the engine load the model again.
+            num_ctx: tuning.context,
+            num_predict: SCENE_TOKENS,
+            stop: Vec::new(),
+        };
+        let params = ChatParams {
+            format: Some(&schema),
+            ..chat_params(&model, &messages, &options, tuning.think.map(|_| false))
+        };
+        let mut scene = None;
+        for _ in 0..2 {
+            let answer = tokio::select! {
+                biased;
+                () = token.cancelled() => return Err(Error::Cancelled),
+                a = client.complete(&params, SCENE_TIMEOUT) => a,
+            };
+            match answer {
+                Ok(text) => {
+                    scene = pictures::scene::parse(&text);
+                    if scene.is_some() {
+                        break;
+                    }
+                    log::warn!("the scene answer was not usable");
+                }
+                Err(e) => log::warn!("the scene step failed: {e}"),
+            }
+        }
+        let scene = scene.unwrap_or_else(|| pictures::scene::fallback(last, wish));
+        Ok(PictureScene {
+            scene,
+            character,
+            persona,
+            chat_model: model,
+            message_id: recent.last().map(|m| m.id),
+        })
+    }
+
     /// Tree changes wait until no reply is being written.
     fn idle(&self) -> Result<()> {
         match self.current.lock() {
@@ -1395,6 +1522,7 @@ fn chat_params<'a>(
         options,
         keep_alive: KEEP_ALIVE,
         think,
+        format: None,
     }
 }
 
