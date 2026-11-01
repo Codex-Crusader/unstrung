@@ -244,9 +244,20 @@ pub async fn save_character(
 /// Deletes a character with its chats, messages, world info and picture.
 pub async fn delete_character(db: &Db, paths: &AppPaths, id: i64) -> Result<()> {
     let character = db.character(id).await?;
+    let pictures = db.character_image_files(id).await?;
     db.delete_character(id).await?;
     if let Some(path) = character.avatar_path {
         avatar::remove(paths, &path);
+    }
+    // The rows went with the chats. A file that does not go stays unused, so
+    // a failure is only logged.
+    for picture in pictures {
+        if let Ok(file) = crate::paths::join_safe(&paths.gallery(), &picture)
+            && let Err(e) = std::fs::remove_file(&file)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            log::warn!("a picture file of a deleted character stayed: {e}");
+        }
     }
     Ok(())
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-picture"
+description = "Enables the delete_picture command without any pre-configured scope."
+commands.allow = ["delete_picture"]
+
+[[permission]]
+identifier = "deny-delete-picture"
+description = "Denies the delete_picture command without any pre-configured scope."
+commands.deny = ["delete_picture"]

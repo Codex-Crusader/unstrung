@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remove-picture-model"
+description = "Enables the remove_picture_model command without any pre-configured scope."
+commands.allow = ["remove_picture_model"]
+
+[[permission]]
+identifier = "deny-remove-picture-model"
+description = "Denies the remove_picture_model command without any pre-configured scope."
+commands.deny = ["remove_picture_model"]

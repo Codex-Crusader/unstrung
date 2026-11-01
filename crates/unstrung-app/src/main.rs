@@ -9,6 +9,7 @@ mod creator;
 mod instance;
 mod logfile;
 mod notify;
+mod pictures;
 mod safe;
 mod selftest;
 mod setup;
@@ -24,6 +25,7 @@ use unstrung_core::db::Db;
 use unstrung_core::engine::Engine;
 use unstrung_core::models::{self, ModelService};
 use unstrung_core::paths::AppPaths;
+use unstrung_core::pictures::service::PictureService;
 use unstrung_core::start::{self, SafeReason};
 use unstrung_core::starters;
 
@@ -139,6 +141,15 @@ fn main() {
             commands::continue_reply,
             commands::retry_reply,
             commands::stop_reply,
+            pictures::pictures_page,
+            pictures::download_picture_model,
+            pictures::stop_picture_download,
+            pictures::select_picture_model,
+            pictures::remove_picture_model,
+            pictures::paint_picture,
+            pictures::chat_pictures,
+            pictures::gallery,
+            pictures::delete_picture,
             commands::rewind,
             commands::show_branch,
             commands::delete_message,
@@ -215,6 +226,7 @@ fn main() {
                         send_memory_changes(app.handle(), &state.chats);
                         app.manage(state);
                         setup::forward_progress(app.handle());
+                        pictures::forward_progress(app.handle());
                     }
                     Err(e) => {
                         log::error!("the chat data did not open: {e}");
@@ -300,6 +312,7 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     let models = ModelService::new(engine.clone(), db.clone(), &startup);
     let notify = db.meta(notify::META_KEY).await?.as_deref() != Some("off");
     let chats = Arc::new(ChatService::new(db, engine.clone()));
+    let pictures = PictureService::new(paths.clone(), chats.clone(), models.clone());
     Ok(AppState {
         setup: unstrung_core::engine_setup::EngineSetup::new(
             paths.clone(),
@@ -309,6 +322,7 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
         engine,
         chats,
         models,
+        pictures,
         notify: std::sync::atomic::AtomicBool::new(notify),
     })
 }
@@ -369,7 +383,8 @@ fn start_engine(app: &tauri::AppHandle, engine: &Arc<Engine>, models: &Arc<Model
     });
 }
 
-/// Serves `avatar://localhost/character/<id>`. The path comes from the database,
+/// Serves `avatar://localhost/character/<id>` (also persona, staged and
+/// picture, a gallery picture by id). The path comes from the database,
 /// never from the request.
 async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
     let not_found = || {
@@ -386,6 +401,25 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
     };
     let db = state.chats.db();
     let id = key.parse::<i64>().ok();
+    if let ("picture", Some(id)) = (kind, id) {
+        // Gallery pictures live in the library folder, not the app folder.
+        let Ok(image) = db.image(id).await else {
+            return not_found();
+        };
+        let Ok(file) = unstrung_core::paths::join_safe(&state.paths.gallery(), &image.file_path)
+        else {
+            return not_found();
+        };
+        return match tokio::fs::read(file).await {
+            Ok(bytes) => Response::builder()
+                .header("Content-Type", "image/png")
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Cache-Control", "max-age=31536000, immutable")
+                .body(bytes)
+                .unwrap_or_default(),
+            Err(_) => not_found(),
+        };
+    }
     let stored = match (kind, id) {
         ("character", Some(id)) => db.character(id).await.ok().and_then(|c| c.avatar_path),
         ("persona", Some(id)) => db.persona(id).await.ok().and_then(|p| p.avatar_path),

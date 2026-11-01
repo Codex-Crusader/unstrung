@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stop-picture-download"
+description = "Enables the stop_picture_download command without any pre-configured scope."
+commands.allow = ["stop_picture_download"]
+
+[[permission]]
+identifier = "deny-stop-picture-download"
+description = "Denies the stop_picture_download command without any pre-configured scope."
+commands.deny = ["stop_picture_download"]
