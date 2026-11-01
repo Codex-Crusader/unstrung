@@ -333,6 +333,7 @@ export const strings = {
     engineRow: "Chat engine",
     modelRow: (name: string) => name,
     waiting: "Waiting",
+    engineStarting: "Starting the chat engine. The first start can take a minute or two.",
     unpacking: "Unpacking",
     checkingFiles: "Checking the files",
     done: "Done",

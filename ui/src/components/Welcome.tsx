@@ -5,6 +5,7 @@ import {
   downloadModel,
   engineInstall,
   engineInstallCancel,
+  restartEngine,
   finishFirstRun,
   getNotify,
   listPersonas,
@@ -24,6 +25,7 @@ import {
   toUiError,
   type Download,
   type EngineProgress,
+  type EngineStatus,
   type FolderCheck,
   type ModelView,
   type ModelsPage,
@@ -567,6 +569,8 @@ function Downloads({
   const [engine, setEngine] = useState<EngineProgress | null>(setup.engine_progress);
   const [engineDone, setEngineDone] = useState(setup.engine_installed !== null);
   const [engineReady, setEngineReady] = useState(false);
+  const [engineState, setEngineState] = useState<EngineStatus["state"] | null>(null);
+  const [engineFailure, setEngineFailure] = useState<UiError | null>(null);
   const [modelProgress, setModelProgress] = useState<Download | null>(null);
   const [modelDone, setModelDone] = useState(model === null || model.installed);
   const [error, setError] = useState<UiError | null>(null);
@@ -601,6 +605,8 @@ function Downloads({
         }
       }),
       onStatus((status) => {
+        setEngineState(status.state);
+        setEngineFailure(status.state === "error" ? { message: status.message, detail: status.detail } : null);
         setEngineReady(status.state === "ready" || status.state === "no_model" || status.state === "loading_model");
       }),
     ];
@@ -663,10 +669,20 @@ function Downloads({
         : 0;
   const modelSoFar = modelDone ? modelBytes : (modelProgress?.completed ?? 0);
   const total = Math.max(1, engineBytes + modelBytes);
-  const offline = error !== null && /internet/i.test(error.message) && mode === "full";
-  const shownError = offline ? { message: s.offline, detail: error.detail } : error;
+  // The engine is installed but could not start: show why, and Retry restarts it.
+  const engineError = engineDone ? engineFailure : null;
+  const anyError = error ?? engineError;
+  const offline = anyError !== null && /internet/i.test(anyError.message) && mode === "full";
+  const shownError = offline ? { message: s.offline, detail: anyError.detail } : anyError;
 
   const retry = () => {
+    if (engineError) {
+      setEngineFailure(null);
+      setEngineState("starting");
+      restartEngine().catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+    }
     setError(null);
     setStopped(false);
     started.current = { engine: false, model: false };
@@ -698,7 +714,9 @@ function Downloads({
                   ? `${gb(modelProgress.completed)} / ${gb(modelProgress.total)}`
                   : modelProgress?.state === "checking"
                     ? s.checkingFiles
-                    : s.waiting}
+                    : engineDone && engineState === "starting"
+                      ? s.engineStarting
+                      : s.waiting}
             </span>
           </li>
         )}

@@ -17,7 +17,10 @@ pub const DEFAULT_CHAT_MODEL: &str = "gemma4:e4b-it-qat";
 pub const KEEP_ALIVE: &str = "30m";
 
 const MAX_RESTARTS: u32 = 3;
-const READY_TIMEOUT: Duration = Duration::from_secs(30);
+// The first start on a new PC is slow: the antivirus scans the new engine
+// files, and the engine looks for GPUs. On a CPU-only test PC the engine
+// answered after 27 seconds, so 30 was too short.
+const READY_TIMEOUT: Duration = Duration::from_secs(120);
 const HEALTH_INTERVAL: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -277,10 +280,14 @@ impl Engine {
     }
 
     async fn wait_ready(&self, client: &Client) -> Result<()> {
-        let deadline = tokio::time::Instant::now() + READY_TIMEOUT;
+        let begin = tokio::time::Instant::now();
+        let deadline = begin + READY_TIMEOUT;
         loop {
             if let Ok(version) = client.version().await {
-                log::info!("chat engine ready: Ollama {version}");
+                log::info!(
+                    "chat engine ready: Ollama {version}, after {} s",
+                    begin.elapsed().as_secs()
+                );
                 return Ok(());
             }
             if let Some(code) = self.sidecar.lock().await.as_mut().and_then(Sidecar::exited) {
@@ -290,7 +297,7 @@ impl Engine {
             }
             if tokio::time::Instant::now() > deadline {
                 return Err(Error::Engine(
-                    "the engine did not start in 30 seconds".into(),
+                    "the engine did not start in 2 minutes".into(),
                 ));
             }
             tokio::time::sleep(Duration::from_millis(250)).await;
