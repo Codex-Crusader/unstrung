@@ -52,7 +52,7 @@
       "steps": 9,
       "cfg_scale": 1.0,
       "description": "Detailed pictures in many styles, from photos to anime.",
-      "tested": ""
+      "tested": "2026-11-01"
     },
     {
       "id": "flux2-klein-4b",

@@ -631,7 +631,7 @@ export interface PicturesPage {
 export interface Painting {
   chat_id: number;
   message_id: number | null;
-  phase: "scene" | "loading" | "painting";
+  phase: "scene" | "loading" | "painting" | "finishing";
   step: number;
   total: number;
 }

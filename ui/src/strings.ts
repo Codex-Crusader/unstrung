@@ -285,7 +285,9 @@ export const strings = {
         ? "Reading the scene..."
         : phase === "loading"
           ? "Getting the picture engine ready..."
-          : `Painting, step ${String(step)} of ${String(total)}...`,
+          : phase === "finishing"
+            ? "Finishing the picture..."
+            : `Painting, step ${String(step)} of ${String(total)}...`,
     picturesOff: "Pictures are not set up yet. Open Pictures to download a picture model.",
     picture: "Picture of the scene",
     openPicture: "Open the picture",

@@ -86,7 +86,7 @@ pub struct Download {
 pub struct Painting {
     pub chat_id: i64,
     pub message_id: Option<i64>,
-    /// "scene", "loading" or "painting".
+    /// "scene", "loading", "painting" or "finishing".
     pub phase: &'static str,
     pub step: u32,
     pub total: u32,
@@ -594,12 +594,20 @@ impl PictureService {
         let sender = self.painting.clone();
         let out = output.clone();
         let started = Instant::now();
+        let steps = model.steps;
         let ran = tokio::task::spawn_blocking(move || {
             runner::run(cmd, &out, &log, limit, &run_token, &|step, total| {
+                // After the sampling steps, the engine decodes the picture in
+                // tiles and prints a second bar for them.
+                let phase = if total == steps {
+                    "painting"
+                } else {
+                    "finishing"
+                };
                 sender.send_replace(Some(Painting {
                     chat_id,
                     message_id,
-                    phase: "painting",
+                    phase,
                     step,
                     total,
                 }));
