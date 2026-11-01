@@ -1,0 +1,104 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT i.id AS \"id!\", i.chat_id, i.message_id, i.file_path, i.prompt,\n                    i.negative_prompt, i.seed, i.image_model, i.ref_mode, i.width, i.height,\n                    i.adult AS \"adult: bool\", i.created_at,\n                    ch.id AS \"character_id!\", ch.name AS character_name\n             FROM images i\n             JOIN chats c ON c.id = i.chat_id\n             JOIN characters ch ON ch.id = c.character_id\n             WHERE c.deleted_at IS NULL\n             ORDER BY i.created_at DESC, i.id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chat_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "message_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "file_path",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "prompt",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "negative_prompt",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "seed",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "image_model",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "ref_mode",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "width",
+        "ordinal": 9,
+        "type_info": "Integer"
+      },
+      {
+        "name": "height",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "adult: bool",
+        "ordinal": 11,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
+        "type_info": "Integer"
+      },
+      {
+        "name": "character_id!",
+        "ordinal": 13,
+        "type_info": "Integer"
+      },
+      {
+        "name": "character_name",
+        "ordinal": 14,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "24c3b06060a96b58151539ffd0a03f83833c51cb7b09de215ba20b0290ea76e4"
+}

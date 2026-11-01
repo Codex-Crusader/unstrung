@@ -15,6 +15,7 @@ fn ren() -> Character {
         default_tone: "dark".into(),
         default_reply_style: "conversational".into(),
         default_reply_custom: String::new(),
+        art_style: String::new(),
         model_override: None,
         age: 34,
         is_adult: false,

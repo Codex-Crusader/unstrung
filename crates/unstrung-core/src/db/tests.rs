@@ -8,6 +8,7 @@ fn ren() -> CharacterFields {
         default_tone: "dark".into(),
         default_reply_style: "conversational".into(),
         default_reply_custom: String::new(),
+        art_style: String::new(),
         age: 34,
         ..Default::default()
     }
@@ -54,7 +55,7 @@ async fn message_tree_survives_a_reopen() {
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
     assert_eq!(
         db.meta("schema_version").await.unwrap().as_deref(),
-        Some("4")
+        Some("5")
     );
     let summaries = db.chat_summaries(id).await.unwrap();
     assert_eq!(summaries[0].message_count, 4);
@@ -300,4 +301,52 @@ async fn only_the_newest_copies_stay() {
         .collect();
     newest.sort();
     assert_eq!(left, newest);
+}
+
+#[tokio::test]
+async fn pictures_are_saved_listed_and_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let id = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let character = db.character(id).await.unwrap();
+    let chat = db.create_chat(&character, None, "", true).await.unwrap();
+    let greeting = db.chat(chat).await.unwrap().head_message_id;
+    let new = |file: &str| crate::db::NewImage {
+        chat_id: chat,
+        message_id: greeting,
+        file_path: format!("{chat}/{file}"),
+        prompt: "a tavern".into(),
+        negative_prompt: String::new(),
+        seed: 42,
+        image_model: "z-image-turbo".into(),
+        ref_mode: "tags".into(),
+        width: 1024,
+        height: 1024,
+        adult: false,
+    };
+    let first = db.insert_image(&new("a.png")).await.unwrap();
+    db.insert_image(&new("b.png")).await.unwrap();
+    assert_eq!(db.chat_images(chat).await.unwrap().len(), 2);
+    let gallery = db.gallery().await.unwrap();
+    assert_eq!(gallery.len(), 2);
+    assert_eq!(gallery[0].character_name, "Ren");
+    assert_eq!(gallery[1].image.id, first, "newest first");
+    assert_eq!(db.image(first).await.unwrap().seed, 42);
+
+    assert_eq!(
+        db.delete_image(first).await.unwrap(),
+        format!("{chat}/a.png")
+    );
+    assert!(db.image(first).await.is_err());
+
+    // A deleted chat leaves the gallery, but its files are still known.
+    db.delete_chat(chat).await.unwrap();
+    assert!(db.gallery().await.unwrap().is_empty());
+    assert_eq!(
+        db.character_image_files(id).await.unwrap(),
+        [format!("{chat}/b.png")]
+    );
+    // Deleting the character removes the rows.
+    db.delete_character(id).await.unwrap();
+    assert!(db.chat_images(chat).await.unwrap().is_empty());
 }

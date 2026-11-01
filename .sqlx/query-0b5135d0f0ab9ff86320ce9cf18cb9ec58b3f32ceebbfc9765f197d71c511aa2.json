@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, chat_id, message_id, file_path, prompt, negative_prompt, seed,\n                    image_model, ref_mode, width, height, adult AS \"adult: bool\", created_at\n             FROM images WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chat_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "message_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "file_path",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "prompt",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "negative_prompt",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "seed",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "image_model",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "ref_mode",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "width",
+        "ordinal": 9,
+        "type_info": "Integer"
+      },
+      {
+        "name": "height",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "adult: bool",
+        "ordinal": 11,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0b5135d0f0ab9ff86320ce9cf18cb9ec58b3f32ceebbfc9765f197d71c511aa2"
+}

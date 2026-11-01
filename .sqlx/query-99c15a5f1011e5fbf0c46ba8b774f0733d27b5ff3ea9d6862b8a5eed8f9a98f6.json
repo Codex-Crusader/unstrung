@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT i.file_path FROM images i JOIN chats c ON c.id = i.chat_id\n             WHERE c.character_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "file_path",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "99c15a5f1011e5fbf0c46ba8b774f0733d27b5ff3ea9d6862b8a5eed8f9a98f6"
+}

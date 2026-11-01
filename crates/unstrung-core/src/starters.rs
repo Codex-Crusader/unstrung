@@ -193,6 +193,7 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
             default_tone: c.tone.into(),
             default_reply_style: c.style.into(),
             default_reply_custom: String::new(),
+            art_style: String::new(),
             age: c.age,
             is_adult: false,
         };

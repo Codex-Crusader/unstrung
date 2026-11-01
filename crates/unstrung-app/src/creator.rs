@@ -222,6 +222,7 @@ async fn run_test(
         default_tone: f.default_tone,
         default_reply_style: f.default_reply_style,
         default_reply_custom: f.default_reply_custom,
+        art_style: f.art_style,
         model_override: None,
         age: f.age,
         is_adult: f.is_adult,

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO images (chat_id, message_id, file_path, prompt, negative_prompt, seed,\n                    image_model, ref_mode, width, height, adult, created_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n             RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b9d0b66ea7ae6de7d6a12562649bcf08617778ea5a8f4ba17689eef3f5d2bb1c"
+}

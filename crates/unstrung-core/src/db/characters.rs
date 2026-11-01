@@ -18,6 +18,8 @@ pub struct Character {
     pub default_reply_style: String,
     /// StyleSettings JSON when `default_reply_style` is "custom", else empty.
     pub default_reply_custom: String,
+    /// The art style of its pictures, for example "anime". Empty: the model's own.
+    pub art_style: String,
     pub model_override: Option<String>,
     pub age: i64,
     pub is_adult: bool,
@@ -39,6 +41,8 @@ pub struct CharacterFields {
     pub default_reply_style: String,
     #[serde(default)]
     pub default_reply_custom: String,
+    #[serde(default)]
+    pub art_style: String,
     pub age: i64,
     pub is_adult: bool,
 }
@@ -56,7 +60,7 @@ impl Db {
             Character,
             r#"SELECT id, name, avatar_path, tagline, personality, scenario, greeting,
                     example_dialogue, voice_anchor, appearance_tags, default_tone,
-                    default_reply_style, default_reply_custom, model_override, age, is_adult AS "is_adult: bool",
+                    default_reply_style, default_reply_custom, art_style, model_override, age, is_adult AS "is_adult: bool",
                     created_at
              FROM characters WHERE id = ?"#,
             id
@@ -71,7 +75,7 @@ impl Db {
             Character,
             r#"SELECT id AS "id!", name, avatar_path, tagline, personality, scenario, greeting,
                     example_dialogue, voice_anchor, appearance_tags, default_tone,
-                    default_reply_style, default_reply_custom, model_override, age, is_adult AS "is_adult: bool",
+                    default_reply_style, default_reply_custom, art_style, model_override, age, is_adult AS "is_adult: bool",
                     created_at
              FROM characters ORDER BY created_at, id"#
         )
@@ -100,9 +104,9 @@ impl Db {
         let id = sqlx::query_scalar!(
             r#"INSERT INTO characters (starter_key, name, tagline, personality, scenario,
                     greeting, example_dialogue, voice_anchor, appearance_tags, default_tone,
-                    default_reply_style, default_reply_custom, age, is_adult, extensions_json,
-                    created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    default_reply_style, default_reply_custom, art_style, age, is_adult,
+                    extensions_json, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              RETURNING id AS "id!""#,
             starter_key,
             f.name,
@@ -116,6 +120,7 @@ impl Db {
             f.default_tone,
             f.default_reply_style,
             f.default_reply_custom,
+            f.art_style,
             f.age,
             f.is_adult,
             extensions_json,
@@ -131,7 +136,7 @@ impl Db {
             "UPDATE characters SET name = ?, tagline = ?, personality = ?, scenario = ?,
                     greeting = ?, example_dialogue = ?, voice_anchor = ?, appearance_tags = ?,
                     default_tone = ?, default_reply_style = ?, default_reply_custom = ?,
-                    age = ?, is_adult = ?
+                    art_style = ?, age = ?, is_adult = ?
              WHERE id = ?",
             f.name,
             f.tagline,
@@ -144,6 +149,7 @@ impl Db {
             f.default_tone,
             f.default_reply_style,
             f.default_reply_custom,
+            f.art_style,
             f.age,
             f.is_adult,
             id

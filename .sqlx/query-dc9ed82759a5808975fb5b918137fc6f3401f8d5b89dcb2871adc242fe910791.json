@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name, avatar_path, tagline, personality, scenario, greeting,\n                    example_dialogue, voice_anchor, appearance_tags, default_tone,\n                    default_reply_style, default_reply_custom, model_override, age, is_adult AS \"is_adult: bool\",\n                    created_at\n             FROM characters ORDER BY created_at, id",
+  "query": "SELECT id, name, avatar_path, tagline, personality, scenario, greeting,\n                    example_dialogue, voice_anchor, appearance_tags, default_tone,\n                    default_reply_style, default_reply_custom, art_style, model_override, age, is_adult AS \"is_adult: bool\",\n                    created_at\n             FROM characters WHERE id = ?",
   "describe": {
     "columns": [
       {
-        "name": "id!",
+        "name": "id",
         "ordinal": 0,
         "type_info": "Integer"
       },
@@ -69,33 +69,39 @@
         "type_info": "Text"
       },
       {
-        "name": "model_override",
+        "name": "art_style",
         "ordinal": 13,
         "type_info": "Text"
       },
       {
-        "name": "age",
+        "name": "model_override",
         "ordinal": 14,
-        "type_info": "Integer"
+        "type_info": "Text"
       },
       {
-        "name": "is_adult: bool",
+        "name": "age",
         "ordinal": 15,
         "type_info": "Integer"
       },
       {
-        "name": "created_at",
+        "name": "is_adult: bool",
         "ordinal": 16,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 17,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       false,
       false,
       true,
+      false,
       false,
       false,
       false,
@@ -112,5 +118,5 @@
       false
     ]
   },
-  "hash": "1c95305bbf1be9200c92f8ab79559770691aef0c43694c526fba21063ff9cb2f"
+  "hash": "dc9ed82759a5808975fb5b918137fc6f3401f8d5b89dcb2871adc242fe910791"
 }

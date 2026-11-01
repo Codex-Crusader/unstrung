@@ -19,6 +19,7 @@ pub const MAX_GREETING: usize = 3000;
 pub const MAX_EXAMPLES: usize = 6000;
 pub const MAX_ANCHOR: usize = 400;
 pub const MAX_TAGS: usize = 400;
+pub const MAX_ART_STYLE: usize = 120;
 pub const MAX_PERSONA_DESCRIPTION: usize = 600;
 pub const MAX_AGE: i64 = 10_000;
 pub const ADULT_AGE: i64 = 18;
@@ -85,6 +86,7 @@ pub fn check_character(f: &CharacterFields) -> Result<CharacterFields> {
         default_tone: f.default_tone.clone(),
         default_reply_style: f.default_reply_style.clone(),
         default_reply_custom: custom_style(&f.default_reply_style, &f.default_reply_custom)?,
+        art_style: line(&f.art_style, MAX_ART_STYLE, "the art style")?,
         age: f.age,
         is_adult: f.is_adult,
     };
@@ -318,6 +320,7 @@ mod tests {
             default_tone: "casual".into(),
             default_reply_style: "conversational".into(),
             default_reply_custom: String::new(),
+            art_style: String::new(),
             age: 30,
             ..Default::default()
         }

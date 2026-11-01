@@ -344,6 +344,12 @@ fn from_value(value: &Value) -> Result<ParsedCard> {
         default_tone: preset("default_tone", TONES, "casual"),
         default_reply_style: preset("default_reply_style", STYLES, "conversational"),
         default_reply_custom: String::new(),
+        art_style: cut(
+            own_text("art_style").replace('\n', " "),
+            crate::library::MAX_ART_STYLE,
+            "art_style",
+            &mut notes,
+        ),
         age,
         is_adult,
     };
