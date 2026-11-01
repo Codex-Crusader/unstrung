@@ -255,7 +255,8 @@ impl ModelService {
         }
         let service = Arc::clone(self);
         runtime.spawn(async move {
-            let mut state = Progress::new(&model);
+            let expected = catalog::entry(&model).map_or(0, |e| e.size_bytes);
+            let mut state = Progress::new(&model, expected);
             service.progress.send_replace(Some(state.view()));
             let result = client
                 .pull(&model, &cancel, |line| {
@@ -587,6 +588,9 @@ fn rows(
 /// Turns the per-file progress lines of a download into one total and a speed.
 struct Progress {
     model: String,
+    /// The catalog size. The engine names the files one by one, so their sum
+    /// is too small until the last file starts.
+    expected: u64,
     files: HashMap<String, (u64, u64)>,
     state: DownloadState,
     /// (time, bytes done) samples for the speed, over the last few seconds.
@@ -594,9 +598,10 @@ struct Progress {
 }
 
 impl Progress {
-    fn new(model: &str) -> Self {
+    fn new(model: &str, expected: u64) -> Self {
         Self {
             model: model.to_owned(),
+            expected,
             files: HashMap::new(),
             state: DownloadState::Downloading,
             samples: Vec::new(),
@@ -622,7 +627,12 @@ impl Progress {
 
     fn view(&self) -> Download {
         let completed = self.files.values().map(|f| f.0).sum();
-        let total = self.files.values().map(|f| f.1).sum();
+        let total = self
+            .files
+            .values()
+            .map(|f| f.1)
+            .sum::<u64>()
+            .max(self.expected);
         let bytes_per_second = match (self.samples.first(), self.samples.last()) {
             (Some((t0, b0)), Some((t1, b1))) if t1 > t0 => {
                 let secs = t1.duration_since(*t0).as_secs_f64();
@@ -775,7 +785,7 @@ mod tests {
 
     #[test]
     fn progress_adds_files() {
-        let mut p = Progress::new("m");
+        let mut p = Progress::new("m", 0);
         let line = |digest: &str, completed, total| PullLine {
             status: format!("pulling {digest}"),
             digest: digest.into(),
@@ -796,6 +806,10 @@ mod tests {
             ..PullLine::default()
         });
         assert_eq!(p.view().state, DownloadState::Checking);
+        // Before the big file starts, the total is the catalog size.
+        let mut p = Progress::new("m", 1000);
+        p.add(&line("a", 50, 100));
+        assert_eq!((p.view().completed, p.view().total), (50, 1000));
     }
 
     #[test]
