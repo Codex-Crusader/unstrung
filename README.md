@@ -26,7 +26,7 @@ You can close Unstrung during the downloads. The next start goes on from where i
 
 | Folder | Holds |
 | --- | --- |
-| `%LOCALAPPDATA%\Unstrung` | The chats database (`app.db`), profile pictures, logs, the chat engine, and copies of the database from before each update (`backups`) |
+| `%LOCALAPPDATA%\Unstrung` | The chats database (`app.db`), profile pictures, logs, the chat engine, and copies of the database from before each update that changes it (`backups`) |
 | The library folder that you picked in the welcome flow | Pictures (Phase 5). By default it is inside the app folder. |
 | The models folder that you picked in the welcome flow | The chat models. By default it is inside the app folder. |
 
