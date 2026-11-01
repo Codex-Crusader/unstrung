@@ -5,7 +5,7 @@ use crate::state::AppState;
 use tauri::{Emitter, Manager, State};
 use unstrung_core::avatar::{self, Staged};
 use unstrung_core::db::{GalleryImage, Image};
-use unstrung_core::pictures::service::Page;
+use unstrung_core::pictures::service::{DownloadState, Page};
 
 pub const DOWNLOAD_EVENT: &str = "picture-download";
 pub const PAINTING_EVENT: &str = "picture-painting";
@@ -139,6 +139,12 @@ pub fn forward_progress(app: &tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         while downloads.changed().await.is_ok() {
             let current = downloads.borrow_and_update().clone();
+            if current
+                .as_ref()
+                .is_some_and(|d| d.state == DownloadState::Done)
+            {
+                crate::notify::job_done(&handle, crate::notify::Job::Pictures);
+            }
             if let Err(e) = handle.emit(DOWNLOAD_EVENT, current) {
                 log::warn!("could not send the picture download progress: {e}");
             }

@@ -387,6 +387,7 @@ fn old_parts(paths: &AppPaths) -> Vec<PathBuf> {
     for engine in [Engine::Chat, Engine::Image] {
         look(engine.downloads(paths), &|n| n.ends_with(".part"));
     }
+    look(paths.image_models(), &|n| n.ends_with(".part"));
     let (models, shared) = sidecar::models_folder(paths);
     if !shared {
         look(models.join("blobs"), &|n| n.contains("-partial"));
@@ -606,17 +607,22 @@ mod tests {
         std::fs::write(downloads.join("new.zip.part"), [0u8; 5]).unwrap();
         let old = downloads.join("old.zip.part");
         std::fs::write(&old, [0u8; 7]).unwrap();
+        std::fs::create_dir_all(paths.image_models()).unwrap();
+        let old_model = paths.image_models().join("z.gguf.part");
+        std::fs::write(&old_model, [0u8; 11]).unwrap();
         let ten_days = Duration::from_secs(10 * 24 * 60 * 60);
-        std::fs::File::options()
-            .write(true)
-            .open(&old)
-            .unwrap()
-            .set_modified(SystemTime::now() - ten_days)
-            .unwrap();
+        for file in [&old, &old_model] {
+            std::fs::File::options()
+                .write(true)
+                .open(file)
+                .unwrap()
+                .set_modified(SystemTime::now() - ten_days)
+                .unwrap();
+        }
         let found = temp_files(&paths, false);
-        assert_eq!((found.state, found.bytes), (State::CanFix, 37));
+        assert_eq!((found.state, found.bytes), (State::CanFix, 48));
         assert_eq!(temp_files(&paths, true).state, State::Fixed);
-        assert!(!paths.logs().join("app.log.1").exists() && !old.exists());
+        assert!(!paths.logs().join("app.log.1").exists() && !old.exists() && !old_model.exists());
         assert!(paths.logs().join("app.log").exists() && downloads.join("new.zip.part").exists());
     }
 

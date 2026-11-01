@@ -11,6 +11,7 @@ pub const META_KEY: &str = "notify_done";
 pub enum Job {
     Engine,
     Model,
+    Pictures,
 }
 
 impl Job {
@@ -18,6 +19,7 @@ impl Job {
         match self {
             Self::Engine => "The chat engine is installed.",
             Self::Model => "The model download finished. Your characters are ready.",
+            Self::Pictures => "Pictures are ready. Press Picture this in a chat.",
         }
     }
 }

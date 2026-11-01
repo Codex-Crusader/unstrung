@@ -48,6 +48,7 @@ pub fn delete_data(paths: &AppPaths) -> Vec<String> {
 
     // The app's own models, then the folders from `location.json`.
     remove(&paths.ollama_models(), &mut left);
+    remove(&paths.image_models(), &mut left);
     let custom_models = paths.models();
     if !custom_models.starts_with(&root) {
         // A folder that only held the engine's models is empty now.
@@ -146,6 +147,25 @@ mod tests {
         assert_eq!(delete_data(&paths), Vec::<String>::new());
         assert!(!root.exists());
         assert!(!library.exists());
+    }
+
+    #[test]
+    fn picture_models_in_a_models_folder_outside_go() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Unstrung");
+        fake_app_folder(&root);
+        let models = dir.path().join("Models");
+        AppPaths::at(root.clone())
+            .set_location(Location {
+                models: Some(models.clone()),
+                ..Location::default()
+            })
+            .unwrap();
+        let paths = AppPaths::at(root.clone());
+        std::fs::create_dir_all(paths.image_models()).unwrap();
+        std::fs::write(paths.image_models().join("z.gguf"), b"x").unwrap();
+        assert_eq!(delete_data(&paths), Vec::<String>::new());
+        assert!(!models.exists());
     }
 
     #[test]

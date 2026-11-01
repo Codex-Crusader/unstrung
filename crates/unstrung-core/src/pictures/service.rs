@@ -632,8 +632,9 @@ impl PictureService {
             let model = chat_model.to_owned();
             let context = self.chats.engine().tuning_for(&model).context;
             tokio::spawn(async move {
-                if let Err(e) = client.load(&model, KEEP_ALIVE, context).await {
-                    log::warn!("the chat model did not load again after a picture: {e}");
+                match client.load(&model, KEEP_ALIVE, context).await {
+                    Ok(()) => log::info!("chat model loaded again after a picture: {model}"),
+                    Err(e) => log::warn!("the chat model did not load again after a picture: {e}"),
                 }
             });
         }
@@ -721,5 +722,6 @@ async fn free_gpu(client: &crate::ollama::Client, model: &str) -> bool {
             _ => tokio::time::sleep(Duration::from_millis(250)).await,
         }
     }
+    log::info!("chat model unloaded for a picture: {model}");
     true
 }
