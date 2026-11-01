@@ -318,14 +318,19 @@ impl Engine {
                 *restarts += 1;
                 *restarts
             };
-            log::warn!("chat engine stopped ({code}), restart {attempt} of {MAX_RESTARTS}");
             if attempt > MAX_RESTARTS {
+                log::error!(
+                    "chat engine stopped ({code}) after {MAX_RESTARTS} restarts, no more restarts"
+                );
                 self.status.send_replace(EngineStatus::Error {
                     message: "The chat engine stopped.".into(),
-                    detail: format!("It stopped {MAX_RESTARTS} times. Last exit: {code}"),
+                    detail: format!(
+                        "It stopped again after {MAX_RESTARTS} restarts. Last exit: {code}"
+                    ),
                 });
                 continue;
             }
+            log::warn!("chat engine stopped ({code}), restart {attempt} of {MAX_RESTARTS}");
             self.start().await;
         }
     }
