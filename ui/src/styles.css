@@ -2618,3 +2618,32 @@ dialog.viewer::backdrop {
 .models-section details.more {
   margin-top: 10px;
 }
+
+/* The closed sections at the bottom of Models keep apart. */
+.models > details.more {
+  margin-top: 16px;
+}
+
+/* Chats screen: delete sits next to each row. */
+.chat-rows li {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.chat-rows .recent-chat {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-delete {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-delete .icon-button {
+  height: 100%;
+  min-width: 40px;
+}

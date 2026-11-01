@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { recentChats, toUiError, type RecentChat, type UiError } from "../api";
+import { deleteChat, recentChats, toUiError, type RecentChat, type UiError } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
@@ -11,6 +11,22 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
   const [chats, setChats] = useState<RecentChat[] | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<UiError | null>(null);
+  // The chat whose delete asks "are you sure" now.
+  const [confirm, setConfirm] = useState<number | null>(null);
+  const c = strings.chats;
+
+  const remove = (chatId: number) => {
+    setError(null);
+    deleteChat(chatId).then(
+      () => {
+        setConfirm(null);
+        setChats((all) => all?.filter((x) => x.chat_id !== chatId) ?? null);
+      },
+      (e: unknown) => {
+        setError(toUiError(e));
+      },
+    );
+  };
 
   useEffect(() => {
     recentChats().then(setChats, (e: unknown) => {
@@ -72,6 +88,43 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
                 </span>
                 <span className="chat-when field-hint">{strings.home.when(r.updated_at)}</span>
               </button>
+              <span className="chat-delete">
+                {confirm === r.chat_id ? (
+                  <>
+                    <span>{c.confirmDelete}</span>
+                    <button
+                      type="button"
+                      className="button danger-fill"
+                      onClick={() => {
+                        remove(r.chat_id);
+                      }}
+                    >
+                      {c.yes}
+                    </button>
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => {
+                        setConfirm(null);
+                      }}
+                    >
+                      {c.no}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={`${c.delete}: ${r.character_name}`}
+                    title={c.delete}
+                    onClick={() => {
+                      setConfirm(r.chat_id);
+                    }}
+                  >
+                    <Icon name="remove" />
+                  </button>
+                )}
+              </span>
             </li>
           ))}
         </ul>
