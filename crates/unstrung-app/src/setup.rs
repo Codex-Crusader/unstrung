@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use unstrung_core::Error;
 use unstrung_core::db::FIRST_RUN_KEY;
-use unstrung_core::engine_setup::{self, Progress};
+use unstrung_core::engine_setup::{self, Engine, Progress};
 use unstrung_core::location::{self, FolderCheck, Location, Purpose};
 
 pub const ENGINE_SETUP_EVENT: &str = "engine-setup";
@@ -45,10 +45,10 @@ pub async fn setup_state(state: State<'_, AppState>) -> CmdResult<SetupState> {
     let defaults = Location::default();
     Ok(SetupState {
         first_run,
-        engine_installed: engine_setup::installed_version(paths),
-        engine_version: engine_setup::release().version.clone(),
-        engine_download_bytes: engine_setup::download_bytes(gpu.as_ref()),
-        engine_disk_bytes: engine_setup::disk_need(gpu.as_ref()),
+        engine_installed: engine_setup::installed_version(paths, Engine::Chat),
+        engine_version: engine_setup::release(Engine::Chat).version.clone(),
+        engine_download_bytes: engine_setup::download_bytes(Engine::Chat, gpu.as_ref()),
+        engine_disk_bytes: engine_setup::disk_need(Engine::Chat, gpu.as_ref()),
         engine_progress: state.setup.current(),
         choice: state.chats.db().meta(META_CHOICE).await?,
         app_folder: shown(paths.root().to_path_buf()),

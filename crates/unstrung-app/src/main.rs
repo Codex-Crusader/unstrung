@@ -301,7 +301,10 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     let notify = db.meta(notify::META_KEY).await?.as_deref() != Some("off");
     let chats = Arc::new(ChatService::new(db, engine.clone()));
     Ok(AppState {
-        setup: unstrung_core::engine_setup::EngineSetup::new(paths.clone()),
+        setup: unstrung_core::engine_setup::EngineSetup::new(
+            paths.clone(),
+            unstrung_core::engine_setup::Engine::Chat,
+        ),
         paths,
         engine,
         chats,

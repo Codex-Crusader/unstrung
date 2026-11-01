@@ -1,7 +1,8 @@
-//! Download and install of the chat engine (Ollama) from `catalog/engines.json`.
-//! The engine goes into `engines/ollama`. A new version is unpacked next to it
-//! and checked file by file before it replaces the old folder, so a failed
-//! install never leaves a broken engine.
+//! Download and install of the engines from `catalog/engines.json`: Ollama for
+//! chat in `engines/ollama`, and stable-diffusion.cpp for pictures in
+//! `engines/sdcpp`. A new version is unpacked next to the old folder and
+//! checked file by file before it replaces it, so a failed install never
+//! leaves a broken engine.
 
 use crate::download::{self, Fetcher, Source};
 use crate::error::{Error, Result};
@@ -25,9 +26,53 @@ const STAMP: &str = "unstrung-engine.json";
 /// Unpacked files may be a little larger than the catalog says, but not more.
 const UNPACK_SLACK: f64 = 1.05;
 
-#[derive(Debug, Deserialize)]
+/// The engines that Unstrung installs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Engine {
+    /// Ollama.
+    Chat,
+    /// stable-diffusion.cpp.
+    Image,
+}
+
+impl Engine {
+    /// The catalog key, the file list key and the folder name.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Chat => "ollama",
+            Self::Image => "sdcpp",
+        }
+    }
+
+    /// The program that a finished install must have.
+    pub fn exe(self) -> &'static str {
+        match self {
+            Self::Chat => "ollama.exe",
+            Self::Image => "sd-cli.exe",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Chat => "chat engine",
+            Self::Image => "image engine",
+        }
+    }
+
+    /// Where the zips wait. The chat engine keeps its first folder name, so a
+    /// download that an older version started goes on.
+    pub fn downloads(self, paths: &AppPaths) -> PathBuf {
+        match self {
+            Self::Chat => paths.engines().join(".download"),
+            Self::Image => paths.engines().join(".download-sdcpp"),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
 struct Catalog {
     ollama: Release,
+    sdcpp: Release,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -41,7 +86,8 @@ pub struct Release {
 #[derive(Debug, Deserialize)]
 pub struct Package {
     pub id: String,
-    /// "amd" for the add-on that only AMD graphics cards need.
+    /// "amd": an add-on that only AMD graphics cards get. "gpu": only with a
+    /// usable graphics card. "none": only without one. Absent: always.
     #[serde(default)]
     pub gpu: Option<String>,
     pub file: String,
@@ -51,54 +97,63 @@ pub struct Package {
     pub unpacked_size: u64,
 }
 
-pub fn release() -> &'static Release {
-    static RELEASE: OnceLock<Release> = OnceLock::new();
-    RELEASE.get_or_init(|| match serde_json::from_str::<Catalog>(ENGINES_JSON) {
-        Ok(catalog) => catalog.ollama,
-        Err(e) => {
+pub fn release(engine: Engine) -> &'static Release {
+    static CATALOG: OnceLock<Catalog> = OnceLock::new();
+    let catalog = CATALOG.get_or_init(|| {
+        serde_json::from_str(ENGINES_JSON).unwrap_or_else(|e| {
             // A test checks the file, so this happens only with a broken build.
             log::error!("the engine catalog is not valid: {e}");
-            Release::default()
-        }
-    })
+            Catalog::default()
+        })
+    });
+    match engine {
+        Engine::Chat => &catalog.ollama,
+        Engine::Image => &catalog.sdcpp,
+    }
 }
 
 /// Package id, then the path inside the package, then its SHA-256.
-fn file_hashes() -> &'static BTreeMap<String, BTreeMap<String, String>> {
-    static FILES: OnceLock<BTreeMap<String, BTreeMap<String, String>>> = OnceLock::new();
-    FILES.get_or_init(|| {
-        serde_json::from_str(ENGINE_FILES_JSON).unwrap_or_else(|e| {
-            log::error!("the engine file list is not valid: {e}");
-            BTreeMap::new()
+type FileLists = BTreeMap<String, BTreeMap<String, String>>;
+
+fn file_hashes(engine: Engine) -> Option<&'static FileLists> {
+    static FILES: OnceLock<BTreeMap<String, FileLists>> = OnceLock::new();
+    FILES
+        .get_or_init(|| {
+            serde_json::from_str(ENGINE_FILES_JSON).unwrap_or_else(|e| {
+                log::error!("the engine file list is not valid: {e}");
+                BTreeMap::new()
+            })
         })
-    })
+        .get(engine.key())
 }
 
 fn is_amd(gpu: Option<&Gpu>) -> bool {
     gpu.is_some_and(|g| g.vendor == "AMD")
 }
 
-/// The packages that this PC needs: the base, plus the AMD add-on on AMD cards.
-pub fn packages_for(gpu: Option<&Gpu>) -> Vec<&'static Package> {
-    release()
+/// The packages that this PC needs. `gpu` is the usable graphics card, if any.
+pub fn packages_for(engine: Engine, gpu: Option<&Gpu>) -> Vec<&'static Package> {
+    release(engine)
         .packages
         .iter()
         .filter(|p| match p.gpu.as_deref() {
             None => true,
             Some("amd") => is_amd(gpu),
+            Some("gpu") => gpu.is_some(),
+            Some("none") => gpu.is_none(),
             Some(_) => false,
         })
         .collect()
 }
 
 /// Bytes to download.
-pub fn download_bytes(gpu: Option<&Gpu>) -> u64 {
-    packages_for(gpu).iter().map(|p| p.size).sum()
+pub fn download_bytes(engine: Engine, gpu: Option<&Gpu>) -> u64 {
+    packages_for(engine, gpu).iter().map(|p| p.size).sum()
 }
 
 /// Free space needed at the peak: the zips and the unpacked files together.
-pub fn disk_need(gpu: Option<&Gpu>) -> u64 {
-    packages_for(gpu)
+pub fn disk_need(engine: Engine, gpu: Option<&Gpu>) -> u64 {
+    packages_for(engine, gpu)
         .iter()
         .map(|p| p.size + p.unpacked_size)
         .sum::<u64>()
@@ -111,16 +166,16 @@ struct Stamp {
     packages: Vec<String>,
 }
 
-fn folder(paths: &AppPaths) -> PathBuf {
-    paths.engines().join("ollama")
+pub fn folder(paths: &AppPaths, engine: Engine) -> PathBuf {
+    paths.engines().join(engine.key())
 }
 
 /// The version of the engine that Unstrung installed, if any.
-pub fn installed_version(paths: &AppPaths) -> Option<String> {
-    let bytes = std::fs::read(folder(paths).join(STAMP)).ok()?;
+pub fn installed_version(paths: &AppPaths, engine: Engine) -> Option<String> {
+    let bytes = std::fs::read(folder(paths, engine).join(STAMP)).ok()?;
     let stamp: Stamp = serde_json::from_slice(&bytes).ok()?;
-    folder(paths)
-        .join("ollama.exe")
+    folder(paths, engine)
+        .join(engine.exe())
         .is_file()
         .then_some(stamp.version)
 }
@@ -148,14 +203,16 @@ pub struct Progress {
 
 pub struct EngineSetup {
     paths: AppPaths,
+    engine: Engine,
     progress: watch::Sender<Option<Progress>>,
     running: Mutex<Option<CancellationToken>>,
 }
 
 impl EngineSetup {
-    pub fn new(paths: AppPaths) -> Arc<Self> {
+    pub fn new(paths: AppPaths, engine: Engine) -> Arc<Self> {
         Arc::new(Self {
             paths,
+            engine,
             progress: watch::channel(None).0,
             running: Mutex::new(None),
         })
@@ -187,7 +244,7 @@ impl EngineSetup {
         }));
     }
 
-    /// Downloads, unpacks and checks the engine into `engines/ollama.new`.
+    /// Downloads, unpacks and checks the engine into `engines/<key>.new`.
     /// Then `replace` (called with the old engine stopped) swaps it in.
     /// Progress goes to `subscribe`. The new folder stays ready on success.
     pub async fn prepare(self: &Arc<Self>, gpu: Option<&Gpu>) -> Result<()> {
@@ -216,11 +273,12 @@ impl EngineSetup {
         gpu: Option<&Gpu>,
         cancel: &CancellationToken,
     ) -> Result<()> {
-        let packages = packages_for(gpu);
+        let engine = self.engine;
+        let packages = packages_for(engine, gpu);
         if packages.is_empty() {
             return Err(Error::Engine("the engine catalog is not valid".into()));
         }
-        let downloads = self.paths.engines().join(".download");
+        let downloads = engine.downloads(&self.paths);
         std::fs::create_dir_all(&downloads)?;
         // Space still needed: the zips that are not here yet, and the unpacked files.
         let have: u64 = packages
@@ -230,13 +288,13 @@ impl EngineSetup {
                     .max(download::file_len(&downloads.join(&p.file)))
             })
             .sum();
-        let need = disk_need(gpu).saturating_sub(have);
+        let need = disk_need(engine, gpu).saturating_sub(have);
         let free = crate::hardware::disk_of(&downloads).map_or(0, |d| d.available);
         if free < need {
             return Err(Error::NoSpace { need: need - free });
         }
 
-        let fetcher = Fetcher::new(&release().hosts)?;
+        let fetcher = Fetcher::new(&release(engine).hosts)?;
         let total: u64 = packages.iter().map(|p| p.size).sum();
         let mut before = 0;
         let started = Instant::now();
@@ -266,8 +324,7 @@ impl EngineSetup {
             before += package.size;
         }
 
-        let new = self.paths.engines().join("ollama.new");
-        let paths = self.paths.clone();
+        let new = self.paths.engines().join(format!("{}.new", engine.key()));
         let this = self.clone();
         let ids: Vec<String> = packages.iter().map(|p| p.id.clone()).collect();
         let token = cancel.clone();
@@ -285,17 +342,17 @@ impl EngineSetup {
                     clippy::cast_precision_loss
                 )]
                 let cap = (package.unpacked_size as f64 * UNPACK_SLACK) as u64;
-                let zip = paths.engines().join(".download").join(&package.file);
+                let zip = downloads.join(&package.file);
                 let base = unpacked;
                 unpacked += unpack(&zip, &new, cap, &token, &mut |n| {
                     this.set(Step::Unpacking, base + n, unpacked_total, 0, String::new());
                 })?;
             }
-            check_files(&new, &ids, &token, &mut |done, all| {
+            check_files(&new, engine, &ids, &token, &mut |done, all| {
                 this.set(Step::Checking, done, all, 0, String::new());
             })?;
             let stamp = Stamp {
-                version: release().version.clone(),
+                version: release(engine).version.clone(),
                 packages: ids,
             };
             write_atomic(&new.join(STAMP), &serde_json::to_vec_pretty(&stamp)?)?;
@@ -310,9 +367,10 @@ impl EngineSetup {
     /// Windows cannot rename a folder over another one, so the old folder
     /// moves aside first and comes back if the swap fails.
     pub fn replace(&self) -> Result<()> {
-        let current = folder(&self.paths);
-        let new = self.paths.engines().join("ollama.new");
-        let old = self.paths.engines().join("ollama.old");
+        let key = self.engine.key();
+        let current = folder(&self.paths, self.engine);
+        let new = self.paths.engines().join(format!("{key}.new"));
+        let old = self.paths.engines().join(format!("{key}.old"));
         if !new.join(STAMP).is_file() {
             return Err(Error::Engine("the new engine is not ready".into()));
         }
@@ -334,10 +392,10 @@ impl EngineSetup {
             log::warn!("could not delete the old engine folder: {e}");
         }
         // The zips are not needed after a good install.
-        let _ = std::fs::remove_dir_all(self.paths.engines().join(".download"));
-        let version = &release().version;
+        let _ = std::fs::remove_dir_all(self.engine.downloads(&self.paths));
+        let version = &release(self.engine).version;
         self.set(Step::Done, 1, 1, 0, String::new());
-        log::info!("chat engine {version} installed");
+        log::info!("{} {version} installed", self.engine.label());
         Ok(())
     }
 }
@@ -399,11 +457,11 @@ fn unpack(
 
 /// The files of the given packages, later packages over earlier ones, as
 /// they lie in the unpacked folder.
-fn expected_files(ids: &[String]) -> Result<BTreeMap<String, String>> {
+fn expected_files(engine: Engine, ids: &[String]) -> Result<BTreeMap<String, String>> {
     let mut files = BTreeMap::new();
     for id in ids {
-        let list = file_hashes()
-            .get(id)
+        let list = file_hashes(engine)
+            .and_then(|lists| lists.get(id))
             .ok_or_else(|| Error::Engine(format!("no file list for engine package {id}")))?;
         files.extend(list.iter().map(|(k, v)| (k.clone(), v.clone())));
     }
@@ -414,11 +472,12 @@ fn expected_files(ids: &[String]) -> Result<BTreeMap<String, String>> {
 /// list made on this PC could not.
 fn check_files(
     dir: &Path,
+    engine: Engine,
     ids: &[String],
     cancel: &CancellationToken,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<()> {
-    let bad = bad_files(dir, ids, cancel, progress)?;
+    let bad = bad_files(dir, engine, ids, cancel, progress)?;
     if bad.is_empty() {
         Ok(())
     } else {
@@ -432,11 +491,12 @@ fn check_files(
 
 fn bad_files(
     dir: &Path,
+    engine: Engine,
     ids: &[String],
     cancel: &CancellationToken,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<Vec<String>> {
-    let files = expected_files(ids)?;
+    let files = expected_files(engine, ids)?;
     let all = files.len() as u64;
     let mut bad = Vec::new();
     for (i, (name, hash)) in files.iter().enumerate() {
@@ -455,8 +515,8 @@ fn bad_files(
 
 /// Repair: makes the app treat the engine as not installed, so the next
 /// start offers "Install", which replaces the whole engine folder.
-pub fn forget_install(paths: &AppPaths) -> Result<()> {
-    match std::fs::remove_file(folder(paths).join(STAMP)) {
+pub fn forget_install(paths: &AppPaths, engine: Engine) -> Result<()> {
+    match std::fs::remove_file(folder(paths, engine).join(STAMP)) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
         _ => Ok(()),
     }
@@ -464,17 +524,20 @@ pub fn forget_install(paths: &AppPaths) -> Result<()> {
 
 /// Full repair: the engine files that are missing or changed. Empty when the
 /// engine is fine. Fails when Unstrung did not install the engine.
-pub fn verify(paths: &AppPaths, cancel: &CancellationToken) -> Result<Vec<String>> {
-    let bytes = std::fs::read(folder(paths).join(STAMP))?;
+pub fn verify(paths: &AppPaths, engine: Engine, cancel: &CancellationToken) -> Result<Vec<String>> {
+    let bytes = std::fs::read(folder(paths, engine).join(STAMP))?;
     let stamp: Stamp = serde_json::from_slice(&bytes)?;
-    if stamp.version != release().version {
-        return Ok(vec![format!(
-            "version {} (now {})",
-            stamp.version,
-            release().version
-        )]);
+    let now = &release(engine).version;
+    if &stamp.version != now {
+        return Ok(vec![format!("version {} (now {now})", stamp.version)]);
     }
-    bad_files(&folder(paths), &stamp.packages, cancel, &mut |_, _| {})
+    bad_files(
+        &folder(paths, engine),
+        engine,
+        &stamp.packages,
+        cancel,
+        &mut |_, _| {},
+    )
 }
 
 #[cfg(test)]
@@ -494,21 +557,27 @@ mod tests {
 
     #[test]
     fn the_catalog_and_its_file_lists_agree() {
-        let r = release();
-        assert!(!r.version.is_empty());
-        assert!(r.packages.iter().any(|p| p.gpu.is_none()));
-        for p in &r.packages {
-            assert!(p.url.starts_with("https://"), "{}", p.url);
-            assert_eq!(p.sha256.len(), 64);
-            let host = p.url.split('/').nth(2).unwrap();
-            assert!(r.hosts.iter().any(|h| h == host), "{host}");
-            let files = file_hashes()
-                .get(&p.id)
-                .expect("a file list for each package");
-            assert!(!files.is_empty());
+        for engine in [Engine::Chat, Engine::Image] {
+            let r = release(engine);
+            assert!(!r.version.is_empty());
+            for p in &r.packages {
+                assert!(p.url.starts_with("https://"), "{}", p.url);
+                assert_eq!(p.sha256.len(), 64);
+                let host = p.url.split('/').nth(2).unwrap();
+                assert!(r.hosts.iter().any(|h| h == host), "{host}");
+                let files = expected_files(engine, std::slice::from_ref(&p.id)).unwrap();
+                // An add-on goes over the base, so only full packages have the program.
+                let add_on = p.gpu.as_deref() == Some("amd");
+                assert!(
+                    add_on || files.contains_key(engine.exe()),
+                    "{} {}",
+                    engine.key(),
+                    p.id
+                );
+            }
+            // Every PC gets an engine, with or without a graphics card.
+            assert!(!packages_for(engine, None).is_empty());
         }
-        let base = expected_files(&["base".into()]).unwrap();
-        assert!(base.contains_key("ollama.exe"));
     }
 
     #[test]
@@ -521,10 +590,29 @@ mod tests {
         };
         let nvidia = gpu("NVIDIA");
         let amd = gpu("AMD");
-        assert_eq!(packages_for(Some(&nvidia)).len(), 1);
-        assert_eq!(packages_for(None).len(), 1);
-        assert_eq!(packages_for(Some(&amd)).len(), 2);
-        assert!(download_bytes(Some(&amd)) > download_bytes(Some(&nvidia)));
+        let chat = Engine::Chat;
+        assert_eq!(packages_for(chat, Some(&nvidia)).len(), 1);
+        assert_eq!(packages_for(chat, None).len(), 1);
+        assert_eq!(packages_for(chat, Some(&amd)).len(), 2);
+        assert!(download_bytes(chat, Some(&amd)) > download_bytes(chat, Some(&nvidia)));
+    }
+
+    #[test]
+    fn the_image_engine_is_vulkan_with_a_card_and_cpu_without() {
+        let gpu = Gpu {
+            name: "x".into(),
+            vendor: "AMD".into(),
+            vram_bytes: 8 << 30,
+            driver: String::new(),
+        };
+        let ids = |gpu| -> Vec<&str> {
+            packages_for(Engine::Image, gpu)
+                .iter()
+                .map(|p| p.id.as_str())
+                .collect()
+        };
+        assert_eq!(ids(Some(&gpu)), ["vulkan"]);
+        assert_eq!(ids(None), ["cpu"]);
     }
 
     #[test]
@@ -551,36 +639,45 @@ mod tests {
     }
 
     /// The real pinned package, unpacked and checked file by file. Needs the
-    /// zip in `UNSTRUNG_TEST_ENGINE_ZIPS` (see `tools/engine_files.py`):
-    /// `cargo test -p unstrung-core installs_the_pinned_engine -- --ignored`
-    #[tokio::test]
-    #[ignore = "needs the 1.6 GB engine zip"]
-    async fn installs_the_pinned_engine() {
+    /// zips in `UNSTRUNG_TEST_ENGINE_ZIPS` (see `tools/engine_files.py`):
+    /// `cargo test -p unstrung-core installs_the_pinned -- --ignored`
+    async fn installs_the_pinned(engine: Engine) {
         let zips = PathBuf::from(std::env::var_os("UNSTRUNG_TEST_ENGINE_ZIPS").unwrap());
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let downloads = paths.engines().join(".download");
+        let downloads = engine.downloads(&paths);
         std::fs::create_dir_all(&downloads).unwrap();
-        let base = &packages_for(None)[0].file;
-        std::fs::hard_link(zips.join(base), downloads.join(base)).unwrap();
-        let setup = EngineSetup::new(paths.clone());
+        let file = &packages_for(engine, None)[0].file;
+        std::fs::copy(zips.join(file), downloads.join(file)).unwrap();
+        let setup = EngineSetup::new(paths.clone(), engine);
         setup.prepare(None).await.unwrap();
         setup.replace().unwrap();
-        assert_eq!(installed_version(&paths), Some(release().version.clone()));
-        assert!(folder(&paths).join("ollama.exe").is_file());
-        assert!(
-            verify(&paths, &CancellationToken::new())
-                .unwrap()
-                .is_empty()
-        );
+        let version = Some(release(engine).version.clone());
+        assert_eq!(installed_version(&paths, engine), version);
+        let exe = folder(&paths, engine).join(engine.exe());
+        assert!(exe.is_file());
+        let cancel = CancellationToken::new();
+        assert!(verify(&paths, engine, &cancel).unwrap().is_empty());
         assert!(!downloads.exists());
         // A changed file is found.
-        std::fs::write(folder(&paths).join("ollama.exe"), b"changed").unwrap();
+        std::fs::write(&exe, b"changed").unwrap();
         assert_eq!(
-            verify(&paths, &CancellationToken::new()).unwrap(),
-            vec!["ollama.exe".to_owned()]
+            verify(&paths, engine, &cancel).unwrap(),
+            vec![engine.exe().to_owned()]
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "needs the 1.6 GB engine zip"]
+    async fn installs_the_pinned_chat_engine() {
+        installs_the_pinned(Engine::Chat).await;
+    }
+
+    #[tokio::test]
+    #[ignore = "needs the 17 MB image engine zip"]
+    async fn installs_the_pinned_image_engine() {
+        installs_the_pinned(Engine::Image).await;
     }
 
     #[test]
@@ -588,9 +685,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
+        let folder = |paths: &AppPaths| folder(paths, Engine::Chat);
         std::fs::write(folder(&paths).join("ollama.exe"), b"old").unwrap();
         std::fs::create_dir_all(paths.engines().join("ollama.new")).unwrap();
-        let setup = EngineSetup::new(paths.clone());
+        let setup = EngineSetup::new(paths.clone(), Engine::Chat);
         assert!(setup.replace().is_err());
         assert_eq!(
             std::fs::read(folder(&paths).join("ollama.exe")).unwrap(),
@@ -600,7 +698,7 @@ mod tests {
         let new = paths.engines().join("ollama.new");
         std::fs::write(new.join("ollama.exe"), b"new").unwrap();
         let stamp = Stamp {
-            version: release().version.clone(),
+            version: release(Engine::Chat).version.clone(),
             packages: vec!["base".into()],
         };
         std::fs::write(new.join(STAMP), serde_json::to_vec(&stamp).unwrap()).unwrap();
@@ -610,6 +708,9 @@ mod tests {
             b"new"
         );
         assert!(!new.exists() && !paths.engines().join("ollama.old").exists());
-        assert_eq!(installed_version(&paths), Some(release().version.clone()));
+        assert_eq!(
+            installed_version(&paths, Engine::Chat),
+            Some(release(Engine::Chat).version.clone())
+        );
     }
 }

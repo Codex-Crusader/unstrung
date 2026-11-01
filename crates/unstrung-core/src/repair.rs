@@ -5,7 +5,7 @@
 
 use crate::avatar::STAGING;
 use crate::db::Db;
-use crate::engine_setup;
+use crate::engine_setup::{self, Engine};
 use crate::hardware::Hardware;
 use crate::paths::AppPaths;
 use crate::sidecar;
@@ -109,33 +109,44 @@ async fn run(paths: &AppPaths, fix: bool, full: bool) -> Vec<Finding> {
 }
 
 /// An engine with changed or missing files. The fix removes the install
-/// mark, so the next start offers "Install", which replaces the folder.
+/// mark, so the app offers "Install" again, which replaces the folder.
 fn engine_files(paths: &AppPaths, fix: bool) -> Finding {
-    if engine_setup::installed_version(paths).is_none() {
+    let mut bad = Vec::new();
+    let mut broken = Vec::new();
+    let mut errors = Vec::new();
+    for engine in [Engine::Chat, Engine::Image] {
+        if engine_setup::installed_version(paths, engine).is_none() {
+            continue;
+        }
+        match engine_setup::verify(paths, engine, &CancellationToken::new()) {
+            Ok(files) if files.is_empty() => {}
+            Ok(files) => {
+                bad.extend(files.iter().map(|f| format!("{}/{f}", engine.key())));
+                broken.push(engine);
+            }
+            Err(e) => errors.push(format!("{}: {e}", engine.key())),
+        }
+    }
+    if !errors.is_empty() {
+        let mut f = Finding::new(Area::EngineFiles, State::NeedsAction);
+        f.detail = errors.join("\n");
+        return f;
+    }
+    if bad.is_empty() {
         return Finding::new(Area::EngineFiles, State::Ok);
     }
-    match engine_setup::verify(paths, &CancellationToken::new()) {
-        Ok(bad) if bad.is_empty() => Finding::new(Area::EngineFiles, State::Ok),
-        Ok(bad) => {
-            let mut f = Finding::new(Area::EngineFiles, State::CanFix);
-            f.detail = list(&bad);
-            if fix {
-                f.state = match engine_setup::forget_install(paths) {
-                    Ok(()) => State::Fixed,
-                    Err(e) => {
-                        f.detail = format!("{e}\n{}", f.detail);
-                        State::NeedsAction
-                    }
-                };
+    let mut f = Finding::new(Area::EngineFiles, State::CanFix);
+    f.detail = list(&bad);
+    if fix {
+        f.state = State::Fixed;
+        for engine in broken {
+            if let Err(e) = engine_setup::forget_install(paths, engine) {
+                f.detail = format!("{e}\n{}", f.detail);
+                f.state = State::NeedsAction;
             }
-            f
-        }
-        Err(e) => {
-            let mut f = Finding::new(Area::EngineFiles, State::NeedsAction);
-            f.detail = e.to_string();
-            f
         }
     }
+    f
 }
 
 /// Only reports: picking another folder is the user's choice.
@@ -373,7 +384,9 @@ fn old_parts(paths: &AppPaths) -> Vec<PathBuf> {
             }
         }
     };
-    look(paths.engines().join(".download"), &|n| n.ends_with(".part"));
+    for engine in [Engine::Chat, Engine::Image] {
+        look(engine.downloads(paths), &|n| n.ends_with(".part"));
+    }
     let (models, shared) = sidecar::models_folder(paths);
     if !shared {
         look(models.join("blobs"), &|n| n.contains("-partial"));

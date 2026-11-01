@@ -1,12 +1,13 @@
-"""Writes crates/unstrung-core/catalog/engine-files.json, the SHA-256 of every
-file in each pinned engine package, and prints the unpacked size of each
-package for catalog/engines.json. Full repair and the install check compare
-the unpacked engine with this list.
+"""Writes one engine's section of crates/unstrung-core/catalog/engine-files.json,
+the SHA-256 of every file in each pinned package, and prints the unpacked size
+of each package for catalog/engines.json. Full repair and the install check
+compare the unpacked engine with this list. Other engines' sections stay.
 
-Run it after you change the engine version in catalog/engines.json, with the
+Run it after you change an engine version in catalog/engines.json, with the
 downloaded zips that match the hashes in that file:
 
-    python -I tools/engine_files.py base=ollama-windows-amd64.zip amd=ollama-windows-amd64-rocm.zip
+    python -I tools/engine_files.py ollama base=ollama-windows-amd64.zip amd=ollama-windows-amd64-rocm.zip
+    python -I tools/engine_files.py sdcpp vulkan=sd-...-win-vulkan-x64.zip cpu=sd-...-win-cpu-x64.zip
 """
 
 import hashlib
@@ -28,8 +29,11 @@ def sha256_file(path):
 
 
 def main(args):
+    engine, args = args[0], args[1:]
     engines = json.loads((CATALOG / "engines.json").read_text(encoding="utf-8"))
-    packages = {p["id"]: p for p in engines["ollama"]["packages"]}
+    packages = {p["id"]: p for p in engines[engine]["packages"]}
+    target = CATALOG / "engine-files.json"
+    all_files = json.loads(target.read_text(encoding="utf-8")) if target.exists() else {}
     out = {}
     for arg in args:
         package_id, _, zip_path = arg.partition("=")
@@ -54,8 +58,8 @@ def main(args):
                 unpacked += info.file_size
         out[package_id] = dict(sorted(files.items()))
         print(f"{package_id}: {len(files)} files, unpacked_size {unpacked}")
-    target = CATALOG / "engine-files.json"
-    target.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8", newline="\n")
+    all_files[engine] = out
+    target.write_text(json.dumps(all_files, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {target}")
 
 
