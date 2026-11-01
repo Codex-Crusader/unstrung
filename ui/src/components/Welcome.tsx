@@ -8,6 +8,7 @@ import {
   restartEngine,
   finishFirstRun,
   getNotify,
+  getStatus,
   listPersonas,
   modelsPage,
   onDownload,
@@ -583,6 +584,12 @@ function Downloads({
   const modelBytes = model && !model.installed ? model.size_bytes : 0;
 
   useEffect(() => {
+    let heard = false;
+    const showStatus = (status: EngineStatus) => {
+      setEngineState(status.state);
+      setEngineFailure(status.state === "error" ? { message: status.message, detail: status.detail } : null);
+      setEngineReady(status.state === "ready" || status.state === "no_model" || status.state === "loading_model");
+    };
     void getNotify().then(setNotifyState);
     const timer = window.setInterval(() => {
       setTip((n) => (n + 1) % s.tips.length);
@@ -605,11 +612,15 @@ function Downloads({
         }
       }),
       onStatus((status) => {
-        setEngineState(status.state);
-        setEngineFailure(status.state === "error" ? { message: status.message, detail: status.detail } : null);
-        setEngineReady(status.state === "ready" || status.state === "no_model" || status.state === "loading_model");
+        heard = true;
+        showStatus(status);
       }),
     ];
+    // Events only report changes, and the engine may have started before
+    // this screen listened. A newer event wins over this first read.
+    void getStatus().then((status) => {
+      if (!heard) showStatus(status);
+    });
     return () => {
       window.clearInterval(timer);
       for (const sub of subs)
