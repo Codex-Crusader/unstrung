@@ -46,6 +46,7 @@
     "allow-select-picture-model",
     "allow-remove-picture-model",
     "allow-paint-picture",
+    "allow-repaint-picture",
     "allow-chat-pictures",
     "allow-gallery",
     "allow-delete-picture",

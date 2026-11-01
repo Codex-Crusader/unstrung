@@ -30,7 +30,7 @@ function MessagePicture({ picture }: { picture: Picture }) {
         setBig(!big);
       }}
     >
-      <img src={pictureUrl(picture.id)} alt={strings.chat.picture} />
+      <img src={pictureUrl(picture)} alt={strings.chat.picture} />
     </button>
   );
 }

@@ -567,9 +567,12 @@ export function stagedUrl(token: string): string {
   return `${AVATAR_BASE}/staged/${encodeURIComponent(token)}`;
 }
 
-/** A gallery picture, by its id. Its file never changes. */
-export function pictureUrl(id: number): string {
-  return `${AVATAR_BASE}/picture/${String(id)}`;
+/**
+ * A gallery picture. The database can give a deleted picture's id to a new
+ * one, so the time it was made keeps the window from showing the old file.
+ */
+export function pictureUrl(picture: { id: number; created_at: number }): string {
+  return `${AVATAR_BASE}/picture/${String(picture.id)}?v=${String(picture.created_at)}`;
 }
 
 export interface Picture {
@@ -640,6 +643,8 @@ export const selectPictureModel = (id: string) => invoke<null>("select_picture_m
 export const removePictureModel = (id: string) => invoke<null>("remove_picture_model", { id });
 export const paintPicture = (chatId: number, messageId: number | null, wish: string) =>
   invoke<Picture | null>("paint_picture", { chatId, messageId, wish });
+export const repaintPicture = (id: number, sameSeed: boolean) =>
+  invoke<Picture | null>("repaint_picture", { id, sameSeed });
 export const chatPictures = (chatId: number) => invoke<Picture[]>("chat_pictures", { chatId });
 export const gallery = () => invoke<GalleryPicture[]>("gallery");
 export const deletePicture = (id: number) => invoke<null>("delete_picture", { id });

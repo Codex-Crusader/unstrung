@@ -51,6 +51,20 @@ pub async fn paint_picture(
     }
 }
 
+/// Paints a gallery picture again: the same seed, or a new one (a variation).
+#[tauri::command]
+pub async fn repaint_picture(
+    state: State<'_, AppState>,
+    id: i64,
+    same_seed: bool,
+) -> CmdResult<Option<Image>> {
+    match state.pictures.repaint(id, same_seed).await {
+        Ok(image) => Ok(Some(image)),
+        Err(unstrung_core::error::Error::Cancelled) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
 #[tauri::command]
 pub async fn chat_pictures(state: State<'_, AppState>, chat_id: i64) -> CmdResult<Vec<Image>> {
     Ok(state.chats.db().chat_images(chat_id).await?)

@@ -40,6 +40,7 @@ const COMMANDS: &[&str] = &[
     "select_picture_model",
     "remove_picture_model",
     "paint_picture",
+    "repaint_picture",
     "chat_pictures",
     "gallery",
     "delete_picture",

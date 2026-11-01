@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-repaint-picture"
+description = "Enables the repaint_picture command without any pre-configured scope."
+commands.allow = ["repaint_picture"]
+
+[[permission]]
+identifier = "deny-repaint-picture"
+description = "Denies the repaint_picture command without any pre-configured scope."
+commands.deny = ["repaint_picture"]

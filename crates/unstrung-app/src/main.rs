@@ -147,6 +147,7 @@ fn main() {
             pictures::select_picture_model,
             pictures::remove_picture_model,
             pictures::paint_picture,
+            pictures::repaint_picture,
             pictures::chat_pictures,
             pictures::gallery,
             pictures::delete_picture,

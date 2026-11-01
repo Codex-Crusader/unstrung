@@ -7,6 +7,8 @@ import {
   picturesPage,
   pictureUrl,
   removePictureModel,
+  repaintPicture,
+  stopReply,
   selectPictureModel,
   stopPictureDownload,
   toUiError,
@@ -140,22 +142,54 @@ function PictureView({
   onClose,
   onOpenChat,
   onDeleted,
+  onMade,
 }: {
   picture: GalleryPicture;
   onClose: () => void;
   onOpenChat: (characterId: number, chatId: number) => void;
   onDeleted: () => void;
+  onMade: () => void;
 }) {
   const s = strings.pictures;
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<UiError | null>(null);
+  const [working, setWorking] = useState(false);
+  const again = (sameSeed: boolean) => {
+    setError(null);
+    setWorking(true);
+    repaintPicture(picture.id, sameSeed)
+      .then((p) => {
+        if (p) onMade();
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      })
+      .finally(() => {
+        setWorking(false);
+      });
+  };
   return (
     <div className="picture-view" role="dialog" aria-label={picture.character_name}>
-      <img src={pictureUrl(picture.id)} alt={strings.chat.picture} />
+      <img src={pictureUrl(picture)} alt={strings.chat.picture} />
       <p className="muted">
         {picture.character_name} · {new Date(picture.created_at).toLocaleString()}
       </p>
       {error && <ErrorNote error={error} />}
+      {working && (
+        <p className="painting-line" role="status">
+          <Icon name="picture" />
+          {s.repainting}
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              void stopReply();
+            }}
+          >
+            {s.stop}
+          </button>
+        </p>
+      )}
       <div className="form-actions">
         <button
           type="button"
@@ -165,6 +199,28 @@ function PictureView({
           }}
         >
           {s.openChat}
+        </button>
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={working}
+          onClick={() => {
+            again(true);
+          }}
+        >
+          <Icon name="regenerate" />
+          {s.again}
+        </button>
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={working}
+          onClick={() => {
+            again(false);
+          }}
+        >
+          <Icon name="picture" />
+          {s.variation}
         </button>
         {confirm ? (
           <>
@@ -297,6 +353,7 @@ export function PicturesScreen({ onOpenChat }: { onOpenChat: (characterId: numbe
               setOpen(null);
               load();
             }}
+            onMade={load}
           />
         ) : shown.length === 0 ? (
           <p className="muted">{s.empty}</p>
@@ -312,7 +369,7 @@ export function PicturesScreen({ onOpenChat }: { onOpenChat: (characterId: numbe
                     setOpen(p);
                   }}
                 >
-                  <img src={pictureUrl(p.id)} alt="" loading="lazy" />
+                  <img src={pictureUrl(p)} alt="" loading="lazy" />
                 </button>
               </li>
             ))}

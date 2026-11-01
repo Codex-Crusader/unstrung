@@ -1211,15 +1211,13 @@ impl ChatService {
         wish: &str,
         token: &CancellationToken,
     ) -> Result<PictureScene> {
-        let chat = self.db.chat(chat_id).await?;
+        let (character, persona, model) = self.picture_people(chat_id).await?;
         let mut path = self.db.path_to_head(chat_id).await?;
         if let Some(id) = message_id
             && let Some(at) = path.iter().position(|m| m.id == id)
         {
             path.truncate(at + 1);
         }
-        let character = self.db.character(chat.character_id).await?;
-        let persona = self.persona_of(&chat).await?;
         let user_name = persona
             .as_ref()
             .map_or(prompt::NO_PERSONA_NAME, |p| p.name.as_str())
@@ -1243,7 +1241,6 @@ impl ChatService {
             })
             .collect();
         let last = recent.last().map_or("", |m| m.content.as_str());
-        let model = self.model_for(&chat, &character);
         let tuning = self.engine.tuning_for(&model);
         let client = self.engine.client()?;
         let schema = pictures::scene::schema();
@@ -1300,6 +1297,18 @@ impl ChatService {
             chat_model: model,
             message_id: recent.last().map(|m| m.id),
         })
+    }
+
+    /// The people of a chat as they are now, and its chat model.
+    pub async fn picture_people(
+        &self,
+        chat_id: i64,
+    ) -> Result<(Character, Option<Persona>, String)> {
+        let chat = self.db.chat(chat_id).await?;
+        let character = self.db.character(chat.character_id).await?;
+        let persona = self.persona_of(&chat).await?;
+        let model = self.model_for(&chat, &character);
+        Ok((character, persona, model))
     }
 
     /// Tree changes wait until no reply is being written.

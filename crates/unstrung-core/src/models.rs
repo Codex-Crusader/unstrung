@@ -195,7 +195,6 @@ impl ModelService {
         sidecar::models_folder(self.engine.paths()).1
     }
 
-    /// Runs the hardware check again ("Check again" on the Models screen).
     /// The result of the last hardware check.
     pub fn hardware(&self) -> Hardware {
         self.hardware
@@ -203,6 +202,7 @@ impl ModelService {
             .map_or_else(|e| e.into_inner().clone(), |h| h.clone())
     }
 
+    /// Runs the hardware check again ("Check again" on the Models screen).
     pub async fn recheck_hardware(&self) -> Result<Hardware> {
         let startup = startup(&self.db, self.engine.paths()).await?;
         if let Ok(mut slot) = self.hardware.lock() {

@@ -92,6 +92,26 @@ pub struct Painting {
     pub total: u32,
 }
 
+/// The download slot. It is free again when this drops, unless `keep` hands
+/// it to a background task that frees it itself.
+struct Slot<'a>(&'a Mutex<Option<CancellationToken>>, CancellationToken);
+
+impl Slot<'_> {
+    fn keep(self) -> CancellationToken {
+        let token = self.1.clone();
+        std::mem::forget(self);
+        token
+    }
+}
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut running) = self.0.lock() {
+            *running = None;
+        }
+    }
+}
+
 pub struct PictureService {
     paths: AppPaths,
     chats: Arc<ChatService>,
@@ -190,9 +210,7 @@ impl PictureService {
     /// Deletes a model's files, except parts that another installed model uses.
     pub async fn remove(&self, id: &str) -> Result<()> {
         let model = catalog::model(id).ok_or(Error::NotFound("image model"))?;
-        if self.running.lock().map_err(|_| Error::Busy)?.is_some() {
-            return Err(Error::Busy);
-        }
+        let _slot = self.take_slot()?;
         let dir = self.paths.image_models();
         for c in catalog::files_to_remove(model, &dir) {
             match std::fs::remove_file(catalog::path_of(&dir, c)) {
@@ -205,6 +223,23 @@ impl PictureService {
         }
         log::info!("image model {id} removed");
         Ok(())
+    }
+
+    /// Takes the download slot. Downloads and removals wait for a picture,
+    /// because the engine has the model files and its folder open.
+    fn take_slot(&self) -> Result<Slot<'_>> {
+        let mut running = self.running.lock().map_err(|_| Error::Busy)?;
+        if running.is_some() {
+            return Err(Error::Invalid(
+                "Wait until the picture download ends.".into(),
+            ));
+        }
+        if self.painting.borrow().is_some() {
+            return Err(Error::Invalid("Wait until the picture is finished.".into()));
+        }
+        let token = CancellationToken::new();
+        *running = Some(token.clone());
+        Ok(Slot(&self.running, token))
     }
 
     pub fn stop_download(&self) {
@@ -225,14 +260,7 @@ impl PictureService {
     /// `subscribe_download`. The model becomes the chosen one at the end.
     pub fn download(self: &Arc<Self>, id: &str) -> Result<()> {
         let model = catalog::model(id).ok_or(Error::NotFound("image model"))?;
-        let token = CancellationToken::new();
-        {
-            let mut running = self.running.lock().map_err(|_| Error::Busy)?;
-            if running.is_some() {
-                return Err(Error::Busy);
-            }
-            *running = Some(token.clone());
-        }
+        let token = self.take_slot()?.keep();
         let this = self.clone();
         tokio::spawn(async move {
             let result = this.download_inner(model, &token).await;
@@ -379,19 +407,85 @@ impl PictureService {
     /// (the latest when `None`), `wish` is the `/imagine` text.
     pub async fn paint(&self, chat_id: i64, message_id: Option<i64>, wish: &str) -> Result<Image> {
         let model = self.selected().await?.ok_or(Error::NotReady)?;
-        let dir = self.paths.image_models();
-        let exe = engine_setup::folder(&self.paths, Engine::Image).join(Engine::Image.exe());
-        if !model.installed(&dir)
-            || engine_setup::installed_version(&self.paths, Engine::Image).is_none()
-        {
-            return Err(Error::NotReady);
-        }
+        let exe = self.ready_engine(model)?;
         let (token, _guard) = self.chats.begin_job()?;
+        self.start_painting(chat_id, message_id)?;
         let result = self
             .paint_inner(model, &exe, chat_id, message_id, wish, &token)
             .await;
         self.painting.send_replace(None);
         result
+    }
+
+    /// Paints a gallery picture again from its saved prompt: with the same
+    /// seed (`same_seed`), or a new one for a variation. The ages are checked
+    /// again, because a character or persona can change after a picture.
+    pub async fn repaint(&self, image_id: i64, same_seed: bool) -> Result<Image> {
+        let old = self.chats.db().image(image_id).await?;
+        let model = self.selected().await?.ok_or(Error::NotReady)?;
+        let exe = self.ready_engine(model)?;
+        let (token, _guard) = self.chats.begin_job()?;
+        self.start_painting(old.chat_id, old.message_id)?;
+        let result = async {
+            let (character, persona, chat_model) = self.chats.picture_people(old.chat_id).await?;
+            let people = safety::People {
+                character_age: character.age,
+                persona_age: persona.as_ref().and_then(|p| p.age),
+            };
+            safety::check(&old.prompt, people, false, false).map_err(blocked)?;
+            let prompts = scene::Prompts {
+                positive: old.prompt.clone(),
+                negative: old.negative_prompt.clone(),
+            };
+            let seed = if same_seed {
+                old.seed
+            } else {
+                runner::new_seed()
+            };
+            self.render(
+                model,
+                &exe,
+                old.chat_id,
+                old.message_id,
+                prompts,
+                seed,
+                &chat_model,
+                &token,
+            )
+            .await
+        }
+        .await;
+        self.painting.send_replace(None);
+        result
+    }
+
+    /// The engine path, when the engine and `model` are on disk.
+    fn ready_engine(&self, model: &ImageModel) -> Result<std::path::PathBuf> {
+        if !model.installed(&self.paths.image_models())
+            || engine_setup::installed_version(&self.paths, Engine::Image).is_none()
+        {
+            return Err(Error::NotReady);
+        }
+        Ok(engine_setup::folder(&self.paths, Engine::Image).join(Engine::Image.exe()))
+    }
+
+    /// Marks a picture as running. Fails while a download or removal runs,
+    /// checked under the same lock that they take.
+    fn start_painting(&self, chat_id: i64, message_id: Option<i64>) -> Result<()> {
+        let running = self.running.lock().map_err(|_| Error::Busy)?;
+        if running.is_some() {
+            return Err(Error::Invalid(
+                "Wait until the picture download ends.".into(),
+            ));
+        }
+        self.painting.send_replace(Some(Painting {
+            chat_id,
+            message_id,
+            phase: "scene",
+            step: 0,
+            total: 0,
+        }));
+        Ok(())
     }
 
     async fn paint_inner(
@@ -403,16 +497,6 @@ impl PictureService {
         wish: &str,
         token: &CancellationToken,
     ) -> Result<Image> {
-        let show = |message_id: Option<i64>, phase: &'static str, step: u32, total: u32| {
-            self.painting.send_replace(Some(Painting {
-                chat_id,
-                message_id,
-                phase,
-                step,
-                total,
-            }));
-        };
-        show(message_id, "scene", 0, 0);
         let input = self
             .chats
             .picture_scene(chat_id, message_id, wish, token)
@@ -437,31 +521,58 @@ impl PictureService {
         };
         // The adult setting comes in Phase 7. Until then pictures are made with it off.
         let checked = format!("{positive}, {wish}");
-        let rules =
-            safety::check(&checked, people, false, input.scene.sexual).map_err(|block| {
-                log::info!("a picture was blocked: {block:?}");
-                Error::Rejected {
-                    message: blocked_message(block).into(),
-                    why: format!("{block:?}"),
-                }
-            })?;
+        let rules = safety::check(&checked, people, false, input.scene.sexual).map_err(blocked)?;
         let prompts = scene::with_rules(&positive, rules);
+        let seed = runner::new_seed();
+        self.render(
+            model,
+            exe,
+            chat_id,
+            message_id,
+            prompts,
+            seed,
+            &input.chat_model,
+            token,
+        )
+        .await
+    }
 
+    /// Runs the engine for one picture and saves it.
+    #[allow(clippy::too_many_arguments)]
+    async fn render(
+        &self,
+        model: &'static ImageModel,
+        exe: &std::path::Path,
+        chat_id: i64,
+        message_id: Option<i64>,
+        prompts: scene::Prompts,
+        seed: i64,
+        chat_model: &str,
+        token: &CancellationToken,
+    ) -> Result<Image> {
+        let show = |phase: &'static str| {
+            self.painting.send_replace(Some(Painting {
+                chat_id,
+                message_id,
+                phase,
+                step: 0,
+                total: 0,
+            }));
+        };
         let hw = self.hardware();
         let on_gpu = Self::usable_gpu(&hw).is_some();
         let size = if on_gpu { 1024 } else { 512 };
-        let seed = runner::new_seed();
         let folder = self.paths.gallery().join(chat_id.to_string());
         std::fs::create_dir_all(&folder)?;
         let file = format!("{}-{seed}.png", crate::db::now_ms());
         let output = folder.join(&file);
 
-        show(message_id, "loading", 0, 0);
+        show("loading");
         let client = self.chats.engine().client().ok();
         let freed = if hw.tier == Tier::High {
             false
         } else if let Some(client) = &client {
-            free_gpu(client, &input.chat_model).await
+            free_gpu(client, chat_model).await
         } else {
             false
         };
@@ -499,7 +610,7 @@ impl PictureService {
 
         // The chat model comes back whether the picture worked or not.
         if freed && let Some(client) = client {
-            let model = input.chat_model.clone();
+            let model = chat_model.to_owned();
             tokio::spawn(async move {
                 if let Err(e) = client.load(&model, KEEP_ALIVE).await {
                     log::warn!("the chat model did not load again after a picture: {e}");
@@ -542,6 +653,14 @@ impl PictureService {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
             _ => Ok(()),
         }
+    }
+}
+
+fn blocked(block: safety::Block) -> Error {
+    log::info!("a picture was blocked: {block:?}");
+    Error::Rejected {
+        message: blocked_message(block).into(),
+        why: format!("{block:?}"),
     }
 }
 
