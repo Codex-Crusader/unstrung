@@ -564,6 +564,14 @@ mod tests {
                 false,
                 Err(AdultOff),
             ),
+            // With the adult setting on too: school clothes and sexy words.
+            (
+                "wearing a schoolgirl uniform, seductive",
+                ADULTS,
+                true,
+                false,
+                Err(MinorWords),
+            ),
             (
                 "one person: wearing a red evening dress, a ballroom",
                 MINOR_CHARACTER,

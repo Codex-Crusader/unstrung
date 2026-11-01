@@ -109,6 +109,34 @@ pub fn parse(answer: &str) -> Option<Scene> {
     (!scene.action.is_empty() || !scene.setting.is_empty()).then_some(scene)
 }
 
+/// Clears each story outfit whose clothing word is not in `said`, the recent
+/// chat text. "utility jumpsuit" in a chat about an engine is made up; "a long
+/// red evening dress" after "she comes back in a red evening dress" is not.
+pub fn keep_said_outfits(scene: &mut Scene, said: &str) {
+    let words = |text: &str| -> Vec<String> {
+        text.to_lowercase()
+            .split(|c: char| !c.is_alphabetic())
+            .filter(|w| !w.is_empty())
+            .map(|w| w.strip_suffix('s').unwrap_or(w).to_owned())
+            .collect()
+    };
+    let said = words(said);
+    for outfit in [&mut scene.character_outfit, &mut scene.persona_outfit] {
+        // The last word of each piece names the clothes: "a red evening
+        // dress", "a grey suit with a tie" -> dress, suit, tie.
+        let lower = outfit.to_lowercase();
+        let named = lower
+            .split([',', ';'])
+            .flat_map(|piece| piece.split(" and "))
+            .flat_map(|piece| piece.split(" with "))
+            .filter_map(|piece| words(piece).pop())
+            .any(|head| said.contains(&head));
+        if !named {
+            outfit.clear();
+        }
+    }
+}
+
 /// The plain scene when the model gives no usable answer: the last message
 /// as the action, with both people in it.
 pub fn fallback(last_message: &str, wish: &str) -> Scene {
@@ -390,6 +418,30 @@ mod tests {
             p.contains("silver hair, black coat") && !p.contains("grey suit"),
             "{p}"
         );
+    }
+
+    #[test]
+    fn only_clothes_that_the_chat_named_stay() {
+        let mut scene = fallback("x", "");
+        scene.character_outfit = "a long red evening dress".into();
+        scene.persona_outfit = "work overalls".into();
+        keep_said_outfits(
+            &mut scene,
+            "She comes back in a long red evening dress. You look amazing.",
+        );
+        assert_eq!(scene.character_outfit, "a long red evening dress");
+        assert!(scene.persona_outfit.is_empty());
+
+        let mut scene = fallback("x", "");
+        scene.character_outfit = "utility jumpsuit".into();
+        keep_said_outfits(&mut scene, "Then we make a new one. Grab a wrench.");
+        assert!(scene.character_outfit.is_empty());
+
+        // Plurals and pieces: one named piece is enough.
+        let mut scene = fallback("x", "");
+        scene.character_outfit = "a grey suit with a silk tie".into();
+        keep_said_outfits(&mut scene, "He puts on his best suits for the trial.");
+        assert_eq!(scene.character_outfit, "a grey suit with a silk tie");
     }
 
     #[test]

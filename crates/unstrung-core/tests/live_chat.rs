@@ -303,3 +303,98 @@ async fn a_gguf_file_imports_as_a_model() {
     // folder from going away on Windows, so remove the large file now.
     std::fs::remove_file(&file).unwrap();
 }
+
+/// The scene writer fills a person's outfit only when the story changed
+/// their clothes. Prints each answer, so a person can read them.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama and the default chat model"]
+async fn the_scene_writer_gives_clothes_only_when_the_story_changes_them() {
+    use unstrung_core::db::NewMessage;
+    let home = tempfile::tempdir().unwrap();
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths.ensure().unwrap();
+    let engine = Engine::new(paths.clone());
+    engine.start().await;
+    assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
+    let db = Db::open(&paths.database()).await.unwrap();
+    starters::ensure(&db, &paths).await.unwrap();
+    let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
+    let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
+    let service = Arc::new(ChatService::new(db.clone(), engine.clone()));
+
+    let chat = |lines: &'static [(&'static str, &'static str)]| {
+        let service = service.clone();
+        let db = db.clone();
+        async move {
+            let view = service.new_chat(mara, Some(kai)).await.unwrap();
+            let mut parent = view.messages.last().map(|m| m.message.id);
+            for (role, text) in lines {
+                let m = db
+                    .append_message(&NewMessage {
+                        chat_id: view.chat.id,
+                        parent_id: parent,
+                        role,
+                        persona_id: Some(kai),
+                        content: text,
+                        raw_content: None,
+                        token_count: None,
+                        model: None,
+                        prompt_version: None,
+                        sampler_json: None,
+                    })
+                    .await
+                    .unwrap();
+                parent = Some(m.id);
+            }
+            view.chat.id
+        }
+    };
+    let gala = chat(&[
+        ("user", "The gala starts in an hour. You cannot go in that flight jacket, Captain."),
+        ("character", "*Mara sighs, goes into her cabin and comes back in a long red evening dress.* Happy now? Do not get used to it."),
+        ("user", "You look amazing. Shall we go?"),
+    ])
+    .await;
+    let engine_room = chat(&[
+        ("user", "I think the coupling is shot."),
+        (
+            "character",
+            "*She taps the cracked console.* Then we make a new one. Grab a wrench.",
+        ),
+        ("user", "On it. Hold the light for me?"),
+    ])
+    .await;
+
+    let token = tokio_util::sync::CancellationToken::new();
+    let mut changed = 0;
+    let mut invented = 0;
+    for _ in 0..3 {
+        let s = service
+            .picture_scene(gala, None, "", &token)
+            .await
+            .unwrap()
+            .scene;
+        println!(
+            "gala: character {:?}, persona {:?}",
+            s.character_outfit, s.persona_outfit
+        );
+        if s.character_outfit.contains("dress") {
+            changed += 1;
+        }
+        let s = service
+            .picture_scene(engine_room, None, "", &token)
+            .await
+            .unwrap()
+            .scene;
+        println!(
+            "engine room: character {:?}, persona {:?}",
+            s.character_outfit, s.persona_outfit
+        );
+        if !s.character_outfit.is_empty() || !s.persona_outfit.is_empty() {
+            invented += 1;
+        }
+    }
+    engine.stop().await;
+    assert!(changed >= 2, "the dress showed {changed} of 3 times");
+    assert!(invented <= 1, "clothes were made up {invented} of 3 times");
+}

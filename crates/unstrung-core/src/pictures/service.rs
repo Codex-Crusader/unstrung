@@ -696,8 +696,11 @@ fn blocked(block: safety::Block) -> Error {
 /// The sentence the user sees for a blocked picture.
 pub fn blocked_message(block: safety::Block) -> &'static str {
     match block {
-        safety::Block::MinorWords | safety::Block::MinorInChat => {
-            "This picture was not made. Unstrung never makes sexual pictures with anyone under 18, or with anyone whose age is not set."
+        safety::Block::MinorWords => {
+            "This picture was not made. Unstrung never makes sexual pictures of anyone who could be under 18."
+        }
+        safety::Block::MinorInChat => {
+            "This picture was not made. Unstrung never makes sexual or revealing pictures when someone in the chat is under 18 or has no age. If your persona is an adult, add your age in Personas."
         }
         safety::Block::AdultOff => "This picture was not made, because adult pictures are off.",
     }

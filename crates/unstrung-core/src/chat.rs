@@ -1224,7 +1224,7 @@ impl ChatService {
             .to_owned();
         let recent: Vec<&Message> = path
             .iter()
-            .filter(|m| m.role == "user" || m.role == "assistant")
+            .filter(|m| m.role == "user" || m.role == "character")
             .collect();
         let recent = &recent[recent
             .len()
@@ -1289,7 +1289,10 @@ impl ChatService {
                 Err(e) => log::warn!("the scene step failed: {e}"),
             }
         }
-        let scene = scene.unwrap_or_else(|| pictures::scene::fallback(last, wish));
+        let mut scene = scene.unwrap_or_else(|| pictures::scene::fallback(last, wish));
+        // Small models fill the outfit fields even when nothing changed.
+        let said: String = lines.iter().map(|(_, text)| format!("{text} ")).collect();
+        pictures::scene::keep_said_outfits(&mut scene, &format!("{said} {wish}"));
         Ok(PictureScene {
             scene,
             character,
