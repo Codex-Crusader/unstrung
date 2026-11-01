@@ -21,6 +21,7 @@ pub mod memory;
 pub mod models;
 pub mod ollama;
 pub mod paths;
+pub mod pictures;
 pub mod presets;
 pub mod prompt;
 pub mod repair;
