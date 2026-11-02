@@ -1395,7 +1395,8 @@ impl ChatService {
     }
 
     /// Tree changes wait until no reply is being written.
-    fn idle(&self) -> Result<()> {
+    /// Fails with `Busy` while a reply or a picture runs.
+    pub fn idle(&self) -> Result<()> {
         match self.current.lock() {
             Ok(slot) if slot.is_none() => Ok(()),
             _ => Err(Error::Busy),
@@ -1534,27 +1535,7 @@ impl ChatService {
                     });
                     break (outcome, content, prompt);
                 }
-                (None, retried) => {
-                    // After a persona change, the history is full of the old name.
-                    let Some(old) =
-                        guard::used_name(&content, &old_names).filter(|_| !outcome.stopped)
-                    else {
-                        break (outcome, content, prompt);
-                    };
-                    if !retried {
-                        log::info!("silent regenerate: old persona name");
-                        progress(Progress::Restart);
-                        extra = Some(format!(
-                            "Important: the person you talk to is {} now. Never call them {old}.",
-                            prompt.user_name
-                        ));
-                        continue;
-                    }
-                    let fixed = old_names.iter().fold(content, |text, old| {
-                        guard::replace_name(&text, old, &prompt.user_name)
-                    });
-                    break (outcome, fixed, prompt);
-                }
+                (None, _) => break (outcome, content, prompt),
             }
         };
         if content.is_empty() {

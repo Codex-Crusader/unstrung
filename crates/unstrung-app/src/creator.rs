@@ -41,6 +41,8 @@ pub async fn save_character(
 
 #[tauri::command]
 pub async fn delete_character(state: State<'_, AppState>, character_id: i64) -> CmdResult<()> {
+    // A running reply or picture would write into the chats that the delete removes.
+    state.chats.idle()?;
     Ok(library::delete_character(state.chats.db(), &state.paths, character_id).await?)
 }
 

@@ -648,7 +648,7 @@ impl PictureService {
             size,
             size
         );
-        let id = self
+        let saved = self
             .chats
             .db()
             .insert_image(&NewImage {
@@ -664,7 +664,11 @@ impl PictureService {
                 height: i64::from(size),
                 adult: false,
             })
-            .await?;
+            .await;
+        // A file without its row is never shown and never deleted, so it goes now.
+        let id = saved.inspect_err(|_| {
+            let _ = std::fs::remove_file(&output);
+        })?;
         self.chats.db().image(id).await
     }
 

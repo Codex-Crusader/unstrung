@@ -57,7 +57,13 @@ pub fn delete_data(paths: &AppPaths) -> Vec<String> {
     let library = paths.library();
     if !library.starts_with(&root) && library.is_dir() {
         if library.join(location::LIBRARY_MARK).is_file() {
-            remove(&library, &mut left);
+            // The user may keep own files here: only the app's parts go, and
+            // the folder only when nothing else is left in it.
+            remove(&paths.gallery(), &mut left);
+            if let Err(e) = std::fs::remove_file(library.join(location::LIBRARY_MARK)) {
+                left.push(format!("{}: {e}", library.display()));
+            }
+            let _ = std::fs::remove_dir(&library);
         } else {
             left.push(format!(
                 "{} has no library mark, so it stays",
@@ -135,7 +141,8 @@ mod tests {
         fake_app_folder(&root);
         let library = dir.path().join("Library");
         location::mark_library(&library).unwrap();
-        std::fs::write(library.join("picture.png"), b"x").unwrap();
+        std::fs::create_dir_all(library.join("gallery").join("1")).unwrap();
+        std::fs::write(library.join("gallery").join("1").join("picture.png"), b"x").unwrap();
         let paths = AppPaths::at(root.clone());
         paths
             .set_location(Location {
@@ -147,6 +154,30 @@ mod tests {
         assert_eq!(delete_data(&paths), Vec::<String>::new());
         assert!(!root.exists());
         assert!(!library.exists());
+    }
+
+    #[test]
+    fn the_users_own_files_in_the_library_stay() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Unstrung");
+        fake_app_folder(&root);
+        let library = dir.path().join("Stories");
+        location::mark_library(&library).unwrap();
+        std::fs::create_dir_all(library.join("gallery")).unwrap();
+        std::fs::write(library.join("gallery").join("p.png"), b"x").unwrap();
+        std::fs::write(library.join("my notes.txt"), b"mine").unwrap();
+        let paths = AppPaths::at(root.clone());
+        paths
+            .set_location(Location {
+                library: Some(library.clone()),
+                ..Location::default()
+            })
+            .unwrap();
+        let paths = AppPaths::at(root.clone());
+        assert_eq!(delete_data(&paths), Vec::<String>::new());
+        assert!(!library.join("gallery").exists());
+        assert!(!library.join(location::LIBRARY_MARK).exists());
+        assert!(library.join("my notes.txt").is_file());
     }
 
     #[test]
