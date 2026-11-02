@@ -67,7 +67,7 @@
       "steps": 4,
       "cfg_scale": 1.0,
       "description": "Smaller and faster. Works without a graphics card, but slowly.",
-      "tested": ""
+      "tested": "2026-11-02"
     }
   ]
 }

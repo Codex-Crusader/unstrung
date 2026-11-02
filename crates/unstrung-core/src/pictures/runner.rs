@@ -276,7 +276,10 @@ mod tests {
             s.prepare(gpu.as_ref()).await.unwrap();
             s.replace().unwrap();
         }
-        let model = catalog::model("z-image-turbo").unwrap();
+        // UNSTRUNG_TEST_PICTURE_MODEL picks another catalog model, for example flux2-klein-4b.
+        let id =
+            std::env::var("UNSTRUNG_TEST_PICTURE_MODEL").unwrap_or_else(|_| "z-image-turbo".into());
+        let model = catalog::model(&id).unwrap();
         let dir = paths.image_models();
         std::fs::create_dir_all(&dir).unwrap();
         let fetcher = Fetcher::new(&catalog::catalog().hosts).unwrap();
@@ -314,7 +317,7 @@ mod tests {
                 .into(),
             negative: "blurry, low quality, nudity".into(),
         };
-        let out = paths.gallery().join("test").join("real.png");
+        let out = paths.gallery().join("test").join(format!("real-{id}.png"));
         std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let job = Job {
             model,
