@@ -64,6 +64,7 @@ fn input<'a>(c: &'a Character, p: Option<&'a Persona>, history: &'a [Message]) -
         recall: None,
         extra_reminder: None,
         continuation: false,
+        old_user_names: &[],
         tuning: &DEFAULT_TUNING,
     }
 }
@@ -659,4 +660,21 @@ What Kai said earlier:
     let empty = crate::memory::Recall::default();
     i.recall = Some(&empty);
     assert!(!build(&i).messages[0].content.contains("Notes from earlier"));
+}
+
+#[test]
+fn after_a_persona_change_the_reminder_names_the_old_name() {
+    let c = ren();
+    let p = kai();
+    let history = [msg("user", "hello")];
+    let old = ["Nora".to_owned()];
+    let mut i = input(&c, Some(&p), &history);
+    let last = |i: &PromptInput<'_>| build(i).messages.last().unwrap().content.clone();
+    assert!(last(&i).contains("is named Kai."));
+    i.old_user_names = &old;
+    let text = last(&i);
+    assert!(
+        text.contains("is named Kai now. Never call them Nora."),
+        "{text}"
+    );
 }

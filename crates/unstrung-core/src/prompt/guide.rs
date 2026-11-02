@@ -59,6 +59,8 @@ pub struct Turn<'a> {
     pub idea: &'static str,
     pub ask: &'static str,
     pub persona: bool,
+    /// The user's names before a persona change, "Kai" or "Kai or Nora".
+    pub old_names: String,
     pub model_extra: &'a str,
     pub regenerate_note: Option<&'a str>,
 }
@@ -207,6 +209,14 @@ fn vary_ending(t: &Turn<'_>) -> Option<String> {
 
 /// After a persona change, the history is full of the old name.
 fn persona_name(t: &Turn<'_>) -> Option<String> {
+    if !t.old_names.is_empty() {
+        // Naming the old name works better than only the new one: the
+        // history repeats the old name in every reply before the change.
+        return Some(format!(
+            "The person you talk to is named {{{{user}}}} now. Never call them {}.",
+            t.old_names
+        ));
+    }
     t.persona
         .then(|| "The person you talk to is named {{user}}.".to_owned())
 }

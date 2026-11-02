@@ -182,6 +182,39 @@ impl StartWatch {
     }
 }
 
+/// The places where `name` stands as a whole word in `text`: "Kai," counts,
+/// "Kaiser" does not.
+fn name_spots(text: &str, name: &str) -> Vec<usize> {
+    let word = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
+    text.match_indices(name)
+        .map(|(at, _)| at)
+        .filter(|&at| {
+            !word(text[..at].chars().next_back()) && !word(text[at + name.len()..].chars().next())
+        })
+        .collect()
+}
+
+/// The first of `names` that `text` uses as a whole word.
+pub fn used_name<'a>(text: &str, names: &'a [String]) -> Option<&'a str> {
+    names
+        .iter()
+        .find(|n| !n.is_empty() && !name_spots(text, n).is_empty())
+        .map(String::as_str)
+}
+
+/// `text` with every whole-word `old` replaced by `new`.
+pub fn replace_name(text: &str, old: &str, new: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut from = 0;
+    for at in name_spots(text, old) {
+        out.push_str(&text[from..at]);
+        out.push_str(new);
+        from = at + old.len();
+    }
+    out.push_str(&text[from..]);
+    out
+}
+
 fn words(lower: &str) -> Vec<String> {
     lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'')
@@ -487,6 +520,18 @@ fn collapse_blank_lines(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_old_persona_name_is_found_and_replaced_as_a_word() {
+        let names = vec!["Kai".to_owned()];
+        assert_eq!(used_name("Tell me, Kai, why now?", &names), Some("Kai"));
+        assert_eq!(used_name("The Kaiser waits. Kailee too.", &names), None);
+        assert_eq!(
+            replace_name("Kai? *He studies Kai.* Kaiser", "Kai", "Nora"),
+            "Nora? *He studies Nora.* Kaiser"
+        );
+        assert_eq!(used_name("Kai", &[String::new()]), None);
+    }
 
     #[test]
     fn cleanup_steps() {

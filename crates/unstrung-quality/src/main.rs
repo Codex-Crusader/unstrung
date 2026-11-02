@@ -734,6 +734,7 @@ async fn prompt_shape_holds(service: &ChatService, chat_id: i64) -> Result<bool,
         extra_reminder: None,
         continuation: false,
         tuning: &unstrung_core::catalog::Tuning::default(),
+        old_user_names: &[],
     });
     let first_rule = prompt::SYSTEM_RULES.lines().next().unwrap_or_default();
     let rules_first = built

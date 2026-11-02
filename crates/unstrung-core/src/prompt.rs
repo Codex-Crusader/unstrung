@@ -89,6 +89,8 @@ pub struct PromptInput<'a> {
     pub continuation: bool,
     /// The settings of the model that writes the reply.
     pub tuning: &'a Tuning,
+    /// Names the user had earlier in this chat, before a persona change.
+    pub old_user_names: &'a [String],
 }
 
 pub struct Prompt {
@@ -414,6 +416,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         idea: guide::next_move(input.history, short > 0),
         ask: guide::user_question(input.history),
         persona: input.persona.is_some(),
+        old_names: input.old_user_names.join(" or "),
         model_extra: &tuning.reminder_extra,
         regenerate_note: input.extra_reminder,
     };

@@ -254,6 +254,29 @@ impl ChatService {
         self.db.set_character_model(character_id, model).await
     }
 
+    /// The names of the personas that wrote earlier messages of `history`,
+    /// other than `now`, the user's name in the chat now.
+    async fn old_user_names(&self, history: &[Message], now: &str) -> Vec<String> {
+        let mut ids: Vec<i64> = history
+            .iter()
+            .filter(|m| m.role == "user")
+            .filter_map(|m| m.persona_id)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let mut names = Vec::new();
+        for id in ids {
+            // A deleted persona has no name to keep away from.
+            if let Ok(p) = self.db.persona(id).await
+                && p.name != now
+                && !names.contains(&p.name)
+            {
+                names.push(p.name);
+            }
+        }
+        names
+    }
+
     async fn persona_of(&self, chat: &Chat) -> Result<Option<Persona>> {
         match chat.persona_id {
             Some(id) => match self.db.persona(id).await {
@@ -664,6 +687,7 @@ impl ChatService {
                 extra_reminder: Some(&extra),
                 continuation: false,
                 tuning: &tuning,
+                old_user_names: &[],
             });
             let outcome = client
                 .chat(
@@ -757,6 +781,10 @@ impl ChatService {
         // finished reply gets one new paragraph, because the model stops at once
         // when it continues a finished text.
         let mid_sentence = !ends_sentence(&last.content);
+        let now = persona
+            .as_ref()
+            .map_or(prompt::NO_PERSONA_NAME, |p| p.name.as_str());
+        let old_names = self.old_user_names(&history, now).await;
         let model = self.model_for(&chat, &character);
         let tuning = self.engine.tuning_for(&model);
         let prompt = prompt::build(&PromptInput {
@@ -772,6 +800,7 @@ impl ChatService {
             extra_reminder: Some(CONTINUE_REMINDER),
             continuation: mid_sentence,
             tuning: &tuning,
+            old_user_names: &old_names,
         });
         let outcome = client
             .chat(
@@ -837,6 +866,7 @@ impl ChatService {
             extra_reminder: None,
             continuation: false,
             tuning: &tuning,
+            old_user_names: &[],
         });
         let outcome = client
             .chat(
@@ -1376,6 +1406,7 @@ impl ChatService {
         let user_name = persona
             .as_ref()
             .map_or(prompt::NO_PERSONA_NAME, |p| p.name.as_str());
+        let old_names = self.old_user_names(history, user_name).await;
         let open_thread = if style.initiative == presets::Initiative::FollowMe {
             None
         } else {
@@ -1407,6 +1438,7 @@ impl ChatService {
                 extra_reminder: extra.as_deref(),
                 continuation: false,
                 tuning: &tuning,
+                old_user_names: &old_names,
             });
             // The last try is kept even when it repeats, so it streams freely.
             let watch: &[&str] = if extra.is_none() { &recent } else { &[] };
@@ -1449,7 +1481,27 @@ impl ChatService {
                     hint = Some(OUT_OF_CHARACTER_HINT);
                     break (outcome, content, prompt);
                 }
-                (None, _) => break (outcome, content, prompt),
+                (None, retried) => {
+                    // After a persona change, the history is full of the old name.
+                    let Some(old) =
+                        guard::used_name(&content, &old_names).filter(|_| !outcome.stopped)
+                    else {
+                        break (outcome, content, prompt);
+                    };
+                    if !retried {
+                        log::info!("silent regenerate: old persona name");
+                        progress(Progress::Restart);
+                        extra = Some(format!(
+                            "Important: the person you talk to is {} now. Never call them {old}.",
+                            prompt.user_name
+                        ));
+                        continue;
+                    }
+                    let fixed = old_names.iter().fold(content, |text, old| {
+                        guard::replace_name(&text, old, &prompt.user_name)
+                    });
+                    break (outcome, fixed, prompt);
+                }
             }
         };
         if content.is_empty() {
