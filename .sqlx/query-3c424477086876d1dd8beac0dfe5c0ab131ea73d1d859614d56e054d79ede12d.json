@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT i.file_path FROM images i JOIN chats c ON c.id = i.chat_id\n             WHERE c.deleted_at < ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "file_path",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3c424477086876d1dd8beac0dfe5c0ab131ea73d1d859614d56e054d79ede12d"
+}

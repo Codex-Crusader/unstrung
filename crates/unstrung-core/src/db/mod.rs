@@ -9,7 +9,7 @@ mod personas;
 pub mod snapshots;
 
 pub use characters::{Character, CharacterFields, WorldEntry};
-pub use chats::{Chat, ChatSummary, RecentChat};
+pub use chats::{Chat, ChatSummary, DeletedChat, RecentChat};
 pub use images::{GalleryImage, Image, NewImage};
 pub use memories::Memory;
 pub use messages::{Message, NewMessage};
@@ -71,6 +71,12 @@ pub struct Db {
 }
 
 impl Db {
+    /// For tests that set a time in the past.
+    #[cfg(test)]
+    pub(crate) fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     /// Opens (or creates) the database and runs the migrations.
     pub async fn open(path: &Path) -> Result<Self> {
         let options = SqliteConnectOptions::new()

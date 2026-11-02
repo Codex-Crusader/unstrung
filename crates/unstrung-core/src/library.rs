@@ -251,17 +251,32 @@ pub async fn delete_character(db: &Db, paths: &AppPaths, id: i64) -> Result<()> 
     if let Some(path) = character.avatar_path {
         avatar::remove(paths, &path);
     }
-    // The rows went with the chats. A file that does not go stays unused, so
-    // a failure is only logged.
+    remove_pictures(paths, &pictures);
+    Ok(())
+}
+
+/// A deleted chat stays in "Recently deleted" this long.
+pub const KEEP_DELETED_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+
+/// Removes the chats deleted more than 7 days before `now` (ms), with their
+/// picture files.
+pub async fn purge_deleted_chats(db: &Db, paths: &AppPaths, now: i64) -> Result<()> {
+    let pictures = db.purge_deleted_chats(now - KEEP_DELETED_MS).await?;
+    remove_pictures(paths, &pictures);
+    Ok(())
+}
+
+/// The rows are already gone. A file that does not go stays unused, so a
+/// failure is only logged.
+fn remove_pictures(paths: &AppPaths, pictures: &[String]) {
     for picture in pictures {
-        if let Ok(file) = crate::paths::join_safe(&paths.gallery(), &picture)
+        if let Ok(file) = crate::paths::join_safe(&paths.gallery(), picture)
             && let Err(e) = std::fs::remove_file(&file)
             && e.kind() != std::io::ErrorKind::NotFound
         {
-            log::warn!("a picture file of a deleted character stayed: {e}");
+            log::warn!("a picture file of a deleted chat stayed: {e}");
         }
     }
-    Ok(())
 }
 
 pub async fn save_persona(
@@ -453,6 +468,87 @@ mod tests {
             "and the messages"
         );
         assert!(!paths.stored(&second).unwrap().exists(), "and the picture");
+    }
+
+    #[tokio::test]
+    async fn deleted_chats_stay_seven_days_then_go_with_their_pictures() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        let db = Db::open(&paths.database()).await.unwrap();
+        let id = db.insert_character(&fields(), None, "{}").await.unwrap();
+        let character = db.character(id).await.unwrap();
+        let day = 24 * 60 * 60 * 1000;
+        let mut chats = Vec::new();
+        for name in ["old", "recent"] {
+            let chat = db.create_chat(&character, None, "", true).await.unwrap();
+            let head = db.chat(chat).await.unwrap().head_message_id;
+            db.append_message(&NewMessage {
+                chat_id: chat,
+                parent_id: head,
+                role: "user",
+                content: "hi",
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+            let file = format!("{chat}/{name}.png");
+            std::fs::create_dir_all(paths.gallery().join(chat.to_string())).unwrap();
+            std::fs::write(paths.gallery().join(&file), b"png").unwrap();
+            db.insert_image(&crate::db::NewImage {
+                chat_id: chat,
+                message_id: head,
+                file_path: file.clone(),
+                prompt: "a room".into(),
+                negative_prompt: String::new(),
+                seed: 1,
+                image_model: "z-image-turbo".into(),
+                ref_mode: "tags".into(),
+                width: 512,
+                height: 512,
+                adult: false,
+            })
+            .await
+            .unwrap();
+            db.delete_chat(chat).await.unwrap();
+            chats.push((chat, file));
+        }
+        let now = crate::db::now_ms();
+        let (old, old_file) = &chats[0];
+        let (recent, recent_file) = &chats[1];
+        // Deleted 8 days and 6 days before now.
+        for (chat, days) in [(old, 8), (recent, 6)] {
+            sqlx::query("UPDATE chats SET deleted_at = ? WHERE id = ?")
+                .bind(now - days * day)
+                .bind(chat)
+                .execute(db.pool())
+                .await
+                .unwrap();
+        }
+        assert!(db.recent_chats(10).await.unwrap().is_empty());
+        assert!(db.gallery().await.unwrap().is_empty());
+        assert_eq!(db.deleted_chats().await.unwrap().len(), 2);
+
+        purge_deleted_chats(&db, &paths, now).await.unwrap();
+        let left: Vec<i64> = db
+            .deleted_chats()
+            .await
+            .unwrap()
+            .iter()
+            .map(|d| d.chat_id)
+            .collect();
+        assert_eq!(left, [*recent]);
+        assert!(
+            !paths.gallery().join(old_file).exists(),
+            "the old picture went"
+        );
+        assert!(paths.gallery().join(recent_file).exists());
+
+        // Restore brings the 6-day-old chat back, with its picture.
+        db.restore_chat(*recent).await.unwrap();
+        assert!(db.deleted_chats().await.unwrap().is_empty());
+        assert_eq!(db.recent_chats(10).await.unwrap()[0].chat_id, *recent);
+        assert_eq!(db.gallery().await.unwrap().len(), 1);
+        assert!(db.restore_chat(*old).await.is_err(), "gone for good");
     }
 
     #[tokio::test]

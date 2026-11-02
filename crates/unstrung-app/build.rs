@@ -27,6 +27,8 @@ const COMMANDS: &[&str] = &[
     "list_chats",
     "recent_chats",
     "delete_chat",
+    "deleted_chats",
+    "restore_chat",
     "send_message",
     "edit_message",
     "edit_reply",

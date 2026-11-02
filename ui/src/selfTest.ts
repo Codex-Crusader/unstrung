@@ -43,6 +43,7 @@ import {
   getUiSettings,
   listCopies,
   setUiSetting,
+  deletedChats,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -411,6 +412,11 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   if (settings) return settings;
   const recent = await recentChats();
   if (!recent.some((r) => r.character_id === ren.id)) return "recent chats: the test chat is missing";
+  show({ name: "chats" });
+  await pause(SHOW_MS);
+  const chatsOverflow = pageOverflow();
+  if (chatsOverflow) return chatsOverflow;
+  if (!Array.isArray(await deletedChats())) return "chats: the deleted chats did not list";
   return `ok: ${reply.content}${models.note}${installed}`;
 }
 

@@ -8,7 +8,9 @@ use tauri::ipc::Channel;
 use unstrung_core::Error;
 use unstrung_core::catalog::Advanced;
 use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RegenMode, ReplyResult};
-use unstrung_core::db::{Character, ChatSummary, Memory, Message, Persona, RecentChat};
+use unstrung_core::db::{
+    Character, ChatSummary, DeletedChat, Memory, Message, Persona, RecentChat,
+};
 use unstrung_core::engine::EngineStatus;
 use unstrung_core::models::ModelsPage;
 use unstrung_core::presets::StyleSettings;
@@ -291,6 +293,16 @@ pub async fn recent_chats(state: State<'_, AppState>) -> CmdResult<Vec<RecentCha
 #[tauri::command]
 pub async fn delete_chat(state: State<'_, AppState>, chat_id: i64) -> CmdResult<()> {
     Ok(state.chats.delete_chat(chat_id).await?)
+}
+
+#[tauri::command]
+pub async fn deleted_chats(state: State<'_, AppState>) -> CmdResult<Vec<DeletedChat>> {
+    Ok(state.chats.db().deleted_chats().await?)
+}
+
+#[tauri::command]
+pub async fn restore_chat(state: State<'_, AppState>, chat_id: i64) -> CmdResult<()> {
+    Ok(state.chats.db().restore_chat(chat_id).await?)
 }
 
 #[tauri::command]

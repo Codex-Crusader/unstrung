@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-deleted-chats"
+description = "Enables the deleted_chats command without any pre-configured scope."
+commands.allow = ["deleted_chats"]
+
+[[permission]]
+identifier = "deny-deleted-chats"
+description = "Denies the deleted_chats command without any pre-configured scope."
+commands.deny = ["deleted_chats"]

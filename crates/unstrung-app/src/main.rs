@@ -135,6 +135,8 @@ fn main() {
             commands::list_chats,
             commands::recent_chats,
             commands::delete_chat,
+            commands::deleted_chats,
+            commands::restore_chat,
             commands::send_message,
             commands::edit_message,
             commands::edit_reply,
@@ -333,6 +335,11 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
         Ok(Some(file)) => log::info!("daily copy of the chats: {}", file.display()),
         Ok(None) => {}
         Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
+    }
+    if let Err(e) =
+        unstrung_core::library::purge_deleted_chats(&db, &paths, unstrung_core::db::now_ms()).await
+    {
+        log::warn!("could not remove the chats deleted more than 7 days ago: {e}");
     }
     unstrung_core::avatar::clear_staging(&paths);
     starters::ensure(&db, &paths).await?;

@@ -266,6 +266,9 @@ export const newChat = (characterId: number, personaId: number | null) =>
   invoke<ChatView>("new_chat", { characterId, personaId });
 export const listChats = (characterId: number) => invoke<ChatSummary[]>("list_chats", { characterId });
 export const deleteChat = (chatId: number) => invoke<null>("delete_chat", { chatId });
+/** Deleted chats stay 7 days, then go for good at the next start. */
+export const deletedChats = () => invoke<DeletedChat[]>("deleted_chats");
+export const restoreChat = (chatId: number) => invoke<null>("restore_chat", { chatId });
 
 export const sendMessage = (chatId: number, text: string, handler: ReplyHandler) =>
   invoke<null>("send_message", { chatId, text, onEvent: channel(handler) });
@@ -520,6 +523,15 @@ export interface RecentChat {
   avatar_path: string | null;
   preview: string;
   updated_at: number;
+}
+
+export interface DeletedChat {
+  chat_id: number;
+  character_id: number;
+  character_name: string;
+  avatar_path: string | null;
+  preview: string;
+  deleted_at: number;
 }
 
 /** Opens the file picker and starts the import. `null` when the user cancels. */

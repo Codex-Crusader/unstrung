@@ -30,6 +30,17 @@ pub struct RecentChat {
     pub updated_at: i64,
 }
 
+/// A chat in "Recently deleted" on the Chats screen.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeletedChat {
+    pub chat_id: i64,
+    pub character_id: i64,
+    pub character_name: String,
+    pub avatar_path: Option<String>,
+    pub preview: String,
+    pub deleted_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatSummary {
     pub id: i64,
@@ -220,5 +231,56 @@ impl Db {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    /// Deleted chats that are not yet gone for good, newest first. 18+
+    /// characters stay out, as in `recent_chats`.
+    pub async fn deleted_chats(&self) -> Result<Vec<DeletedChat>> {
+        let rows = sqlx::query_as!(
+            DeletedChat,
+            r#"SELECT c.id AS "chat_id!", ch.id AS "character_id!", ch.name AS "character_name!",
+                    ch.avatar_path, c.deleted_at AS "deleted_at!",
+                    COALESCE((SELECT substr(m.content, 1, 120) FROM messages m
+                              WHERE m.id = c.head_message_id AND m.deleted_at IS NULL), '')
+                        AS "preview!: String"
+             FROM chats c JOIN characters ch ON ch.id = c.character_id
+             WHERE c.deleted_at IS NOT NULL AND ch.is_adult = 0
+             ORDER BY c.deleted_at DESC, c.id DESC"#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn restore_chat(&self, chat_id: i64) -> Result<()> {
+        let done = sqlx::query!(
+            "UPDATE chats SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL",
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
+        if done.rows_affected() == 0 {
+            return Err(Error::NotFound("chat"));
+        }
+        Ok(())
+    }
+
+    /// Removes the chats deleted before `before` (ms) for good. Messages,
+    /// memories and picture rows go with them. Returns the picture files,
+    /// for the caller to delete.
+    pub async fn purge_deleted_chats(&self, before: i64) -> Result<Vec<String>> {
+        let mut tx = self.pool.begin().await?;
+        let files = sqlx::query_scalar!(
+            "SELECT i.file_path FROM images i JOIN chats c ON c.id = i.chat_id
+             WHERE c.deleted_at < ?",
+            before
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        sqlx::query!("DELETE FROM chats WHERE deleted_at < ?", before)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(files)
     }
 }

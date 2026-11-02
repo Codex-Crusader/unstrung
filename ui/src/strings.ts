@@ -318,6 +318,13 @@ export const strings = {
     noMatch: (query: string) => `No chat matches "${query}".`,
     emptyTitle: "No chats yet",
     emptyText: "Pick a character on Home to start your first chat.",
+    deletedTitle: (n: number) => `Recently deleted (${String(n)})`,
+    deletedHint: "A deleted chat goes for good 7 days after you delete it, with its pictures.",
+    deletedWhen: (ms: number) => {
+      const days = Math.max(0, 7 - Math.floor((Date.now() - ms) / 86_400_000));
+      return days <= 1 ? "Goes for good within a day" : `Goes for good in ${String(days)} days`;
+    },
+    restore: "Bring back",
   },
   pictures: {
     title: "Pictures",
@@ -616,7 +623,7 @@ export const strings = {
     title: "Chats",
     newChat: "New chat",
     delete: "Delete chat",
-    confirmDelete: "Delete this chat? You cannot undo this.",
+    confirmDelete: "Delete this chat? For 7 days you can bring it back from Recently deleted on the Chats screen.",
     yes: "Delete",
     no: "Keep",
     messages: (count: number) => (count === 1 ? "1 message" : `${String(count)} messages`),
