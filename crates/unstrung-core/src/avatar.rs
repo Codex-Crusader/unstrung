@@ -50,8 +50,9 @@ pub enum AvatarChange {
     Staged { token: String, crop: Crop },
 }
 
-/// Decodes an upload and saves a clean copy in the staging folder.
-pub fn stage(paths: &AppPaths, bytes: &[u8]) -> Result<Staged> {
+/// Decodes an outside picture: PNG, JPEG or WebP only, with limits on
+/// the file size, the sides and the memory.
+fn decode(bytes: &[u8]) -> Result<DynamicImage> {
     if bytes.is_empty() {
         return Err(Error::Invalid("the file is empty".into()));
     }
@@ -72,10 +73,21 @@ pub fn stage(paths: &AppPaths, bytes: &[u8]) -> Result<Staged> {
     limits.max_image_height = Some(MAX_SIDE);
     limits.max_alloc = Some(MAX_ALLOC);
     reader.limits(limits);
-    let picture = reader.decode().map_err(|e| Error::Rejected {
+    reader.decode().map_err(|e| Error::Rejected {
         message: "the picture could not be read. Use a PNG, JPEG or WebP picture".into(),
         why: e.to_string(),
-    })?;
+    })
+}
+
+/// A clean PNG copy of a profile picture from a backup. Other programs
+/// (the picture engine) read avatars, so no outside bytes stay.
+pub fn clean_copy(bytes: &[u8]) -> Result<Vec<u8>> {
+    encode_png(&DynamicImage::ImageRgba8(decode(bytes)?.to_rgba8()))
+}
+
+/// Decodes an upload and saves a clean copy in the staging folder.
+pub fn stage(paths: &AppPaths, bytes: &[u8]) -> Result<Staged> {
+    let picture = decode(bytes)?;
     if picture.width() < MIN_CROP || picture.height() < MIN_CROP {
         return Err(Error::Invalid("the picture is too small".into()));
     }

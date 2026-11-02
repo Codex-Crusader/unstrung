@@ -67,6 +67,11 @@ async fn backup(pool: &SqlitePool, db_path: &Path, schema: i64) -> Result<PathBu
     Ok(file)
 }
 
+/// The highest migration that this build knows.
+pub fn newest_schema() -> i64 {
+    MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default()
+}
+
 #[derive(Clone)]
 pub struct Db {
     pool: SqlitePool,
@@ -175,6 +180,46 @@ impl Db {
                 .filter(|row| row != "ok")
                 .collect(),
         ))
+    }
+
+    /// The highest migration of a database file that is not open, read
+    /// without changes. An error when it is not an Unstrung database.
+    pub async fn schema_of_file(path: &Path) -> Result<i64> {
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .read_only(true)
+            .busy_timeout(Duration::from_secs(5));
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await?;
+        let version: Result<Option<i64>> =
+            sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations")
+                .fetch_one(&pool)
+                .await
+                .map_err(Error::from);
+        pool.close().await;
+        version?.ok_or_else(|| Error::Invalid("no migrations".into()))
+    }
+
+    /// The stored path of every picture, for the backup check.
+    pub async fn image_paths(&self) -> Result<Vec<String>> {
+        Ok(sqlx::query_scalar!("SELECT file_path FROM images")
+            .fetch_all(&self.pool)
+            .await?)
+    }
+
+    /// Characters, personas, chats (not deleted) and pictures.
+    pub async fn counts(&self) -> Result<[i64; 4]> {
+        let row = sqlx::query!(
+            r#"SELECT (SELECT COUNT(*) FROM characters) AS "characters!: i64",
+                      (SELECT COUNT(*) FROM personas) AS "personas!: i64",
+                      (SELECT COUNT(*) FROM chats WHERE deleted_at IS NULL) AS "chats!: i64",
+                      (SELECT COUNT(*) FROM images) AS "images!: i64""#
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok([row.characters, row.personas, row.chats, row.images])
     }
 
     pub async fn quick_check(&self) -> Result<bool> {

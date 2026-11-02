@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (SELECT COUNT(*) FROM characters) AS \"characters!: i64\",\n                      (SELECT COUNT(*) FROM personas) AS \"personas!: i64\",\n                      (SELECT COUNT(*) FROM chats WHERE deleted_at IS NULL) AS \"chats!: i64\",\n                      (SELECT COUNT(*) FROM images) AS \"images!: i64\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "characters!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "personas!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chats!: i64",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "images!: i64",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d09d55415a5ae1ba5c5661131edd7a560b44dc006359dab90bb1ccdc4ebde422"
+}
