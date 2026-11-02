@@ -441,7 +441,9 @@ impl PictureService {
                 model,
                 crate::content::mature_chat(self.chats.db(), &character, persona.as_ref()).await?,
             );
-            let rules = safety::check(&old.prompt, people, adult_on, false).map_err(blocked)?;
+            // The scene step's flag is saved as `adult`: a clean prompt like
+            // "a quiet bedroom" can still be a sexual scene.
+            let rules = safety::check(&old.prompt, people, adult_on, old.adult).map_err(blocked)?;
             let seed = runner::new_seed();
             let prompts = scene::Prompts {
                 positive: scene::varied(&old.prompt, seed),
@@ -460,7 +462,7 @@ impl PictureService {
             let refs = if order.is_empty()
                 || !same_people
                 || !model.ref_images
-                || !safety::allows_references(&old.prompt, false)
+                || !safety::allows_references(&old.prompt, old.adult)
             {
                 References::none()
             } else {

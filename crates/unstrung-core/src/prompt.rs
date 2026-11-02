@@ -44,7 +44,8 @@ If a scene goes there, {{char}} steers it away, in character.";
 /// Rule 6 in a chat where `content::mature_chat` allows it. The sentence
 /// about minors and the steer-away line stay the same.
 const GENERAL_SENTENCE: &str = "Keep content non-explicit.";
-const MATURE_SENTENCE: &str = "Everyone in this story is an adult, so mature and sexual content is allowed when the story goes there.";
+/// Only about the two people the gate checked, never "everyone".
+const MATURE_SENTENCE: &str = "{{char}} and {{user}} are both adults, so mature and sexual content between them is allowed when the story goes there.";
 
 /// The first line of the end reminder. The guard removes it if a reply copies it.
 pub const REMINDER_HEAD: &str = "[Reply guide for {{char}}. Not part of the story.]";
@@ -416,7 +417,13 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
             ],
         ),
     };
-    let rules = if input.mature {
+    // A minor mentioned in the messages this reply sees makes it general,
+    // whatever the gate says. A false alarm only costs one general reply.
+    let minor_mentioned = input
+        .history
+        .iter()
+        .any(|m| crate::pictures::safety::mentions_minor(&m.content));
+    let rules = if input.mature && !minor_mentioned {
         SYSTEM_RULES.replace(GENERAL_SENTENCE, MATURE_SENTENCE)
     } else {
         SYSTEM_RULES.to_owned()

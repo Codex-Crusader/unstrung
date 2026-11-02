@@ -694,10 +694,30 @@ fn the_mature_rule_keeps_the_minor_rule() {
     let mut i = input(&c, Some(&p), &history);
     i.mature = true;
     let mature = build(&i).messages[0].content.clone();
-    assert!(general.contains(GENERAL_SENTENCE) && !general.contains(MATURE_SENTENCE));
-    assert!(mature.contains(MATURE_SENTENCE) && !mature.contains(GENERAL_SENTENCE));
+    assert!(general.contains(GENERAL_SENTENCE) && !general.contains("both adults"));
+    assert!(!mature.contains(GENERAL_SENTENCE));
+    assert!(
+        mature.contains(
+            "Ren Kagami and Kai are both adults, so mature and sexual content between them"
+        )
+    );
     for text in [&general, &mature] {
         assert!(text.contains("Never write sexual content that involves anyone under 18."));
         assert!(text.contains("If a scene goes there, Ren Kagami steers it away, in character."));
     }
+}
+
+#[test]
+fn a_minor_in_the_messages_makes_the_reply_general() {
+    let c = ren();
+    let p = kai();
+    let history = [
+        msg("user", "My 15-year-old sister is visiting."),
+        msg("assistant", "Then we talk downstairs."),
+        msg("user", "Fine."),
+    ];
+    let mut i = input(&c, Some(&p), &history);
+    i.mature = true;
+    let text = build(&i).messages[0].content.clone();
+    assert!(text.contains(GENERAL_SENTENCE) && !text.contains("both adults"));
 }

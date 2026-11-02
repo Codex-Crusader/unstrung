@@ -276,6 +276,13 @@ pub fn flagged(text: &str) -> bool {
         || words.has_minor_age()
 }
 
+/// True when `text` mentions a minor: the words and ages that block a
+/// sexual picture. In a mature chat, such a mention makes the reply general.
+pub fn mentions_minor(text: &str) -> bool {
+    let words = Words::new(text);
+    words.any(MINOR) || words.has_minor_age()
+}
+
 /// The negative terms for these rules.
 pub fn negative_terms(rules: Rules) -> Vec<&'static str> {
     let mut terms = Vec::new();
