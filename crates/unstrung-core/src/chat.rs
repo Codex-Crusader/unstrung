@@ -955,7 +955,7 @@ impl ChatService {
         picture: String,
     ) -> Result<pictures::looks::Suggested> {
         // Holds the GPU slot, so no picture starts while the model reads.
-        let (_token, _guard) = self.begin_job()?;
+        let (token, _guard) = self.begin_job()?;
         if !self.can_see().await {
             return Err(Error::Invalid(
                 "the chosen chat model cannot read pictures".into(),
@@ -982,12 +982,13 @@ impl ChatService {
         };
         let model = self.engine.model();
         let think = self.engine.tuning_for(&model).think.map(|_| false);
-        let text = client
-            .complete(
-                &chat_params(&model, &messages, &options, think),
-                REPLY_TIMEOUT,
-            )
-            .await?;
+        let params = chat_params(&model, &messages, &options, think);
+        // Stop ends it, so a closed creator does not hold the slot.
+        let text = tokio::select! {
+            biased;
+            () = token.cancelled() => return Err(Error::Cancelled),
+            text = client.complete(&params, REPLY_TIMEOUT) => text?,
+        };
         Ok(pictures::looks::parse(&text))
     }
 
@@ -999,7 +1000,7 @@ impl ChatService {
         card: &str,
     ) -> Result<pictures::looks::Suggested> {
         // Holds the GPU slot, so no picture starts while the model writes.
-        let (_token, _guard) = self.begin_job()?;
+        let (token, _guard) = self.begin_job()?;
         let client = self.engine.client()?;
         let name = clean_line(name, 80);
         let card: String = card.chars().take(4000).collect();
@@ -1034,12 +1035,13 @@ impl ChatService {
         };
         let model = self.engine.model();
         let think = self.engine.tuning_for(&model).think.map(|_| false);
-        let text = client
-            .complete(
-                &chat_params(&model, &messages, &options, think),
-                REPLY_TIMEOUT,
-            )
-            .await?;
+        let params = chat_params(&model, &messages, &options, think);
+        // Stop ends it, so a closed creator does not hold the slot.
+        let text = tokio::select! {
+            biased;
+            () = token.cancelled() => return Err(Error::Cancelled),
+            text = client.complete(&params, REPLY_TIMEOUT) => text?,
+        };
         Ok(pictures::looks::parse(&text))
     }
 

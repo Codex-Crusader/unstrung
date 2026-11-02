@@ -64,7 +64,7 @@ impl From<Error> for UiError {
                     .to_owned()
             }
             Error::Busy => {
-                "A reply or a picture is still being made. Wait, or press Stop.".to_owned()
+                "A reply, a picture or a Looks suggestion is still being made. Wait, or press Stop.".to_owned()
             }
             Error::Timeout(secs) => format!(
                 "No reply after {secs} seconds. Try again, or pick a smaller model on the Models screen."

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-can-read-pictures"
+description = "Enables the can_read_pictures command without any pre-configured scope."
+commands.allow = ["can_read_pictures"]
+
+[[permission]]
+identifier = "deny-can-read-pictures"
+description = "Denies the can_read_pictures command without any pre-configured scope."
+commands.deny = ["can_read_pictures"]

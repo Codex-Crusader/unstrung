@@ -17,6 +17,7 @@ import {
   type ImportNote,
   type Staged,
   type UiError,
+  stopReply,
 } from "../api";
 import { CARD_BUDGET, checkCard, needsPersonWord } from "../cardCheck";
 import { strings } from "../strings";
@@ -148,6 +149,18 @@ export function CreatorScreen({
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  // A Looks suggestion holds the AI slot. Closing the creator stops it, so a
+  // chat message right after does not fail as busy.
+  const lookingUpNow = useRef(false);
+  useEffect(() => {
+    lookingUpNow.current = lookingUp;
+  }, [lookingUp]);
+  useEffect(
+    () => () => {
+      if (lookingUpNow.current) void stopReply().catch(() => undefined);
+    },
+    [],
+  );
   const [lookedUp, setLookedUp] = useState(false);
   const [canSee, setCanSee] = useState(false);
   const autoLooks = useRef(false);

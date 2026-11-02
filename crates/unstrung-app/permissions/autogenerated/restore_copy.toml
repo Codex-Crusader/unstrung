@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-restore-copy"
+description = "Enables the restore_copy command without any pre-configured scope."
+commands.allow = ["restore_copy"]
+
+[[permission]]
+identifier = "deny-restore-copy"
+description = "Denies the restore_copy command without any pre-configured scope."
+commands.deny = ["restore_copy"]

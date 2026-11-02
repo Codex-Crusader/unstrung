@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-suggest-looks-from-picture"
+description = "Enables the suggest_looks_from_picture command without any pre-configured scope."
+commands.allow = ["suggest_looks_from_picture"]
+
+[[permission]]
+identifier = "deny-suggest-looks-from-picture"
+description = "Denies the suggest_looks_from_picture command without any pre-configured scope."
+commands.deny = ["suggest_looks_from_picture"]
