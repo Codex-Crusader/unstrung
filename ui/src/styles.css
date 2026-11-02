@@ -139,6 +139,8 @@ body {
   width: 100%;
   max-width: 860px;
   min-height: 0;
+  /* With a side panel open, the chat gets narrower, not the window wider. */
+  min-width: 0;
 }
 
 .chat-empty {
@@ -2725,4 +2727,24 @@ dialog.viewer::backdrop {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.memory-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.new-chat-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.new-chat-ask p {
+  flex-basis: 100%;
+  margin: 0;
 }

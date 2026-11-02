@@ -14,6 +14,8 @@ pub struct Chat {
     pub reply_custom: String,
     pub chat_model: Option<String>,
     pub head_message_id: Option<i64>,
+    /// The chat uses the character's kept memories.
+    pub use_character_memory: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -54,9 +56,10 @@ impl Db {
     pub async fn chat(&self, id: i64) -> Result<Chat> {
         sqlx::query_as!(
             Chat,
-            "SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,
-                    reply_custom, chat_model, head_message_id, created_at, updated_at
-             FROM chats WHERE id = ? AND deleted_at IS NULL",
+            r#"SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,
+                    reply_custom, chat_model, head_message_id,
+                    use_character_memory AS "use_character_memory: bool", created_at, updated_at
+             FROM chats WHERE id = ? AND deleted_at IS NULL"#,
             id
         )
         .fetch_optional(&self.pool)

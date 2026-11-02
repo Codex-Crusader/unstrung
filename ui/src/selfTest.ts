@@ -44,6 +44,8 @@ import {
   listCopies,
   setUiSetting,
   deletedChats,
+  forgetKeptMemory,
+  keepMemory,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -245,7 +247,7 @@ async function checkCreator(show: (screen: Screen) => void, renId: number): Prom
   if (first.content === fields.greeting) return "the new greeting is the same as the old one";
   if (again.view.messages.length !== 1) return "the new greeting did not start a new branch";
   // Every new chat still starts with the card's greeting.
-  const fresh = await newChat(character.id, null);
+  const fresh = await newChat(character.id, null, false);
   if (fresh.messages[0]?.content !== fields.greeting) return "a new chat did not start with the card's greeting";
 
   const test = await new Promise<string>((resolve) => {
@@ -291,7 +293,7 @@ async function checkModels(show: (screen: Screen) => void, renId: number): Promi
 }
 
 /** "Remember this", edit, pin and hide, through the same calls as the memory panel. */
-async function checkMemory(chatId: number, messages: ViewMessage[]): Promise<string> {
+async function checkMemory(chatId: number, characterId: number, messages: ViewMessage[]): Promise<string> {
   const said = messages.find((m) => m.role === "user");
   if (!said) return "memory: no user message";
   let list = await remember(chatId, said.id, "Kai's sister is called {{Emi}}.");
@@ -306,6 +308,11 @@ async function checkMemory(chatId: number, messages: ViewMessage[]): Promise<str
   if (pinned?.content !== "Kai's sister Emi lost the watch." || !pinned.is_pinned) {
     return `memory: edit or pin failed ${JSON.stringify(pinned)}`;
   }
+  // Keep it for new chats, then forget it, so later runs start the same.
+  const kept = await keepMemory(chatId, fact.id);
+  const one = kept.memories.find((k) => k.content === "Kai's sister Emi lost the watch.");
+  if (!one) return `memory: keep failed ${JSON.stringify(kept)}`;
+  await forgetKeptMemory(characterId, one.id);
   list = await setMemoryFlags(chatId, fact.id, false, true);
   if (!list.find((m) => m.id === fact.id)?.is_hidden) return "memory: hide failed";
   if (!(await chatMemories(chatId)).some((m) => m.id === fact.id)) return "memory: a hidden fact left the panel";
@@ -396,8 +403,19 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   if (!streamed(again.events, longer?.content ?? "")) return "the longer reply did not stream";
   const versions = longer?.siblings ?? [];
   if (versions.length < 2 || !versions.includes(reply.id)) return "regenerate did not keep the old version";
-  const memory = await checkMemory(chatId, again.view.messages);
+  const memory = await checkMemory(chatId, ren.id, again.view.messages);
   if (memory) return memory;
+  // The panel as a user opens it: with the kept facts section.
+  const memoryButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (b) => b.textContent.trim() === strings.memory.button,
+  );
+  if (!memoryButton) return "memory: no Memory button in the chat";
+  memoryButton.click();
+  await pause(SHOW_MS);
+  if (!document.querySelector(".memory-panel")?.textContent.includes(strings.memory.keptTitle))
+    return "memory: the panel has no kept facts section";
+  const panelOverflow = pageOverflow();
+  if (panelOverflow) return panelOverflow;
   const creator = await checkCreator(show, ren.id);
   if (creator) return creator;
   const imported = await checkImport(show);

@@ -2,10 +2,17 @@ import { useEffect, useState } from "react";
 import {
   chatMemories,
   editMemory,
+  forgetKeptMemory,
+  keepMemory,
+  keptMemories,
   remember,
+  setChatUseMemory,
   setMemoryFlags,
+  setMemoryMode,
   toUiError,
+  type Kept,
   type Memory,
+  type MemoryMode,
   type UiError,
 } from "../api";
 import { strings } from "../strings";
@@ -21,6 +28,9 @@ export interface MemoryDraft {
 /** The side panel with what a chat remembers: goal, story so far and facts. */
 export function MemoryPanel({
   chatId,
+  characterId,
+  characterName,
+  useKept,
   anchorId,
   refreshKey,
   disabled,
@@ -29,6 +39,10 @@ export function MemoryPanel({
   onClose,
 }: {
   chatId: number;
+  characterId: number;
+  characterName: string;
+  /** The chat uses the kept facts, when the panel opens. */
+  useKept: boolean;
   /**
    * The message that a fact typed in the panel belongs to: the newest user message.
    * A regenerate replaces the reply, so a fact on it would leave the path.
@@ -52,6 +66,34 @@ export function MemoryPanel({
     if (draft) setAdding(draft.text);
   }
   const [error, setError] = useState<UiError | null>(null);
+  const [kept, setKept] = useState<Kept | null>(null);
+  const [useHere, setUseHere] = useState(useKept);
+
+  useEffect(() => {
+    let active = true;
+    keptMemories(characterId)
+      .then((k) => {
+        if (active) setKept(k);
+      })
+      .catch((e: unknown) => {
+        if (active) setError(toUiError(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, [characterId]);
+
+  const runKept = (call: Promise<Kept>) => {
+    call
+      .then((k) => {
+        setKept(k);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  };
+  const isKept = (m: Memory) => kept?.memories.some((k) => k.content === m.content.trim()) ?? false;
 
   useEffect(() => {
     let active = true;
@@ -124,12 +166,13 @@ export function MemoryPanel({
     return (
       <>
         <p className={m.is_hidden ? "memory-text memory-hidden" : "memory-text"}>{m.content}</p>
-        {(m.is_hidden || m.is_pinned || m.origin === "user") && (
+        {(m.is_hidden || m.is_pinned || m.origin === "user" || isKept(m)) && (
           <p className="memory-meta">
             {[
               m.is_hidden && strings.memory.hidden,
               m.is_pinned && strings.memory.pinned,
               m.origin === "user" && strings.memory.yours,
+              isKept(m) && strings.memory.kept,
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -169,6 +212,18 @@ export function MemoryPanel({
           >
             {m.is_hidden ? strings.memory.show : strings.memory.hide}
           </button>
+          {m.kind === "fact" && !m.is_hidden && !isKept(m) && (
+            <button
+              type="button"
+              className="link-button"
+              disabled={disabled}
+              onClick={() => {
+                runKept(keepMemory(chatId, m.id));
+              }}
+            >
+              {strings.memory.keep}
+            </button>
+          )}
         </div>
       </>
     );
@@ -208,6 +263,70 @@ export function MemoryPanel({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {kept && (
+        <section className="memory-section">
+          <h3>{strings.memory.keptTitle}</h3>
+          <p className="memory-intro">{strings.memory.keptIntro(characterName)}</p>
+          <label className="check-confirm">
+            <input
+              type="checkbox"
+              checked={useHere}
+              disabled={disabled}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setChatUseMemory(chatId, on).then(
+                  () => {
+                    setUseHere(on);
+                  },
+                  (err: unknown) => {
+                    setError(toUiError(err));
+                  },
+                );
+              }}
+            />
+            {strings.memory.useHere}
+          </label>
+          <label className="memory-mode">
+            <span>{strings.memory.mode}</span>
+            <select
+              value={kept.mode}
+              disabled={disabled}
+              onChange={(e) => {
+                runKept(setMemoryMode(characterId, e.target.value as MemoryMode));
+              }}
+            >
+              {strings.memory.modes.map(([v, text]) => (
+                <option key={v} value={v}>
+                  {text}
+                </option>
+              ))}
+            </select>
+          </label>
+          {kept.memories.length === 0 ? (
+            <p className="memory-intro">{strings.memory.keptEmpty}</p>
+          ) : (
+            <ul>
+              {kept.memories.map((k) => (
+                <li key={k.id} className="memory-fact">
+                  <p className="memory-text">{k.content}</p>
+                  <div className="memory-actions">
+                    <button
+                      type="button"
+                      className="link-button"
+                      disabled={disabled}
+                      onClick={() => {
+                        runKept(forgetKeptMemory(characterId, k.id));
+                      }}
+                    >
+                      {strings.memory.forget}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
       {source !== null && (

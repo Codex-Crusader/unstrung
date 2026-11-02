@@ -9,7 +9,7 @@ use unstrung_core::Error;
 use unstrung_core::catalog::Advanced;
 use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RegenMode, ReplyResult};
 use unstrung_core::db::{
-    Character, ChatSummary, DeletedChat, Memory, Message, Persona, RecentChat,
+    Character, ChatSummary, DeletedChat, Kept, Memory, Message, Persona, RecentChat,
 };
 use unstrung_core::engine::EngineStatus;
 use unstrung_core::models::ModelsPage;
@@ -270,8 +270,58 @@ pub async fn new_chat(
     state: State<'_, AppState>,
     character_id: i64,
     persona_id: Option<i64>,
+    use_memory: bool,
 ) -> CmdResult<ChatView> {
-    Ok(state.chats.new_chat(character_id, persona_id).await?)
+    Ok(state
+        .chats
+        .new_chat_using(character_id, persona_id, use_memory)
+        .await?)
+}
+
+/// The character's kept memories and whether new chats use them.
+#[tauri::command]
+pub async fn kept_memories(state: State<'_, AppState>, character_id: i64) -> CmdResult<Kept> {
+    Ok(state.chats.db().kept(character_id).await?)
+}
+
+#[tauri::command]
+pub async fn keep_memory(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    memory_id: i64,
+) -> CmdResult<Kept> {
+    Ok(state.chats.keep_memory(chat_id, memory_id).await?)
+}
+
+#[tauri::command]
+pub async fn forget_kept_memory(
+    state: State<'_, AppState>,
+    character_id: i64,
+    memory_id: i64,
+) -> CmdResult<Kept> {
+    let db = state.chats.db();
+    db.forget_character_memory(character_id, memory_id).await?;
+    Ok(db.kept(character_id).await?)
+}
+
+#[tauri::command]
+pub async fn set_memory_mode(
+    state: State<'_, AppState>,
+    character_id: i64,
+    mode: String,
+) -> CmdResult<Kept> {
+    let db = state.chats.db();
+    db.set_memory_mode(character_id, &mode).await?;
+    Ok(db.kept(character_id).await?)
+}
+
+#[tauri::command]
+pub async fn set_chat_use_memory(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    on: bool,
+) -> CmdResult<()> {
+    Ok(state.chats.db().set_chat_use_memory(chat_id, on).await?)
 }
 
 #[tauri::command]

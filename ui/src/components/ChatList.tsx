@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { deleteChat, listChats, toUiError, type ChatSummary, type UiError } from "../api";
+import { deleteChat, keptMemories, listChats, toUiError, type ChatSummary, type UiError } from "../api";
 import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
@@ -21,12 +21,15 @@ export function ChatList({
   refreshKey: string;
   disabled: boolean;
   onOpen: (chatId: number) => void;
-  onNew: () => void;
+  /** `useMemory`: the answer to "use the kept facts?", false when not asked. */
+  onNew: (useMemory: boolean) => void;
   onDeleted: (chatId: number) => void;
   onClose: () => void;
 }) {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [confirm, setConfirm] = useState<number | null>(null);
+  // How many kept facts the new chat can use, while the question shows.
+  const [askKept, setAskKept] = useState<number | null>(null);
   const [error, setError] = useState<UiError | null>(null);
 
   useEffect(() => {
@@ -64,9 +67,51 @@ export function ChatList({
           {strings.chats.close}
         </button>
       </div>
-      <button type="button" className="button" onClick={onNew} disabled={disabled}>
-        {strings.chats.newChat}
-      </button>
+      {askKept === null ? (
+        <button
+          type="button"
+          className="button"
+          disabled={disabled}
+          onClick={() => {
+            keptMemories(characterId)
+              .then((kept) => {
+                if (kept.mode === "ask" && kept.memories.length > 0) setAskKept(kept.memories.length);
+                else onNew(false);
+              })
+              .catch(() => {
+                onNew(false);
+              });
+          }}
+        >
+          {strings.chats.newChat}
+        </button>
+      ) : (
+        <div className="new-chat-ask" role="group" aria-label={strings.chats.newChat}>
+          <p>{strings.memory.askNew(askKept)}</p>
+          <button
+            type="button"
+            className="button"
+            disabled={disabled}
+            onClick={() => {
+              setAskKept(null);
+              onNew(true);
+            }}
+          >
+            {strings.memory.askYes}
+          </button>
+          <button
+            type="button"
+            className="button button-quiet"
+            disabled={disabled}
+            onClick={() => {
+              setAskKept(null);
+              onNew(false);
+            }}
+          >
+            {strings.memory.askNo}
+          </button>
+        </div>
+      )}
       {error && <ErrorNote error={error} />}
       <ul>
         {chats.map((c) => (

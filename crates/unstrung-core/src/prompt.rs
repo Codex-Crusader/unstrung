@@ -174,7 +174,7 @@ fn notes(recall: &crate::memory::Recall, names: &Names<'_>, budget: u32) -> Stri
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
-    if summary.is_none() && goal.is_none() && recall.facts.is_empty() {
+    if summary.is_none() && goal.is_none() && recall.facts.is_empty() && recall.kept.is_empty() {
         return String::new();
     }
     let mut out = String::from(
@@ -186,17 +186,29 @@ fn notes(recall: &crate::memory::Recall, names: &Names<'_>, budget: u32) -> Stri
     if let Some(summary) = summary {
         out.push_str(&fit(&format!("Story so far: {summary}\n"), budget));
     }
-    if !recall.facts.is_empty() {
-        let mut facts = names.fill("What {{user}} said earlier:\n");
-        for fact in &recall.facts {
+    // Chat facts first, then the kept memories, in one budget.
+    let mut facts = String::new();
+    for (head, list) in [
+        ("What {{user}} said earlier:\n", &recall.facts),
+        (
+            "What {{char}} remembers from earlier chats:\n",
+            &recall.kept,
+        ),
+    ] {
+        if list.is_empty() {
+            continue;
+        }
+        let mut part = names.fill(head);
+        for fact in list {
             let line = format!("- {fact}\n");
-            if estimate_tokens(&(facts.clone() + &line)) > budget {
+            if estimate_tokens(&(facts.clone() + &part + &line)) > budget {
                 break;
             }
-            facts.push_str(&line);
+            part.push_str(&line);
         }
-        out.push_str(&facts);
+        facts.push_str(&part);
     }
+    out.push_str(&facts);
     out
 }
 

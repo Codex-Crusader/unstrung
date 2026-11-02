@@ -625,8 +625,8 @@ export function ChatScreen({
           onOpen={(id) => {
             change(() => openChat(id));
           }}
-          onNew={() => {
-            change(() => newChat(character.id, view.chat.persona_id));
+          onNew={(useMemory) => {
+            change(() => newChat(character.id, view.chat.persona_id, useMemory));
           }}
           onDeleted={(id) => {
             if (id === chatId) change(() => openCharacter(character.id));
@@ -639,6 +639,9 @@ export function ChatScreen({
       {memoryOpen && (
         <MemoryPanel
           chatId={chatId}
+          characterId={character.id}
+          characterName={character.name}
+          useKept={view.chat.use_character_memory}
           anchorId={view.messages.findLast((m) => m.role === "user")?.id ?? view.chat.head_message_id}
           refreshKey={`${String(view.chat.head_message_id)}-${String(memoryTick)}`}
           disabled={locked}

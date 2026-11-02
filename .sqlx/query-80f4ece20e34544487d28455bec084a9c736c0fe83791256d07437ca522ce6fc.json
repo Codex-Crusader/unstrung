@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE characters SET memory_mode = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "80f4ece20e34544487d28455bec084a9c736c0fe83791256d07437ca522ce6fc"
+}

@@ -65,6 +65,8 @@ pub struct Recall {
     /// Pinned facts first, then the user's, then the oldest. Early facts
     /// usually set up the story, and recent ones are still in the prompt.
     pub facts: Vec<String>,
+    /// The character's memories from earlier chats, when the chat uses them.
+    pub kept: Vec<String>,
 }
 
 /// The memories on `path`, for the prompt. Hidden ones are left out.

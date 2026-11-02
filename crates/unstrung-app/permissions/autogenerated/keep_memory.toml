@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-keep-memory"
+description = "Enables the keep_memory command without any pre-configured scope."
+commands.allow = ["keep_memory"]
+
+[[permission]]
+identifier = "deny-keep-memory"
+description = "Denies the keep_memory command without any pre-configured scope."
+commands.deny = ["keep_memory"]

@@ -3,6 +3,7 @@
 mod characters;
 mod chats;
 mod images;
+mod kept;
 mod memories;
 mod messages;
 mod personas;
@@ -11,6 +12,7 @@ pub mod snapshots;
 pub use characters::{Character, CharacterFields, WorldEntry};
 pub use chats::{Chat, ChatSummary, DeletedChat, RecentChat};
 pub use images::{GalleryImage, Image, NewImage};
+pub use kept::{CharacterMemory, Kept, MEMORY_MODES};
 pub use memories::Memory;
 pub use messages::{Message, NewMessage};
 pub use personas::{Persona, PersonaFields};

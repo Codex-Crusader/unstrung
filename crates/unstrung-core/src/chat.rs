@@ -302,15 +302,50 @@ impl ChatService {
     }
 
     pub async fn new_chat(&self, character_id: i64, persona_id: Option<i64>) -> Result<ChatView> {
+        self.new_chat_using(character_id, persona_id, false).await
+    }
+
+    /// `use_memory` is the user's answer when the character's memory setting
+    /// is "ask". "off" and "always" decide by themselves.
+    pub async fn new_chat_using(
+        &self,
+        character_id: i64,
+        persona_id: Option<i64>,
+        use_memory: bool,
+    ) -> Result<ChatView> {
         let character = self.db.character(character_id).await?;
         if let Some(id) = persona_id {
             self.db.persona(id).await?;
         }
+        let use_memory = match self.db.kept(character_id).await?.mode.as_str() {
+            "always" => true,
+            "off" => false,
+            _ => use_memory,
+        };
         let id = self
             .db
             .create_chat(&character, persona_id, "", true)
             .await?;
+        if use_memory {
+            self.db.set_chat_use_memory(id, true).await?;
+        }
         self.view(id).await
+    }
+
+    /// Keeps a fact of this chat for new chats with the character.
+    pub async fn keep_memory(&self, chat_id: i64, memory_id: i64) -> Result<crate::db::Kept> {
+        let chat = self.db.chat(chat_id).await?;
+        let memory = self
+            .db
+            .memories(chat_id)
+            .await?
+            .into_iter()
+            .find(|m| m.id == memory_id && m.kind == "fact")
+            .ok_or(Error::NotFound("memory"))?;
+        self.db
+            .keep_memory(chat.character_id, &memory.content)
+            .await?;
+        self.db.kept(chat.character_id).await
     }
 
     pub async fn chats(&self, character_id: i64) -> Result<Vec<ChatSummary>> {
@@ -1541,7 +1576,17 @@ impl ChatService {
             .await
         };
         let memories = self.db.memories(chat.id).await?;
-        let recall = memory::recall(&memories, history);
+        let mut recall = memory::recall(&memories, history);
+        if chat.use_character_memory {
+            recall.kept = self
+                .db
+                .kept(chat.character_id)
+                .await?
+                .memories
+                .into_iter()
+                .map(|m| m.content)
+                .collect();
+        }
         let mut extra: Option<String> = None;
         let mut hint = None;
         let (outcome, content, prompt) = loop {

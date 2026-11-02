@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-forget-kept-memory"
+description = "Enables the forget_kept_memory command without any pre-configured scope."
+commands.allow = ["forget_kept_memory"]
+
+[[permission]]
+identifier = "deny-forget-kept-memory"
+description = "Denies the forget_kept_memory command without any pre-configured scope."
+commands.deny = ["forget_kept_memory"]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,\n                    reply_custom, chat_model, head_message_id, created_at, updated_at\n             FROM chats WHERE id = ? AND deleted_at IS NULL",
+  "query": "SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,\n                    reply_custom, chat_model, head_message_id,\n                    use_character_memory AS \"use_character_memory: bool\", created_at, updated_at\n             FROM chats WHERE id = ? AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -54,13 +54,18 @@
         "type_info": "Integer"
       },
       {
-        "name": "created_at",
+        "name": "use_character_memory: bool",
         "ordinal": 10,
         "type_info": "Integer"
       },
       {
-        "name": "updated_at",
+        "name": "created_at",
         "ordinal": 11,
+        "type_info": "Integer"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 12,
         "type_info": "Integer"
       }
     ],
@@ -79,8 +84,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "6f0d23b0abfdb63e323b35648f55921bfdb56711000251dac6e854d44906108e"
+  "hash": "5cb6456087318512f087b0bdda1843c20c3901692c81fc295e594ed825e369f7"
 }

@@ -55,7 +55,7 @@ async fn message_tree_survives_a_reopen() {
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
     assert_eq!(
         db.meta("schema_version").await.unwrap().as_deref(),
-        Some("7")
+        Some("8")
     );
     let summaries = db.chat_summaries(id).await.unwrap();
     assert_eq!(summaries[0].message_count, 4);
@@ -448,4 +448,49 @@ async fn a_damaged_file_goes_to_safe_start_only_with_a_copy() {
         .err()
         .expect("a damaged file must not open");
     assert!(matches!(err, Error::Damaged(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn kept_memories_are_one_per_text_and_go_with_the_character() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let id = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let kept = db.kept(id).await.unwrap();
+    assert_eq!(kept.mode, "ask", "the default asks at a new chat");
+    assert!(kept.memories.is_empty());
+
+    db.keep_memory(id, " Kai owes Ren 200 credits. ")
+        .await
+        .unwrap();
+    db.keep_memory(id, "Kai owes Ren 200 credits.")
+        .await
+        .unwrap();
+    assert!(db.keep_memory(id, "  ").await.is_err());
+    let kept = db.kept(id).await.unwrap();
+    assert_eq!(kept.memories.len(), 1, "the same text stays one memory");
+    assert_eq!(kept.memories[0].content, "Kai owes Ren 200 credits.");
+
+    db.set_memory_mode(id, "always").await.unwrap();
+    assert!(db.set_memory_mode(id, "sometimes").await.is_err());
+    assert_eq!(db.kept(id).await.unwrap().mode, "always");
+
+    let character = db.character(id).await.unwrap();
+    let chat = db.create_chat(&character, None, "", true).await.unwrap();
+    assert!(!db.chat(chat).await.unwrap().use_character_memory);
+    db.set_chat_use_memory(chat, true).await.unwrap();
+    assert!(db.chat(chat).await.unwrap().use_character_memory);
+
+    let other = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let memory = db.kept(id).await.unwrap().memories[0].id;
+    assert!(
+        db.forget_character_memory(other, memory).await.is_err(),
+        "only the character's own memory"
+    );
+    db.delete_character(id).await.unwrap();
+    assert!(db.kept(id).await.is_err());
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM character_memories")
+        .fetch_one(db.pool())
+        .await
+        .unwrap();
+    assert_eq!(left, 0, "the memories go with the character");
 }

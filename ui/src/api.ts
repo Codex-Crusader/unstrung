@@ -75,8 +75,18 @@ export interface Chat {
   reply_custom: string;
   chat_model: string | null;
   head_message_id: number | null;
+  /** The chat uses the character's kept memories. */
+  use_character_memory: boolean;
   created_at: number;
   updated_at: number;
+}
+
+export type MemoryMode = "off" | "ask" | "always";
+
+/** Facts a character keeps for new chats, and whether new chats use them. */
+export interface Kept {
+  mode: MemoryMode;
+  memories: { id: number; content: string; created_at: number }[];
 }
 
 export interface ChatSummary {
@@ -262,8 +272,16 @@ export const listPersonas = () => invoke<Persona[]>("list_personas");
 
 export const openCharacter = (characterId: number) => invoke<ChatView>("open_character", { characterId });
 export const openChat = (chatId: number) => invoke<ChatView>("open_chat", { chatId });
-export const newChat = (characterId: number, personaId: number | null) =>
-  invoke<ChatView>("new_chat", { characterId, personaId });
+/** `useMemory` answers the question of the "ask" memory setting. */
+export const newChat = (characterId: number, personaId: number | null, useMemory = false) =>
+  invoke<ChatView>("new_chat", { characterId, personaId, useMemory });
+export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
+export const keepMemory = (chatId: number, memoryId: number) => invoke<Kept>("keep_memory", { chatId, memoryId });
+export const forgetKeptMemory = (characterId: number, memoryId: number) =>
+  invoke<Kept>("forget_kept_memory", { characterId, memoryId });
+export const setMemoryMode = (characterId: number, mode: MemoryMode) =>
+  invoke<Kept>("set_memory_mode", { characterId, mode });
+export const setChatUseMemory = (chatId: number, on: boolean) => invoke<null>("set_chat_use_memory", { chatId, on });
 export const listChats = (characterId: number) => invoke<ChatSummary[]>("list_chats", { characterId });
 export const deleteChat = (chatId: number) => invoke<null>("delete_chat", { chatId });
 /** Deleted chats stay 7 days, then go for good at the next start. */

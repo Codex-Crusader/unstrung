@@ -671,5 +671,22 @@ export const strings = {
     pinned: "Pinned",
     hidden: "Hidden. The character does not see it.",
     yours: "Written by you",
+    keep: "Keep for new chats",
+    kept: "Kept for new chats",
+    keptTitle: "Kept for new chats",
+    keptIntro: (name: string) => `Facts that ${name} keeps for every chat that uses them.`,
+    keptEmpty: 'Nothing yet. Press "Keep for new chats" on a fact above.',
+    useHere: "Use them in this chat",
+    mode: "New chats use them",
+    modes: [
+      ["ask", "Ask each time"],
+      ["always", "Always"],
+      ["off", "Never"],
+    ] as [string, string][],
+    forget: "Forget",
+    askNew: (n: number) =>
+      n === 1 ? "Use 1 kept fact in the new chat?" : `Use ${String(n)} kept facts in the new chat?`,
+    askYes: "Use them",
+    askNo: "Start fresh",
   },
 } as const;

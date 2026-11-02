@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT memory_mode FROM characters WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "memory_mode",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ab87a4b26d09b7bc4fb9671a23d1209f7dfc72ac8f91e62999f0b98fb05b03e1"
+}
