@@ -328,6 +328,15 @@ export interface Usage {
   parts: { kind: UsageKind; bytes: number }[];
   disks: { folders: ("app" | "library" | "models")[]; free: number; low: boolean }[];
 }
+export interface Candidate {
+  id: "temp" | "deleted_chats" | "set_aside";
+  bytes: number;
+  items: string[];
+  checked: boolean;
+}
+export const freeUpCandidates = () => invoke<Candidate[]>("free_up_candidates");
+/** Removes the picked lines at once. Ask the user first. */
+export const freeUpSpace = (ids: string[]) => invoke<number>("free_up_space", { ids });
 export const storageUsage = () => invoke<Usage>("storage_usage");
 export const discardBackup = (id: string) => invoke<null>("discard_backup", { id });
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-free-up-candidates"
+description = "Enables the free_up_candidates command without any pre-configured scope."
+commands.allow = ["free_up_candidates"]
+
+[[permission]]
+identifier = "deny-free-up-candidates"
+description = "Denies the free_up_candidates command without any pre-configured scope."
+commands.deny = ["free_up_candidates"]

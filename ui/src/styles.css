@@ -2800,3 +2800,15 @@ dialog.viewer::backdrop {
 .usage-engines { background: #7d7466; }
 .usage-logs { background: #b8a05c; }
 .usage-temp { background: #8fa59b; }
+
+.free-up-item details {
+  margin: 0 0 8px 28px;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
+.free-up-item ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}

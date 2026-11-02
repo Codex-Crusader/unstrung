@@ -53,6 +53,7 @@ import {
   rebuildSummary,
   saveSummary,
   storageUsage,
+  freeUpCandidates,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -361,6 +362,19 @@ async function checkSettings(show: (screen: Screen) => void): Promise<string> {
   await pause(SHOW_MS);
   const overflow = pageOverflow();
   if (overflow) return overflow;
+  // Opens "Free up space" for a look, and closes it again. Removes nothing.
+  const buttons = () => [...document.querySelectorAll<HTMLButtonElement>(".settings button")];
+  buttons()
+    .find((b) => b.textContent === strings.settings.freeUp)
+    ?.click();
+  await pause(SHOW_MS);
+  const freeOverflow = pageOverflow();
+  document.querySelector(".free-up")?.scrollIntoView();
+  await pause(SHOW_MS);
+  buttons()
+    .find((b) => b.closest(".free-up") && b.textContent === strings.safe.cancel)
+    ?.click();
+  if (freeOverflow) return freeOverflow;
   const ui = await getUiSettings();
   if (ui.ui_theme === undefined || ui.ui_text_size === undefined || ui.ui_motion === undefined)
     return `settings: ${JSON.stringify(ui)}`;
@@ -440,6 +454,7 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
     return `next chapter: ${chapter.chat.title}`;
   const usage = await storageUsage();
   if (!usage.parts.some((p) => p.kind === "chats" && p.bytes > 0)) return "storage: no size for the chats";
+  await freeUpCandidates();
   const rebuilt = await rebuildSummary(chatId);
   if (!rebuilt.summary.trim()) return "rebuild summary: empty";
   const saved = await saveSummary(chatId, rebuilt.through_id, rebuilt.summary);

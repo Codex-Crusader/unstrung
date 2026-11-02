@@ -402,6 +402,21 @@ pub async fn storage_usage(state: State<'_, AppState>) -> CmdResult<unstrung_cor
 }
 
 #[tauri::command]
+pub async fn free_up_candidates(
+    state: State<'_, AppState>,
+) -> CmdResult<Vec<unstrung_core::storage::Candidate>> {
+    Ok(unstrung_core::storage::candidates(state.chats.db(), &state.paths).await?)
+}
+
+/// Removes the picked lines of "Free up space", after the user confirmed.
+#[tauri::command]
+pub async fn free_up_space(state: State<'_, AppState>, ids: Vec<String>) -> CmdResult<u64> {
+    // A running reply or picture may write the files that go.
+    let (_token, _guard) = state.chats.begin_job()?;
+    Ok(unstrung_core::storage::free_up(state.chats.db(), &state.paths, &ids).await?)
+}
+
+#[tauri::command]
 pub fn discard_backup(state: State<'_, AppState>, id: String) {
     unstrung_core::backup::discard(&state.paths, &id);
 }

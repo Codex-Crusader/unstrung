@@ -4,6 +4,8 @@ import {
   diagnosticReport,
   discardBackup,
   exportBackup,
+  freeUpCandidates,
+  freeUpSpace,
   getNotify,
   getUiSettings,
   listCopies,
@@ -16,6 +18,7 @@ import {
   toUiError,
   type Added,
   type BackupInfo,
+  type Candidate,
   type Exported,
   type UiError,
   type Usage,
@@ -126,6 +129,139 @@ function UsageView() {
   );
 }
 
+/** "Free up space": a list with sizes, then a confirm with the total. */
+function FreeUp({ onDone }: { onDone: () => void }) {
+  const s = strings.settings;
+  const [list, setList] = useState<Candidate[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState(false);
+  const [freed, setFreed] = useState<number | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
+  const total = (list ?? []).filter((c) => picked.has(c.id)).reduce((n, c) => n + c.bytes, 0);
+  if (list === null) {
+    return (
+      <>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={() => {
+            setFreed(null);
+            setError(null);
+            freeUpCandidates()
+              .then((found) => {
+                setList(found);
+                setPicked(new Set(found.filter((c) => c.checked).map((c) => c.id)));
+              })
+              .catch((e: unknown) => {
+                setError(toUiError(e));
+              });
+          }}
+        >
+          {s.freeUp}
+        </button>
+        {freed !== null && (
+          <p className="field-hint" role="status">
+            {s.freed(bytesText(freed))}
+          </p>
+        )}
+        {error && <ErrorNote error={error} />}
+      </>
+    );
+  }
+  return (
+    <div className="free-up" role="group" aria-label={s.freeUp}>
+      {list.length === 0 && <p>{s.nothingToFree}</p>}
+      {list.map((c) => (
+        <div key={c.id} className="free-up-item">
+          <label className="check-confirm">
+            <input
+              type="checkbox"
+              checked={picked.has(c.id)}
+              onChange={(e) => {
+                const next = new Set(picked);
+                if (e.target.checked) next.add(c.id);
+                else next.delete(c.id);
+                setPicked(next);
+                setConfirm(false);
+              }}
+            />
+            {s.candidates[c.id]}: {bytesText(c.bytes)}
+          </label>
+          {c.items.length > 0 && (
+            <details>
+              <summary>{s.view}</summary>
+              <ul>
+                {c.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      ))}
+      <p className="field-hint">{s.modelsHint}</p>
+      {confirm ? (
+        <div role="alertdialog" aria-label={s.freeUp}>
+          <p>{s.freeAsk(bytesText(total))}</p>
+          <div className="safe-actions">
+            <button
+              type="button"
+              className="button danger"
+              onClick={() => {
+                freeUpSpace([...picked])
+                  .then((n) => {
+                    setFreed(n);
+                    setList(null);
+                    setConfirm(false);
+                    onDone();
+                  })
+                  .catch((e: unknown) => {
+                    setConfirm(false);
+                    setError(toUiError(e));
+                  });
+              }}
+            >
+              {s.freeYes}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
+                setConfirm(false);
+              }}
+            >
+              {strings.safe.cancel}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="safe-actions">
+          <button
+            type="button"
+            className="button"
+            disabled={picked.size === 0}
+            onClick={() => {
+              setConfirm(true);
+            }}
+          >
+            {s.freeButton(bytesText(total))}
+          </button>
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              setList(null);
+            }}
+          >
+            {strings.safe.cancel}
+          </button>
+        </div>
+      )}
+      {error && <ErrorNote error={error} />}
+    </div>
+  );
+}
+
 /** Export everything and Import backup. */
 function Storage() {
   const s = strings.settings;
@@ -133,6 +269,8 @@ function Storage() {
   const [importing, setImporting] = useState<"idle" | "working" | BackupInfo | Added>("idle");
   const [error, setError] = useState<UiError | null>(null);
   const [confirmReplace, setConfirmReplace] = useState(false);
+  // Measures again after "Free up space".
+  const [measured, setMeasured] = useState(0);
   const fail = (e: unknown) => {
     setImporting("idle");
     setError(toUiError(e));
@@ -141,7 +279,12 @@ function Storage() {
   return (
     <section className="settings-group" aria-label={s.storage}>
       <h2>{s.storage}</h2>
-      <UsageView />
+      <UsageView key={measured} />
+      <FreeUp
+        onDone={() => {
+          setMeasured((n) => n + 1);
+        }}
+      />
       <p>{s.backupIntro}</p>
       <div className="safe-actions">
         <button

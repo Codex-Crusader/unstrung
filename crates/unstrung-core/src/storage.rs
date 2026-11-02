@@ -2,6 +2,8 @@
 //! summed from its own fixed folder: never the app folder as a whole,
 //! because the library and the models folder can sit inside it.
 
+use crate::db::{Db, now_ms};
+use crate::error::Result;
 use crate::paths::AppPaths;
 use crate::repair::folder_size;
 use serde::Serialize;
@@ -142,9 +144,167 @@ pub fn usage(paths: &AppPaths) -> Usage {
     }
 }
 
+/// One line of "Free up space". The UI sends back only the `id`.
+#[derive(Debug, Clone, Serialize)]
+pub struct Candidate {
+    /// temp, deleted_chats or set_aside
+    pub id: &'static str,
+    pub bytes: u64,
+    /// For "View": what goes.
+    pub items: Vec<String>,
+    /// Safe to remove, so it starts checked.
+    pub checked: bool,
+}
+
+/// A folder that a restore (`replaced-<n>`) or a Replace
+/// (`replaced-import-<n>`, `gallery-replaced-<n>`) set aside. Exact names
+/// only, so nothing that merely looks alike is removed.
+fn set_aside_name(name: &str) -> bool {
+    ["replaced-import-", "replaced-", "gallery-replaced-"]
+        .iter()
+        .filter_map(|p| name.strip_prefix(p))
+        .any(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn set_aside(paths: &AppPaths) -> Vec<PathBuf> {
+    [paths.backups(), paths.library()]
+        .iter()
+        .flat_map(|dir| {
+            std::fs::read_dir(dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter(|e| set_aside_name(&e.file_name().to_string_lossy()))
+                .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+                .map(|e| e.path())
+        })
+        .collect()
+}
+
+/// What "Free up space" offers, largest first. Models are not here: the
+/// Models screen removes them and knows which ones are in use.
+pub async fn candidates(db: &Db, paths: &AppPaths) -> Result<Vec<Candidate>> {
+    let mut list = Vec::new();
+    let temp = crate::repair::temp_bytes(paths);
+    if temp > 0 {
+        list.push(Candidate {
+            id: "temp",
+            bytes: temp,
+            items: Vec::new(),
+            checked: true,
+        });
+    }
+    let deleted = db.deleted_chats().await?;
+    if !deleted.is_empty() {
+        list.push(Candidate {
+            id: "deleted_chats",
+            bytes: deleted
+                .iter()
+                .map(|c| folder_size(&paths.gallery().join(c.chat_id.to_string())))
+                .sum(),
+            items: deleted
+                .iter()
+                .map(|c| format!("{}: {}", c.character_name, c.preview))
+                .collect(),
+            checked: false,
+        });
+    }
+    let aside = set_aside(paths);
+    if !aside.is_empty() {
+        list.push(Candidate {
+            id: "set_aside",
+            bytes: aside.iter().map(|p| folder_size(p)).sum(),
+            items: aside.iter().map(|p| p.display().to_string()).collect(),
+            checked: false,
+        });
+    }
+    list.sort_by_key(|c| std::cmp::Reverse(c.bytes));
+    Ok(list)
+}
+
+/// Removes the candidates named in `ids` that are still offered, and
+/// returns the bytes they held. An unknown or gone id does nothing.
+pub async fn free_up(db: &Db, paths: &AppPaths, ids: &[String]) -> Result<u64> {
+    let mut freed = 0;
+    for c in candidates(db, paths).await? {
+        if !ids.iter().any(|id| id == c.id) {
+            continue;
+        }
+        match c.id {
+            "temp" => {
+                let failed = crate::repair::remove_temp_files(paths);
+                if !failed.is_empty() {
+                    log::warn!("some temporary files stayed: {failed}");
+                }
+            }
+            // All of Recently deleted: the cut-off lies 7 days ahead.
+            "deleted_chats" => {
+                crate::library::purge_deleted_chats(
+                    db,
+                    paths,
+                    now_ms() + crate::library::KEEP_DELETED_MS,
+                )
+                .await?;
+            }
+            _ => {
+                for dir in set_aside(paths) {
+                    if let Err(e) = std::fs::remove_dir_all(&dir) {
+                        log::warn!("could not remove {}: {e}", dir.display());
+                    }
+                }
+            }
+        }
+        freed += c.bytes;
+    }
+    Ok(freed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn free_up_removes_only_what_it_offers() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        paths.ensure().unwrap();
+        let db = Db::open(&paths.database()).await.unwrap();
+        for name in ["replaced-123", "replaced-import-456"] {
+            std::fs::create_dir_all(paths.backups().join(name)).unwrap();
+            std::fs::write(paths.backups().join(name).join("app.db"), [0u8; 10]).unwrap();
+        }
+        // Names that only look alike stay.
+        for name in ["replaced-12a", "replaced-", "daily-1-2.db"] {
+            std::fs::create_dir_all(paths.backups().join(name)).unwrap();
+        }
+        let offered = candidates(&db, &paths).await.unwrap();
+        let aside = offered.iter().find(|c| c.id == "set_aside").unwrap();
+        assert_eq!(
+            (aside.bytes, aside.items.len(), aside.checked),
+            (20, 2, false)
+        );
+
+        // An id that is not offered does nothing.
+        assert_eq!(free_up(&db, &paths, &["models".into()]).await.unwrap(), 0);
+        assert!(paths.backups().join("replaced-123").exists());
+
+        assert_eq!(
+            free_up(&db, &paths, &["set_aside".into()]).await.unwrap(),
+            20
+        );
+        assert!(!paths.backups().join("replaced-123").exists());
+        assert!(!paths.backups().join("replaced-import-456").exists());
+        for name in ["replaced-12a", "replaced-", "daily-1-2.db"] {
+            assert!(paths.backups().join(name).exists(), "{name}");
+        }
+        assert!(
+            candidates(&db, &paths)
+                .await
+                .unwrap()
+                .iter()
+                .all(|c| c.id != "set_aside")
+        );
+    }
 
     #[test]
     fn each_part_counts_its_own_folder_once() {

@@ -513,6 +513,11 @@ pub(crate) fn temp_bytes(paths: &AppPaths) -> u64 {
     temp_files(paths, false).bytes
 }
 
+/// Removes them, as the quick repair fix does. Returns what failed.
+pub(crate) fn remove_temp_files(paths: &AppPaths) -> String {
+    temp_files(paths, true).detail
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

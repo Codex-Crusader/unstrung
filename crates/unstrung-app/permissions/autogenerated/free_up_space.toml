@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-free-up-space"
+description = "Enables the free_up_space command without any pre-configured scope."
+commands.allow = ["free_up_space"]
+
+[[permission]]
+identifier = "deny-free-up-space"
+description = "Denies the free_up_space command without any pre-configured scope."
+commands.deny = ["free_up_space"]

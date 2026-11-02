@@ -508,6 +508,19 @@ export const strings = {
       return `${free} free on the disk with ${list}.`;
     },
     lowSpace: "The disk is almost full. Downloads and pictures can fail.",
+    freeUp: "Free up space",
+    candidates: {
+      temp: "Temporary files and old logs",
+      deleted_chats: "Chats in Recently deleted, with their pictures",
+      set_aside: "Old data that a restore or an import set aside",
+    },
+    view: "View",
+    nothingToFree: "There is nothing to remove.",
+    modelsHint: "To remove a chat or picture model, open Models.",
+    freeButton: (size: string) => `Remove (${size})`,
+    freeAsk: (size: string) => `Remove the checked items now? This frees ${size}. You cannot undo it.`,
+    freeYes: "Remove now",
+    freed: (size: string) => `Done. ${size} is free again.`,
     backupIntro:
       "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again.",
     exportAll: "Export everything",
