@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT extensions_json FROM characters WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "extensions_json",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "734210cc424c348bae358e466d6308dec16d8227076ba73a8537f897bb059fc3"
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-from-backup"
+description = "Enables the add_from_backup command without any pre-configured scope."
+commands.allow = ["add_from_backup"]
+
+[[permission]]
+identifier = "deny-add-from-backup"
+description = "Denies the add_from_backup command without any pre-configured scope."
+commands.deny = ["add_from_backup"]

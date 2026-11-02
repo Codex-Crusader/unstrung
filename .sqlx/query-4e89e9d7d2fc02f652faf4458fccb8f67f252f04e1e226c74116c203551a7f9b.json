@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT keywords, content, is_enabled AS \"is_enabled: bool\"\n             FROM world_info WHERE character_id = ? ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "keywords",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "content",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_enabled: bool",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4e89e9d7d2fc02f652faf4458fccb8f67f252f04e1e226c74116c203551a7f9b"
+}

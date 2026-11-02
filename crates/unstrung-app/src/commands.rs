@@ -346,6 +346,39 @@ pub async fn export_backup(
     Ok(Some(done))
 }
 
+/// "Import backup": the user picks a zip. It is checked and staged, and
+/// nothing changes yet. `None` when the user closes the picker.
+#[tauri::command]
+pub async fn open_backup(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> CmdResult<Option<unstrung_core::backup::BackupInfo>> {
+    let Some(file) = rfd::AsyncFileDialog::new()
+        .set_parent(&window)
+        .add_filter("Zip", &["zip"])
+        .pick_file()
+        .await
+    else {
+        return Ok(None);
+    };
+    Ok(Some(
+        unstrung_core::backup::open(&state.paths, file.path()).await?,
+    ))
+}
+
+#[tauri::command]
+pub async fn add_from_backup(
+    state: State<'_, AppState>,
+    id: String,
+) -> CmdResult<unstrung_core::backup::Added> {
+    Ok(unstrung_core::backup::add_characters(state.chats.db(), &state.paths, &id).await?)
+}
+
+#[tauri::command]
+pub fn discard_backup(state: State<'_, AppState>, id: String) {
+    unstrung_core::backup::discard(&state.paths, &id);
+}
+
 #[tauri::command]
 pub async fn undo_refresh(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
     Ok(state.chats.undo_refresh(chat_id).await?)

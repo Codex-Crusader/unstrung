@@ -496,6 +496,15 @@ export const strings = {
     exporting: "Exporting. With many pictures this takes some minutes.",
     exported: (pictures: number, bytes: number) =>
       `The backup is saved: ${String(pictures)} ${pictures === 1 ? "picture" : "pictures"}, ${(bytes / (1024 * 1024)).toFixed(1)} MB.`,
+    importBackup: "Import backup",
+    importing: "Checking the backup.",
+    backupHolds: (b: { created_ms: number; characters: number; personas: number; chats: number; pictures: number }) =>
+      `This backup is from ${new Date(b.created_ms).toLocaleString()}. It holds ${String(b.characters)} characters, ${String(b.personas)} personas, ${String(b.chats)} chats and ${String(b.pictures)} pictures.`,
+    addOnly: "Add characters only",
+    addOnlyHint:
+      "Adds the characters and personas of the backup, with their pictures. Your chats and characters stay as they are. Characters you already have are not added twice.",
+    added: (a: { characters: number; personas: number; skipped: number }) =>
+      `Added ${String(a.characters)} characters and ${String(a.personas)} personas.${a.skipped > 0 ? ` ${String(a.skipped)} were here already.` : ""}`,
   },
   safe: {
     title: "Safe start",

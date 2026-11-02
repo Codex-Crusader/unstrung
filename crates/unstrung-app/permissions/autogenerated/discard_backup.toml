@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-discard-backup"
+description = "Enables the discard_backup command without any pre-configured scope."
+commands.allow = ["discard_backup"]
+
+[[permission]]
+identifier = "deny-discard-backup"
+description = "Denies the discard_backup command without any pre-configured scope."
+commands.deny = ["discard_backup"]

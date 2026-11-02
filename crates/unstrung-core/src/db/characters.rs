@@ -212,6 +212,27 @@ impl Db {
         Ok(())
     }
 
+    /// The card data of a character: its extensions and world info.
+    pub async fn character_extras(&self, id: i64) -> Result<crate::card::ImportExtras> {
+        let extensions_json =
+            sqlx::query_scalar!("SELECT extensions_json FROM characters WHERE id = ?", id)
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or(Error::NotFound("character"))?;
+        let world = sqlx::query_as!(
+            WorldEntry,
+            r#"SELECT keywords, content, is_enabled AS "is_enabled: bool"
+             FROM world_info WHERE character_id = ? ORDER BY id"#,
+            id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(crate::card::ImportExtras {
+            extensions_json,
+            world,
+        })
+    }
+
     pub async fn add_world_entries(&self, character_id: i64, entries: &[WorldEntry]) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         for e in entries {

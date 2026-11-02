@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import {
+  addFromBackup,
   diagnosticReport,
+  discardBackup,
   exportBackup,
   getNotify,
   getUiSettings,
   listCopies,
+  openBackup,
   restartSafe,
   setNotify,
   setUiSetting,
   toUiError,
+  type Added,
+  type BackupInfo,
   type Exported,
   type UiError,
 } from "../api";
@@ -73,11 +78,17 @@ function Choices({
   );
 }
 
-/** Export everything, and later Import backup. */
+/** Export everything and Import backup. */
 function Storage() {
   const s = strings.settings;
   const [state, setState] = useState<"idle" | "working" | Exported>("idle");
+  const [importing, setImporting] = useState<"idle" | "working" | BackupInfo | Added>("idle");
   const [error, setError] = useState<UiError | null>(null);
+  const fail = (e: unknown) => {
+    setImporting("idle");
+    setError(toUiError(e));
+  };
+  const opened = typeof importing === "object" && "id" in importing ? importing : null;
   return (
     <section className="settings-group" aria-label={s.storage}>
       <h2>{s.storage}</h2>
@@ -104,6 +115,56 @@ function Storage() {
       {typeof state === "object" && (
         <p className="field-hint" role="status">
           {s.exported(state.pictures, state.bytes)}
+        </p>
+      )}
+      {opened === null ? (
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={importing === "working"}
+          onClick={() => {
+            setImporting("working");
+            setError(null);
+            openBackup()
+              .then((info) => {
+                setImporting(info ?? "idle");
+              })
+              .catch(fail);
+          }}
+        >
+          {importing === "working" ? s.importing : s.importBackup}
+        </button>
+      ) : (
+        <div role="group" aria-label={s.importBackup}>
+          <p>{s.backupHolds(opened)}</p>
+          <div className="safe-actions">
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setImporting("working");
+                addFromBackup(opened.id).then(setImporting).catch(fail);
+              }}
+            >
+              {s.addOnly}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
+                setImporting("idle");
+                void discardBackup(opened.id).catch(() => undefined);
+              }}
+            >
+              {strings.safe.cancel}
+            </button>
+          </div>
+          <p className="field-hint">{s.addOnlyHint}</p>
+        </div>
+      )}
+      {typeof importing === "object" && "skipped" in importing && (
+        <p className="field-hint" role="status">
+          {s.added(importing)}
         </p>
       )}
       {error && <ErrorNote error={error} />}

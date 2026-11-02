@@ -296,6 +296,24 @@ export interface Exported {
 }
 /** Opens a save picker. `null` when the user closes it. */
 export const exportBackup = () => invoke<Exported | null>("export_backup");
+export interface BackupInfo {
+  id: string;
+  created_ms: number;
+  app_version: string;
+  characters: number;
+  personas: number;
+  chats: number;
+  pictures: number;
+}
+export interface Added {
+  characters: number;
+  personas: number;
+  skipped: number;
+}
+/** Opens a file picker, then checks and stages the backup. `null` when the user closes it. */
+export const openBackup = () => invoke<BackupInfo | null>("open_backup");
+export const addFromBackup = (id: string) => invoke<Added>("add_from_backup", { id });
+export const discardBackup = (id: string) => invoke<null>("discard_backup", { id });
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
 export const keepMemory = (chatId: number, memoryId: number) => invoke<Kept>("keep_memory", { chatId, memoryId });
