@@ -18,7 +18,7 @@ import {
   type Staged,
   type UiError,
 } from "../api";
-import { CARD_BUDGET, checkCard } from "../cardCheck";
+import { CARD_BUDGET, checkCard, needsPersonWord } from "../cardCheck";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { CropAvatar } from "./CropAvatar";
@@ -96,11 +96,14 @@ function centerCrop(s: Staged) {
 function Field({
   label,
   hint,
+  warn,
   required,
   children,
 }: {
   label: string;
   hint?: string;
+  /** Shows the hint as a warning. */
+  warn?: boolean;
   required?: boolean;
   children: ReactNode;
 }) {
@@ -111,7 +114,7 @@ function Field({
         {required && <span className="field-required"> · {strings.creator.required}</span>}
       </span>
       {children}
-      {hint && <span className="field-hint">{hint}</span>}
+      {hint && <span className={warn ? "field-hint warn" : "field-hint"}>{hint}</span>}
     </label>
   );
 }
@@ -455,7 +458,11 @@ export function CreatorScreen({
           >
             {suggesting ? strings.creator.suggesting : strings.creator.suggest}
           </button>
-          <Field label={strings.creator.tags} hint={strings.creator.tagsHint}>
+          <Field
+            label={strings.creator.tags}
+            hint={needsPersonWord(fields.appearance_tags) ? strings.creator.personWord : strings.creator.tagsHint}
+            warn={needsPersonWord(fields.appearance_tags)}
+          >
             <input
               type="text"
               maxLength={400}

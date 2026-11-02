@@ -90,6 +90,7 @@ export const strings = {
     tags: "Looks",
     tagsHint:
       "Start with woman, man or person, then what stays the same in every picture: hair, eyes, face, build. For example: woman, short silver hair, grey eyes.",
+    personWord: "Start the Looks with woman, man or person. Without it, pictures can show the wrong kind of person.",
     outfit: "Usual outfit",
     outfitHint: "What they usually wear. If the story changes their clothes, the pictures follow the story.",
     artStyle: "Art style",

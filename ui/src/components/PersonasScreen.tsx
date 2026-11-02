@@ -12,7 +12,7 @@ import {
   type PersonaFields,
   type UiError,
 } from "../api";
-import { estimateTokens } from "../cardCheck";
+import { estimateTokens, needsPersonWord } from "../cardCheck";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { PictureField } from "./PictureField";
@@ -179,7 +179,11 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
                   setEditing({ ...editing, fields: { ...editing.fields, appearance_tags: e.target.value } });
                 }}
               />
-              <span className="field-hint">{strings.personas.tagsHint}</span>
+              {needsPersonWord(editing.fields.appearance_tags) ? (
+                <span className="field-hint warn">{strings.creator.personWord}</span>
+              ) : (
+                <span className="field-hint">{strings.personas.tagsHint}</span>
+              )}
             </label>
             <label className="field">
               <span className="field-label">{strings.personas.outfit}</span>

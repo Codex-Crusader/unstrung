@@ -8,6 +8,13 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3.5);
 }
 
+/** True when filled-in Looks do not start with woman, man or person. Pictures
+ * from tags need that word, or they can show the wrong kind of person. */
+export function needsPersonWord(looks: string): boolean {
+  const first = (looks.split(",")[0] ?? "").trim().toLowerCase();
+  return looks.trim() !== "" && !["woman", "man", "person"].includes(first);
+}
+
 /** The card part of the prompt: 20% of an 8192-token context. */
 export const CARD_BUDGET = Math.floor((8192 * 20) / 100);
 

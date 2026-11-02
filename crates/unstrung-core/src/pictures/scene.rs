@@ -362,13 +362,38 @@ fn people<'a, 'p>(
     let as_character = (Who::Character, character, scene.character_outfit.as_str());
     match (scene.who, persona) {
         (Who::Nobody, _) => Vec::new(),
-        (Who::Character, _) | (Who::Both | Who::Persona, None) => vec![as_character],
+        (Who::Character, _) | (Who::Both, None) => vec![as_character],
+        // The user is not in this chat, and the character is not the user.
+        (Who::Persona, None) => Vec::new(),
         (Who::Persona, Some(p)) => vec![(Who::Persona, p, scene.persona_outfit.as_str())],
         (Who::Both, Some(p)) => vec![
             as_character,
             (Who::Persona, p, scene.persona_outfit.as_str()),
         ],
     }
+}
+
+/// The Looks as the prompt writes them. The kind of person is in the label
+/// already.
+fn looks_text(appearance: &str) -> String {
+    let looks: Vec<&str> = appearance
+        .split(',')
+        .map(str::trim)
+        .filter(|t| {
+            !t.is_empty()
+                && !["woman", "man", "person"]
+                    .iter()
+                    .any(|w| t.eq_ignore_ascii_case(w))
+        })
+        .collect();
+    clean(&looks.join(", "))
+}
+
+/// True when a saved prompt still describes someone with these Looks. A
+/// variation uses today's profile picture only for the same person: after a
+/// persona switch, "image 2" would be someone else.
+pub fn describes(prompt: &str, appearance: &str) -> bool {
+    prompt.contains(&looks_text(appearance))
 }
 
 /// `positive` without the words about profile pictures, for a picture made
@@ -409,19 +434,7 @@ fn person_text(label: &str, (_, p, story_outfit): &(Who, &Person, &str)) -> Opti
     } else {
         story_outfit.to_string()
     };
-    // The kind of person is in the label already.
-    let looks: Vec<&str> = p
-        .appearance
-        .split(',')
-        .map(str::trim)
-        .filter(|t| {
-            !t.is_empty()
-                && !["woman", "man", "person"]
-                    .iter()
-                    .any(|w| t.eq_ignore_ascii_case(w))
-        })
-        .collect();
-    let looks = clean(&looks.join(", "));
+    let looks = looks_text(p.appearance);
     let has_picture = label.contains(" from image ");
     match (looks.is_empty(), outfit.is_empty()) {
         (false, false) => Some(format!("{label} has {looks} and wears {outfit}")),
@@ -578,7 +591,8 @@ mod tests {
             "Close-up. Exactly two people, a woman and a man. A tavern. The woman pours tea for the man. Calm mood. The woman has silver hair, red eyes and wears black coat. The man has short brown hair and wears green jacket"
         );
         scene.who = Who::Persona;
-        assert!(positive(&scene, "", &character, None).contains("silver hair"));
+        // No persona in the chat: nobody is drawn in the user's place.
+        assert!(!positive(&scene, "", &character, None).contains("silver hair"));
         scene.who = Who::Nobody;
         let p = positive(&scene, "", &character, Some(&persona));
         assert!(!p.contains("hair") && !p.contains("woman"), "{p}");
@@ -671,14 +685,14 @@ mod tests {
         scene.persona_outfit.clear();
         let p = positive(&scene, "", &character, Some(&persona));
         assert!(p.contains("brown hair and wears green jacket"), "{p}");
-        // With no persona the character is drawn: the user's clothes never
+        // With no persona nobody is drawn, and the user's clothes never
         // dress the character.
         scene.who = Who::Persona;
         scene.character_outfit.clear();
         scene.persona_outfit = "a grey suit".into();
         let p = positive(&scene, "", &character, None);
         assert!(
-            p.contains("silver hair and wears black coat") && !p.contains("grey suit"),
+            !p.contains("silver hair") && !p.contains("grey suit"),
             "{p}"
         );
     }
@@ -745,6 +759,23 @@ mod tests {
         assert!(q.contains("Ren: Sit down."));
         assert!(q.contains("never names"));
         assert!(q.contains("The user wants this picture: us on the roof"));
+    }
+
+    #[test]
+    fn a_saved_prompt_knows_its_people_and_no_persona_means_nobody() {
+        let kai = Person {
+            appearance: "man, messy brown hair, stubble",
+            outfit: "olive jacket",
+            picture: true,
+        };
+        let mut scene = fallback("the user waves", "");
+        scene.who = Who::Persona;
+        let text = positive(&scene, "", &kai, Some(&kai));
+        assert!(describes(&text, kai.appearance), "{text}");
+        assert!(!describes(&text, "woman, wavy brown hair, round glasses"));
+        // No persona in the chat: nobody, not the character in the user's place.
+        assert!(references(&scene, &kai, None).is_empty());
+        assert!(!positive(&scene, "", &kai, None).contains("stubble"));
     }
 
     #[test]
