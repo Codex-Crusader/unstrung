@@ -398,3 +398,69 @@ async fn the_scene_writer_gives_clothes_only_when_the_story_changes_them() {
     assert!(changed >= 2, "the dress showed {changed} of 3 times");
     assert!(invented <= 1, "clothes were made up {invented} of 3 times");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama and the default chat model"]
+async fn looks_come_from_a_card_from_another_app() {
+    use unstrung_core::card::parse_card;
+    use unstrung_core::pictures::safety;
+    let home = tempfile::tempdir().unwrap();
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths.ensure().unwrap();
+    let engine = Engine::new(paths.clone());
+    engine.start().await;
+    assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
+    let db = Db::open(&paths.database()).await.unwrap();
+    let service = ChatService::new(db, engine.clone());
+
+    // A Tavern V2 card, as another app exports it: the looks are in the description.
+    let card = serde_json::json!({
+        "spec": "chara_card_v2",
+        "spec_version": "2.0",
+        "data": {
+            "name": "Mira Thorn",
+            "description": "Mira is a smuggler who runs a small boat on the river. She has long copper hair in a braid, green eyes, freckles and a thin scar over her left eyebrow. She usually wears a patched leather vest and a red scarf.",
+            "personality": "Quick, proud, funny when she is nervous.",
+            "scenario": "{{user}} needs a ride across the river at night.",
+            "first_mes": "*Mira looks up from the rope she is coiling.* You are late. The river does not wait.",
+            "mes_example": ""
+        }
+    });
+    let parsed = parse_card(card.to_string().as_bytes()).unwrap();
+    assert_eq!(parsed.fields.appearance_tags, "");
+    let f = &parsed.fields;
+    let text = [
+        &f.personality,
+        &f.scenario,
+        &f.greeting,
+        &f.example_dialogue,
+    ]
+    .iter()
+    .filter(|t| !t.trim().is_empty())
+    .map(|t| t.as_str())
+    .collect::<Vec<_>>()
+    .join("\n\n");
+    for _ in 0..3 {
+        let s = service.suggest_looks(&f.name, &text).await.unwrap();
+        println!("Mira: looks [{}] outfit [{}]", s.looks, s.outfit);
+        let looks = s.looks.to_lowercase();
+        assert!(looks.contains("copper") && looks.contains("green"), "{s:?}");
+        assert!(!looks.contains("vest") && !looks.contains("scarf"), "{s:?}");
+        assert!(
+            s.outfit.to_lowercase().contains("vest") || s.outfit.to_lowercase().contains("scarf"),
+            "{s:?}"
+        );
+        assert!(!safety::flagged(&s.looks) && !safety::flagged(&s.outfit));
+    }
+
+    // A card that says nothing about looks: the model picks plain ones.
+    let bram = "Loud, warm, superstitious, loves tall tales and teasing. A retired sea captain with a big laugh.\n\n\
+                {{user}} walks into Bram's cluttered shop on a rainy afternoon.";
+    for _ in 0..2 {
+        let s = service.suggest_looks("Bram Kettle", bram).await.unwrap();
+        println!("Bram: looks [{}] outfit [{}]", s.looks, s.outfit);
+        assert!(!s.looks.is_empty() && !s.outfit.is_empty(), "{s:?}");
+        assert!(!safety::flagged(&s.looks) && !safety::flagged(&s.outfit));
+    }
+    engine.stop().await;
+}

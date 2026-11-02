@@ -84,6 +84,8 @@ export const strings = {
     voiceHint: "2 to 4 short sentences about how they talk. The app repeats this before every reply.",
     suggest: "Suggest from personality",
     suggesting: "Writing...",
+    suggestLooks: "Suggest looks from the card",
+    lookedUp: "Looks and outfit were filled from the card. Check them before you save.",
     tags: "Looks",
     tagsHint: "Stay the same in every picture: hair, eyes, face, build. For example: short silver hair, grey eyes.",
     outfit: "Usual outfit",
@@ -301,6 +303,8 @@ export const strings = {
             ? "Finishing the picture..."
             : `Painting, step ${String(step)} of ${String(total)}...`,
     picturesOff: "Pictures are not turned on yet. Open Pictures in the left menu and click Turn on pictures.",
+    noLooks: (name: string) =>
+      `${name} has no Looks, so each picture can show a different face. Add Looks in Edit character.`,
     picture: "Picture of the scene",
     openPicture: "Open the picture",
   },

@@ -248,6 +248,17 @@ pub fn check(
     })
 }
 
+/// True when `text` has a word that any rule here reacts to. Text that the
+/// chat model suggests for a character's Looks must have none.
+pub fn flagged(text: &str) -> bool {
+    let words = Words::new(text);
+    words.any(EXPLICIT)
+        || words.any_start(EXPLICIT_STARTS)
+        || words.any(SUGGESTIVE)
+        || words.any(MINOR)
+        || words.has_minor_age()
+}
+
 /// The negative terms for these rules.
 pub fn negative_terms(rules: Rules) -> Vec<&'static str> {
     let mut terms = Vec::new();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   deleteCharacter,
   getCharacter,
@@ -6,6 +6,7 @@ import {
   saveCharacter,
   setCharacterModel,
   suggestAnchor,
+  suggestLooks,
   toUiError,
   type AvatarChange,
   type Character,
@@ -141,6 +142,9 @@ export function CreatorScreen({
   const [error, setError] = useState<UiError | null>(null);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookedUp, setLookedUp] = useState(false);
+  const autoLooks = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
   const [staged, setStaged] = useState<Staged | null>(first);
@@ -219,6 +223,47 @@ export function CreatorScreen({
         setSuggesting(false);
       });
   };
+
+  /** The card's own text, where most cards describe looks. */
+  const cardText = [fields.personality, fields.scenario, fields.greeting, fields.example_dialogue]
+    .filter((t) => t.trim() !== "")
+    .join("\n\n");
+
+  /** Puts suggested looks in the form. `onlyEmpty`: keep what the user or the card wrote. */
+  const fill = (onlyEmpty: boolean) => (s: { looks: string; outfit: string }) => {
+    setFields((f) => ({
+      ...f,
+      appearance_tags: onlyEmpty && f.appearance_tags.trim() !== "" ? f.appearance_tags : s.looks,
+      outfit: onlyEmpty && f.outfit.trim() !== "" ? f.outfit : s.outfit,
+    }));
+    setLookedUp(s.looks !== "" || s.outfit !== "");
+  };
+
+  const lookUp = () => {
+    setLookingUp(true);
+    setError(null);
+    suggestLooks(fields.name, cardText)
+      .then(fill(false))
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      })
+      .finally(() => {
+        setLookingUp(false);
+      });
+  };
+
+  // A card from another app has no Looks: fill them once, for the user to check.
+  // It is a help, not a step, so a failure shows no error and the button stays.
+  useEffect(() => {
+    if (autoLooks.current || !draft || !ready) return;
+    if (fields.appearance_tags.trim() !== "" && fields.outfit.trim() !== "") return;
+    if (cardText.trim() === "") return;
+    autoLooks.current = true;
+    suggestLooks(fields.name, cardText)
+      .then(fill(true))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, when the engine is ready
+  }, [ready]);
 
   const remove = () => {
     if (!saved) return;
@@ -397,6 +442,19 @@ export function CreatorScreen({
               }}
             />
           </Field>
+          <button
+            type="button"
+            className="link-button"
+            disabled={!ready || lookingUp || cardText.trim() === ""}
+            onClick={lookUp}
+          >
+            {lookingUp ? strings.creator.suggesting : strings.creator.suggestLooks}
+          </button>
+          {lookedUp && (
+            <p className="hint" role="status">
+              {strings.creator.lookedUp}
+            </p>
+          )}
           <Field label={strings.creator.artStyle} hint={strings.creator.artStyleHint}>
             <input
               type="text"

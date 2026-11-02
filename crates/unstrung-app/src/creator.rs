@@ -150,6 +150,16 @@ pub async fn import_card(
         .map_err(UiError::from)
 }
 
+/// `card` is the card's text: personality, scenario, greeting and examples.
+#[tauri::command]
+pub async fn suggest_looks(
+    state: State<'_, AppState>,
+    name: String,
+    card: String,
+) -> CmdResult<unstrung_core::pictures::looks::Suggested> {
+    Ok(state.chats.suggest_looks(&name, &card).await?)
+}
+
 #[tauri::command]
 pub async fn suggest_anchor(
     state: State<'_, AppState>,

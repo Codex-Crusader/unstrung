@@ -321,6 +321,8 @@ export function ChatScreen({
       setHint(strings.chat.picturesOff);
       return;
     }
+    // The picture is still made: the note says why faces can change.
+    if (character.appearance_tags.trim() === "") setHint(strings.chat.noLooks(name));
     setPainting({ chat_id: chatId, message_id: messageId, phase: "scene", step: 0, total: 0 });
     paintPicture(chatId, messageId, wish)
       .then((p) => {

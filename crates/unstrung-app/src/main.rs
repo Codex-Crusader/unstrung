@@ -187,6 +187,7 @@ fn main() {
             creator::stage_upload,
             creator::import_card,
             creator::suggest_anchor,
+            creator::suggest_looks,
             creator::test_reply,
             selftest::self_test_mode,
             selftest::self_test_report,

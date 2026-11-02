@@ -934,6 +934,52 @@ impl ChatService {
         Ok(clean_line(text.trim().trim_matches('"'), 400))
     }
 
+    /// Suggests Looks and a usual outfit from a card's text, for a card that
+    /// has none. Nothing is saved: the creator shows the text to check first.
+    pub async fn suggest_looks(
+        &self,
+        name: &str,
+        card: &str,
+    ) -> Result<pictures::looks::Suggested> {
+        let client = self.engine.client()?;
+        let name = clean_line(name, 80);
+        let card: String = card.chars().take(4000).collect();
+        if card.trim().is_empty() {
+            return Err(Error::Invalid("write the personality first".into()));
+        }
+        let messages = [
+            ChatMessage {
+                role: "system",
+                content: "You help write roleplay characters. Answer with plain text only.".into(),
+            },
+            ChatMessage {
+                role: "user",
+                content: pictures::looks::prompt(&name, &card),
+            },
+        ];
+        let options = Options {
+            temperature: 0.4,
+            min_p: 0.05,
+            top_p: 1.0,
+            top_k: 40,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.08,
+            repeat_last_n: 64,
+            num_ctx: 4096,
+            num_predict: 160,
+            stop: Vec::new(),
+        };
+        let model = self.engine.model();
+        let think = self.engine.tuning_for(&model).think.map(|_| false);
+        let text = client
+            .complete(
+                &chat_params(&model, &messages, &options, think),
+                REPLY_TIMEOUT,
+            )
+            .await?;
+        Ok(pictures::looks::parse(&text))
+    }
+
     /// What the chat remembers on its current path, for the memory panel.
     pub async fn memories(&self, chat_id: i64) -> Result<Vec<Memory>> {
         let path = self.db.path_to_head(chat_id).await?;

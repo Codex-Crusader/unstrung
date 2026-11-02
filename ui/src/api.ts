@@ -409,6 +409,9 @@ export const deletePersona = (personaId: number) => invoke<null>("delete_persona
 export const setDefaultPersona = (personaId: number | null) => invoke<null>("set_default_persona", { personaId });
 export const suggestAnchor = (name: string, personality: string) =>
   invoke<string>("suggest_anchor", { name, personality });
+/** Looks and a usual outfit from the card's text. Nothing is saved. */
+export const suggestLooks = (name: string, card: string) =>
+  invoke<{ looks: string; outfit: string }>("suggest_looks", { name, card });
 
 /** Sends the raw bytes of a picture file. The core decodes it and keeps a clean copy. */
 export const stageUpload = (bytes: Uint8Array) => invoke<Staged>("stage_upload", bytes);

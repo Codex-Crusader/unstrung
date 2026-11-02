@@ -313,8 +313,11 @@ mod tests {
 
         let size = if gpu.is_some() { 1024 } else { 512 };
         let prompts = super::super::scene::Prompts {
-            positive: "a cozy tavern at night, warm lantern light, wooden tables, a woman with red hair in a green cloak smiling, detailed illustration, fully clothed"
-                .into(),
+            // UNSTRUNG_TEST_PICTURE_PROMPT tries another prompt, for example one built from suggested Looks.
+            positive: std::env::var("UNSTRUNG_TEST_PICTURE_PROMPT").unwrap_or_else(|_| {
+                "a cozy tavern at night, warm lantern light, wooden tables, a woman with red hair in a green cloak smiling, detailed illustration, fully clothed"
+                    .into()
+            }),
             negative: "blurry, low quality, nudity".into(),
         };
         let out = paths.gallery().join("test").join(format!("real-{id}.png"));
