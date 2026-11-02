@@ -86,6 +86,11 @@
     "allow-stage-upload",
     "allow-import-card",
     "allow-suggest-anchor",
+    "allow-suggest-looks",
+    "allow-can-read-pictures",
+    "allow-suggest-looks-from-picture",
+    "allow-list-copies",
+    "allow-restore-copy",
     "allow-test-reply",
     "allow-self-test-mode",
     "allow-self-test-report"

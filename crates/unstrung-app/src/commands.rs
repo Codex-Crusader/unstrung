@@ -629,6 +629,37 @@ pub async fn set_character_model(
 mod tests {
     use super::*;
 
+    /// Tauri rejects a command that has no permission ("not allowed by
+    /// ACL"), and the core tests never go through Tauri. So every command
+    /// the app registers must be in build.rs and in the capability file.
+    #[test]
+    fn every_registered_command_has_a_permission() {
+        let main = include_str!("main.rs");
+        let start = main.find("generate_handler![").unwrap();
+        let block = &main[start..start + main[start..].find("])").unwrap()];
+        let registered: std::collections::BTreeSet<&str> = block
+            .split(',')
+            .filter_map(|item| item.trim().rsplit("::").next())
+            .filter(|name| !name.is_empty() && !name.contains('['))
+            .collect();
+        let build = include_str!("../build.rs");
+        let list = &build[build.find("COMMANDS").unwrap()..build.find("];").unwrap()];
+        let listed: std::collections::BTreeSet<&str> = list.split('"').skip(1).step_by(2).collect();
+        assert_eq!(registered, listed, "build.rs COMMANDS");
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let allowed: std::collections::BTreeSet<String> = capability["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| p.as_str()?.strip_prefix("allow-"))
+            .map(|p| p.replace('-', "_"))
+            .collect();
+        for name in &registered {
+            assert!(allowed.contains(*name), "no allow-{name} in default.json");
+        }
+    }
+
     #[test]
     fn a_locked_file_gets_the_antivirus_tip_the_second_time() {
         let locked = || Error::Io(std::io::Error::from_raw_os_error(32));
