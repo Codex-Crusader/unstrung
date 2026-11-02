@@ -652,6 +652,18 @@ export const strings = {
     rewound: "Rewound. Later messages are kept as a hidden branch.",
     remember: "Remember this",
   },
+  refresh: {
+    button: "Refresh",
+    context: "Refresh context",
+    contextHint:
+      "The character repeats itself or drifts? From the next reply on, it sees the summary, the memories and only the last few lines. All messages stay.",
+    editSummary: "Edit summary",
+    editSummaryHint: "Opens the Memory panel, where you can change the story so far.",
+    restart: "Restart from greeting",
+    restartHint: "A new chat with only the card and the greeting. This chat stays in the list.",
+    reload: "Reload AI",
+    reloadHint: "Starts the chat engine again. Use it when replies are slow or stuck. It does not change the replies.",
+  },
   memory: {
     title: "Memory",
     button: "Memory",

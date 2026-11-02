@@ -46,6 +46,8 @@ import {
   deletedChats,
   forgetKeptMemory,
   keepMemory,
+  refreshContext,
+  undoRefresh,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -416,6 +418,17 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
     return "memory: the panel has no kept facts section";
   const panelOverflow = pageOverflow();
   if (panelOverflow) return panelOverflow;
+  const refreshMenu = document.querySelector<HTMLDetailsElement>(".refresh-menu");
+  if (!refreshMenu) return "refresh: no Refresh menu in the chat";
+  refreshMenu.open = true;
+  await pause(SHOW_MS);
+  const menuOverflow = pageOverflow();
+  refreshMenu.open = false;
+  if (menuOverflow) return menuOverflow;
+  const refreshed = await refreshContext(chatId);
+  const point = refreshed.messages.findLast((m) => m.role === "user")?.id;
+  if (refreshed.chat.context_start_id !== point) return `refresh: point ${String(refreshed.chat.context_start_id)}`;
+  if ((await undoRefresh(chatId)).chat.context_start_id !== null) return "refresh: undo failed";
   const creator = await checkCreator(show, ren.id);
   if (creator) return creator;
   const imported = await checkImport(show);

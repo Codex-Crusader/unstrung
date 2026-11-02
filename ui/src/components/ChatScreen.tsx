@@ -38,6 +38,8 @@ import {
   type Picture,
   type Staged,
   undoRefresh,
+  refreshContext,
+  restartEngine,
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
@@ -430,6 +432,23 @@ export function ChatScreen({
       <section className="chat">
         <ChatHeader
           view={view}
+          refresh={{
+            context: () => {
+              change(() => refreshContext(chatId));
+            },
+            editSummary: () => {
+              setListOpen(false);
+              setMemoryOpen(true);
+            },
+            restart: () => {
+              change(() => newChat(character.id, view.chat.persona_id, false));
+            },
+            reload: () => {
+              restartEngine().catch((e: unknown) => {
+                setError(toUiError(e));
+              });
+            },
+          }}
           personas={personas}
           locked={locked}
           onBack={onBack}

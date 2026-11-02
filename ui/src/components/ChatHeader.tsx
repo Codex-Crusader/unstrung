@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { ChatView, Persona, StyleSettings } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { StylePanel } from "./StylePanel";
 
 const TONES = ["casual", "wholesome", "dramatic", "flirty", "dark", "funny", "custom"];
@@ -23,6 +23,7 @@ export function ChatHeader({
   onToggleMemory,
   chatsOpen,
   memoryOpen,
+  refresh,
 }: {
   view: ChatView;
   personas: Persona[];
@@ -39,11 +40,36 @@ export function ChatHeader({
   onToggleMemory: () => void;
   chatsOpen: boolean;
   memoryOpen: boolean;
+  /** The Refresh menu. */
+  refresh: {
+    context: () => void;
+    editSummary: () => void;
+    restart: () => void;
+    reload: () => void;
+  };
 }) {
   const { chat, character } = view;
   const [toneDraft, setToneDraft] = useState<string | null>(null);
   const [styleOpen, setStyleOpen] = useState(false);
   const modelName = (id: string) => models.find((m) => m.id === id)?.name ?? id;
+  const menu = useRef<HTMLDetailsElement>(null);
+  const item = (icon: IconName, label: string, hint: string, run: () => void): ReactNode => (
+    <li key={label}>
+      <button
+        type="button"
+        className="menu-item"
+        title={hint}
+        onClick={() => {
+          menu.current?.removeAttribute("open");
+          run();
+        }}
+      >
+        <Icon name={icon} />
+        {label}
+      </button>
+    </li>
+  );
+  const r = strings.refresh;
 
   return (
     <header className="chat-header">
@@ -58,6 +84,20 @@ export function ChatHeader({
         </div>
         {/* The side panels. A pressed button shows that its panel is open. */}
         <div className="chat-panels">
+          {!locked && (
+            <details className="menu refresh-menu" ref={menu}>
+              <summary className="button button-quiet panel-toggle">
+                <Icon name="refresh" />
+                {r.button}
+              </summary>
+              <ul className="menu-list">
+                {item("refresh", r.context, r.contextHint, refresh.context)}
+                {item("edit", r.editSummary, r.editSummaryHint, refresh.editSummary)}
+                {item("bubble", r.restart, r.restartHint, refresh.restart)}
+                {item("models", r.reload, r.reloadHint, refresh.reload)}
+              </ul>
+            </details>
+          )}
           <button
             type="button"
             className="button button-quiet panel-toggle"

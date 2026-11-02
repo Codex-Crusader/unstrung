@@ -596,6 +596,8 @@ pub async fn set_chat_style(
 
 #[tauri::command]
 pub async fn restart_engine(state: State<'_, AppState>) -> CmdResult<()> {
+    // A restart under a running reply, picture or suggestion would cut it.
+    state.chats.idle()?;
     let engine = state.engine.clone();
     tauri::async_runtime::spawn(async move { engine.restart().await });
     Ok(())

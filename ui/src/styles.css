@@ -2748,3 +2748,14 @@ dialog.viewer::backdrop {
   flex-basis: 100%;
   margin: 0;
 }
+
+/* The Refresh menu looks like the panel buttons next to it. */
+.refresh-menu summary.panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 8px;
+  opacity: 1;
+  color: var(--text);
+}
