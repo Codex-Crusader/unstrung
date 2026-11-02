@@ -683,6 +683,17 @@ pub fn ask_replace(paths: &AppPaths, id: &str) -> Result<()> {
     crate::files::write_atomic(&paths.backups().join(PENDING), note.as_bytes())
 }
 
+/// Takes back `ask_replace` when the restart did not happen, so no later
+/// start swaps the data without the user knowing.
+pub fn cancel_replace(paths: &AppPaths) {
+    let note = paths.backups().join(PENDING);
+    if let Err(e) = std::fs::remove_file(&note)
+        && e.kind() != std::io::ErrorKind::NotFound
+    {
+        log::error!("could not remove the import note: {e}");
+    }
+}
+
 /// The moves of a Replace in order: the current data aside into
 /// `replaced-import-<time>`, then the staged backup in. Paths only from
 /// fixed names and the two checked numbers.
@@ -1098,6 +1109,56 @@ mod tests {
         let e = apply_pending(&paths).unwrap_err().to_string();
         assert!(e.contains("part way"), "{e}");
         assert_eq!(std::fs::read(paths.database()).unwrap(), before);
+    }
+
+    /// The checks must pass on what the app itself makes: the starters.
+    #[tokio::test]
+    async fn a_backup_with_the_starters_opens() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().join("home"));
+        paths.ensure().unwrap();
+        let db = Db::open(&paths.database()).await.unwrap();
+        crate::starters::ensure(&db, &paths).await.unwrap();
+        let zip = dir.path().join("b.zip");
+        export(&db, &paths, &zip, "1").await.unwrap();
+        let info = open(&paths, &zip).await.unwrap();
+        assert!(info.characters > 0 && info.personas > 0);
+    }
+
+    /// The same on real data: a copy of an app folder that a person used.
+    /// `UNSTRUNG_TEST_BACKUP_HOME` names it; only its chats file, avatars
+    /// and gallery are read.
+    #[tokio::test]
+    #[ignore = "needs UNSTRUNG_TEST_BACKUP_HOME"]
+    async fn a_backup_of_real_data_opens() {
+        let from = AppPaths::at(PathBuf::from(
+            std::env::var("UNSTRUNG_TEST_BACKUP_HOME").unwrap(),
+        ));
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().join("home"));
+        paths.ensure().unwrap();
+        // Plain file copies: the real folder is only read. Its app must be closed.
+        for suffix in ["", "-wal"] {
+            let file = PathBuf::from(format!("{}{suffix}", from.database().display()));
+            if file.exists() {
+                let to = format!("{}{suffix}", paths.database().display());
+                std::fs::copy(file, to).unwrap();
+            }
+        }
+        let mut files = Vec::new();
+        pictures(&from.avatars(), "avatars", &mut files).unwrap();
+        pictures(&from.gallery(), "gallery", &mut files).unwrap();
+        for (f, name) in files {
+            // The temp home keeps its library in the app folder.
+            let to = join_safe(paths.root(), &name).unwrap();
+            std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+            std::fs::copy(f, to).unwrap();
+        }
+        let db = Db::open(&paths.database()).await.unwrap();
+        let zip = dir.path().join("b.zip");
+        export(&db, &paths, &zip, "1").await.unwrap();
+        let info = open(&paths, &zip).await.unwrap();
+        println!("{info:?}");
     }
 
     #[tokio::test]

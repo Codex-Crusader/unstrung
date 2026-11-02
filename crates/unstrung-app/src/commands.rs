@@ -385,7 +385,10 @@ pub async fn replace_from_backup(
     state.chats.idle()?;
     unstrung_core::backup::ask_replace(&state.paths, &id)?;
     log::info!("restart to replace the data with a backup");
-    crate::instance::relaunch(&app, false)?;
+    if let Err(e) = crate::instance::relaunch(&app, false) {
+        unstrung_core::backup::cancel_replace(&state.paths);
+        return Err(e.into());
+    }
     Ok(())
 }
 
