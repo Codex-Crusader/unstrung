@@ -492,21 +492,25 @@ fn file_size(path: &Path) -> u64 {
     std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
 }
 
-fn folder_size(dir: &Path) -> u64 {
+/// The bytes of the files in `dir`. Links and junctions are not followed,
+/// so a folder outside the app never counts and a loop cannot happen.
+pub(crate) fn folder_size(dir: &Path) -> u64 {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;
     };
     entries
         .flatten()
-        .map(|e| {
-            let path = e.path();
-            if path.is_dir() {
-                folder_size(&path)
-            } else {
-                file_size(&path)
-            }
+        .map(|e| match e.file_type() {
+            Ok(t) if t.is_dir() => folder_size(&e.path()),
+            Ok(t) if t.is_file() => file_size(&e.path()),
+            _ => 0,
         })
         .sum()
+}
+
+/// The bytes of the temporary files that quick repair removes.
+pub(crate) fn temp_bytes(paths: &AppPaths) -> u64 {
+    temp_files(paths, false).bytes
 }
 
 #[cfg(test)]

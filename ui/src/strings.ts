@@ -490,6 +490,24 @@ export const strings = {
     restartYes: "Restart now",
     help: "Help",
     storage: "Storage",
+    measuring: "Measuring the disk use.",
+    measureFailed: "The disk use could not be measured.",
+    kinds: {
+      chat_models: "Chat models",
+      picture_models: "Picture models",
+      gallery: "Pictures",
+      chats: "Chats, characters and daily copies",
+      set_aside: "Old data set aside",
+      engines: "Engines",
+      logs: "Logs",
+      temp: "Temporary files",
+    },
+    free: (folders: string[], free: string) => {
+      const names = folders.map((f) => (f === "app" ? "the app folder" : f === "library" ? "the pictures" : "the models"));
+      const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1] ?? ""}` : names[0] ?? "";
+      return `${free} free on the disk with ${list}.`;
+    },
+    lowSpace: "The disk is almost full. Downloads and pictures can fail.",
     backupIntro:
       "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again.",
     exportAll: "Export everything",

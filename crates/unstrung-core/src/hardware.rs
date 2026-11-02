@@ -151,6 +151,8 @@ fn free_space(path: &Path) -> u64 {
 }
 
 pub(crate) struct DiskInfo {
+    /// The mount point, for example `C:\`. Two paths on one disk have the same.
+    pub mount: std::path::PathBuf,
     pub available: u64,
     pub removable: bool,
 }
@@ -172,6 +174,7 @@ pub(crate) fn disk_of(path: &Path) -> Option<DiskInfo> {
         .filter(|d| target.starts_with(&d.mount_point().to_string_lossy().to_lowercase()))
         .max_by_key(|d| d.mount_point().as_os_str().len())
         .map(|d| DiskInfo {
+            mount: d.mount_point().to_path_buf(),
             available: d.available_space(),
             removable: d.is_removable(),
         })

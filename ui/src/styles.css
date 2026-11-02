@@ -2759,3 +2759,44 @@ dialog.viewer::backdrop {
   opacity: 1;
   color: var(--text);
 }
+
+/* Settings > Storage: disk use. The list says the same in words. */
+.usage-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--panel);
+  margin: 8px 0;
+}
+
+.usage-bar span {
+  min-width: 3px;
+  border-right: 1px solid var(--bg);
+}
+
+.usage-legend {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.usage-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.usage-chat_models { background: #a87a2c; }
+.usage-picture_models { background: #5f87ad; }
+.usage-gallery { background: #5b8a3a; }
+.usage-chats { background: #b3654a; }
+.usage-set_aside { background: #8a6fb0; }
+.usage-engines { background: #7d7466; }
+.usage-logs { background: #b8a05c; }
+.usage-temp { background: #8fa59b; }

@@ -52,6 +52,7 @@ import {
   deleteChat,
   rebuildSummary,
   saveSummary,
+  storageUsage,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -437,6 +438,8 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   await deleteChat(chapter.chat.id);
   if (!chapter.chat.title.startsWith("Chapter ") || chapter.messages[0]?.role !== "system")
     return `next chapter: ${chapter.chat.title}`;
+  const usage = await storageUsage();
+  if (!usage.parts.some((p) => p.kind === "chats" && p.bytes > 0)) return "storage: no size for the chats";
   const rebuilt = await rebuildSummary(chatId);
   if (!rebuilt.summary.trim()) return "rebuild summary: empty";
   const saved = await saveSummary(chatId, rebuilt.through_id, rebuilt.summary);

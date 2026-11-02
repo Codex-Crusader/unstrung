@@ -31,6 +31,7 @@
     "allow-open-character",
     "allow-open-chat",
     "allow-new-chat",
+    "allow-storage-usage",
     "allow-replace-from-backup",
     "allow-open-backup",
     "allow-add-from-backup",

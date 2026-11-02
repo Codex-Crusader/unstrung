@@ -392,6 +392,15 @@ pub async fn replace_from_backup(
     Ok(())
 }
 
+/// What uses disk space. Walks folders, so it runs off the async threads.
+#[tauri::command]
+pub async fn storage_usage(state: State<'_, AppState>) -> CmdResult<unstrung_core::storage::Usage> {
+    let paths = state.paths.clone();
+    tauri::async_runtime::spawn_blocking(move || unstrung_core::storage::usage(&paths))
+        .await
+        .map_err(|e| unstrung_core::error::Error::Io(std::io::Error::other(e)).into())
+}
+
 #[tauri::command]
 pub fn discard_backup(state: State<'_, AppState>, id: String) {
     unstrung_core::backup::discard(&state.paths, &id);

@@ -315,6 +315,20 @@ export const openBackup = () => invoke<BackupInfo | null>("open_backup");
 export const addFromBackup = (id: string) => invoke<Added>("add_from_backup", { id });
 /** Restarts the app, which then swaps all data for the backup. */
 export const replaceFromBackup = (id: string) => invoke<null>("replace_from_backup", { id });
+export type UsageKind =
+  | "chat_models"
+  | "picture_models"
+  | "gallery"
+  | "chats"
+  | "set_aside"
+  | "engines"
+  | "logs"
+  | "temp";
+export interface Usage {
+  parts: { kind: UsageKind; bytes: number }[];
+  disks: { folders: ("app" | "library" | "models")[]; free: number; low: boolean }[];
+}
+export const storageUsage = () => invoke<Usage>("storage_usage");
 export const discardBackup = (id: string) => invoke<null>("discard_backup", { id });
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });

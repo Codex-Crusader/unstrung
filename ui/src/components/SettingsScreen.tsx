@@ -12,11 +12,13 @@ import {
   restartSafe,
   setNotify,
   setUiSetting,
+  storageUsage,
   toUiError,
   type Added,
   type BackupInfo,
   type Exported,
   type UiError,
+  type Usage,
 } from "../api";
 import { applyAppearance, type UiSettings } from "../appearance";
 import { strings } from "../strings";
@@ -79,6 +81,51 @@ function Choices({
   );
 }
 
+export function bytesText(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${String(Math.round(bytes / 1024))} KB`;
+}
+
+/** A bar of disk use by part, the same as a list in words, and the free space. */
+function UsageView() {
+  const s = strings.settings;
+  const [usage, setUsage] = useState<Usage | "failed" | null>(null);
+  useEffect(() => {
+    storageUsage()
+      .then(setUsage)
+      .catch(() => {
+        setUsage("failed");
+      });
+  }, []);
+  if (usage === null) return <p className="field-hint">{s.measuring}</p>;
+  if (usage === "failed") return <p className="field-hint warn">{s.measureFailed}</p>;
+  const parts = usage.parts.filter((p) => p.bytes > 0);
+  return (
+    <div className="usage">
+      <div className="usage-bar" aria-hidden="true">
+        {parts.map((p) => (
+          <span key={p.kind} className={`usage-${p.kind}`} style={{ flexGrow: p.bytes }} />
+        ))}
+      </div>
+      <ul className="usage-legend">
+        {parts.map((p) => (
+          <li key={p.kind}>
+            <span className={`usage-dot usage-${p.kind}`} aria-hidden="true" />
+            {s.kinds[p.kind]}: {bytesText(p.bytes)}
+          </li>
+        ))}
+      </ul>
+      {usage.disks.map((d) => (
+        <p key={d.folders.join()} className={d.low ? "field-hint warn" : "field-hint"}>
+          {s.free(d.folders, bytesText(d.free))}
+          {d.low && ` ${s.lowSpace}`}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 /** Export everything and Import backup. */
 function Storage() {
   const s = strings.settings;
@@ -94,6 +141,7 @@ function Storage() {
   return (
     <section className="settings-group" aria-label={s.storage}>
       <h2>{s.storage}</h2>
+      <UsageView />
       <p>{s.backupIntro}</p>
       <div className="safe-actions">
         <button

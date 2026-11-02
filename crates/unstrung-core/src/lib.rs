@@ -29,6 +29,7 @@ pub mod repair;
 pub mod sidecar;
 pub mod start;
 pub mod starters;
+pub mod storage;
 pub mod uninstall;
 
 pub use error::{Error, Result};

@@ -132,6 +132,7 @@ fn main() {
             commands::open_character,
             commands::open_chat,
             commands::new_chat,
+            commands::storage_usage,
             commands::replace_from_backup,
             commands::open_backup,
             commands::add_from_backup,
