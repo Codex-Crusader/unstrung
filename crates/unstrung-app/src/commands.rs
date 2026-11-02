@@ -292,6 +292,11 @@ pub async fn refresh_context(state: State<'_, AppState>, chat_id: i64) -> CmdRes
 }
 
 #[tauri::command]
+pub async fn next_chapter(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
+    Ok(state.chats.next_chapter(chat_id).await?)
+}
+
+#[tauri::command]
 pub async fn undo_refresh(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
     Ok(state.chats.undo_refresh(chat_id).await?)
 }

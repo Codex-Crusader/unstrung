@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chats SET tone = ?, tone_custom = ?, reply_style = ?, reply_custom = ?,\n                    chat_model = ?, use_character_memory = ?, continued_from_chat_id = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "1c9318798f6ef6af7813358a595c22a1b1cd6160c33799d9dc5754602dbf82bf"
+}

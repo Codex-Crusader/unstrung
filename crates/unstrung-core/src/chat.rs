@@ -378,6 +378,50 @@ impl ChatService {
         self.view(chat_id).await
     }
 
+    /// "Next chapter": a new chat with the same character, persona and
+    /// settings, linked to this one. It starts with a note that holds the
+    /// story so far, the goal and the facts, and the memory pass goes on
+    /// from there. The old chat stays.
+    pub async fn next_chapter(&self, chat_id: i64) -> Result<ChatView> {
+        let old = self.db.chat(chat_id).await?;
+        let character = self.db.character(old.character_id).await?;
+        let path = self.db.path_to_head(chat_id).await?;
+        let memories = self.db.memories(chat_id).await?;
+        let notes: Vec<Memory> = memory::on_path(&memories, &path)
+            .into_iter()
+            .filter(|m| !m.is_hidden && !m.content.is_empty())
+            .collect();
+        let chapter = self.db.chapter_of(chat_id).await? + 1;
+        let title = format!("Chapter {chapter}");
+        let id = self
+            .db
+            .create_chat(&character, old.persona_id, &title, false)
+            .await?;
+        self.db.continue_settings(id, &old).await?;
+        let text = format!("{title} begins. The story goes on from the last chapter.");
+        let note = self
+            .db
+            .append_message(&NewMessage {
+                chat_id: id,
+                parent_id: None,
+                role: "system",
+                persona_id: old.persona_id,
+                content: &text,
+                ..Default::default()
+            })
+            .await?;
+        for m in notes {
+            let copy = self
+                .db
+                .add_memory(id, &m.kind, &m.content, note.id, &m.origin)
+                .await?;
+            if m.is_pinned {
+                self.db.set_memory_flags(id, copy.id, true, false).await?;
+            }
+        }
+        self.view(id).await
+    }
+
     /// Keeps a fact of this chat for new chats with the character.
     pub async fn keep_memory(&self, chat_id: i64, memory_id: i64) -> Result<crate::db::Kept> {
         let chat = self.db.chat(chat_id).await?;
@@ -1871,6 +1915,83 @@ pub fn is_bidi_control(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_next_chapter_carries_the_notes_and_the_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
+        let db = Db::open(&paths.database()).await.unwrap();
+        let fields = crate::db::CharacterFields {
+            name: "Ren".into(),
+            greeting: "Sit.".into(),
+            ..Default::default()
+        };
+        let id = db
+            .insert_character(&fields, Some("test"), "{}")
+            .await
+            .unwrap();
+        let character = db.character(id).await.unwrap();
+        let chat = db.create_chat(&character, None, "", true).await.unwrap();
+        db.set_chat_tone(chat, "dark", "").await.unwrap();
+        let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+        let hello = db
+            .append_message(&NewMessage {
+                chat_id: chat,
+                parent_id: Some(greeting),
+                role: "user",
+                content: "Hello",
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        db.add_memory(chat, "summary", "Kai hired Ren.", hello.id, "auto")
+            .await
+            .unwrap();
+        db.add_memory(chat, "goal", "Find the watch.", hello.id, "auto")
+            .await
+            .unwrap();
+        let pinned = db
+            .add_memory(chat, "fact", "Kai has a sister.", hello.id, "user")
+            .await
+            .unwrap();
+        db.set_memory_flags(chat, pinned.id, true, false)
+            .await
+            .unwrap();
+        let hidden = db
+            .add_memory(chat, "fact", "Kai is a spy.", hello.id, "auto")
+            .await
+            .unwrap();
+        db.set_memory_flags(chat, hidden.id, false, true)
+            .await
+            .unwrap();
+        let chats = ChatService::new(db, Engine::new(paths));
+
+        let view = chats.next_chapter(chat).await.unwrap();
+        let next = view.chat.id;
+        assert_eq!(view.chat.title, "Chapter 2");
+        assert_eq!(view.chat.tone, "dark");
+        assert_eq!(view.messages.len(), 1);
+        assert_eq!(view.messages[0].message.role, "system");
+        let path = chats.db().path_to_head(next).await.unwrap();
+        let memories = chats.db().memories(next).await.unwrap();
+        let recall = memory::recall(&memories, &path);
+        assert_eq!(recall.summary.as_deref(), Some("Kai hired Ren."));
+        assert_eq!(recall.goal.as_deref(), Some("Find the watch."));
+        assert_eq!(
+            recall.facts,
+            ["Kai has a sister."],
+            "the hidden fact stays behind"
+        );
+        assert!(memories.iter().any(|m| m.is_pinned && m.origin == "user"));
+        // The memory pass starts after the note: nothing to read yet.
+        assert!(memory::pending(&memories, &path).is_none());
+        // The old chat stays, and a third chapter counts on.
+        assert!(chats.db().chat(chat).await.is_ok());
+        assert_eq!(
+            chats.next_chapter(next).await.unwrap().chat.title,
+            "Chapter 3"
+        );
+    }
 
     #[tokio::test]
     async fn memory_panel_calls() {

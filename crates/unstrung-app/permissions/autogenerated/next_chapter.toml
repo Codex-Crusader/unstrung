@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-next-chapter"
+description = "Enables the next_chapter command without any pre-configured scope."
+commands.allow = ["next_chapter"]
+
+[[permission]]
+identifier = "deny-next-chapter"
+description = "Denies the next_chapter command without any pre-configured scope."
+commands.deny = ["next_chapter"]

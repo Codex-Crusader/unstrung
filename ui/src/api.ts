@@ -279,6 +279,8 @@ export const newChat = (characterId: number, personaId: number | null, useMemory
   invoke<ChatView>("new_chat", { characterId, personaId, useMemory });
 /** The next replies see the summary, the memories and only the last lines. */
 export const refreshContext = (chatId: number) => invoke<ChatView>("refresh_context", { chatId });
+/** A new chat that goes on from this one, with its notes. */
+export const nextChapter = (chatId: number) => invoke<ChatView>("next_chapter", { chatId });
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
 export const keepMemory = (chatId: number, memoryId: number) => invoke<Kept>("keep_memory", { chatId, memoryId });

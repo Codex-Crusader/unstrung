@@ -238,6 +238,44 @@ impl Db {
         Ok(())
     }
 
+    /// A new chapter takes the old chat's settings and links to it.
+    pub async fn continue_settings(&self, new_id: i64, old: &Chat) -> Result<()> {
+        sqlx::query!(
+            "UPDATE chats SET tone = ?, tone_custom = ?, reply_style = ?, reply_custom = ?,
+                    chat_model = ?, use_character_memory = ?, continued_from_chat_id = ?
+             WHERE id = ?",
+            old.tone,
+            old.tone_custom,
+            old.reply_style,
+            old.reply_custom,
+            old.chat_model,
+            old.use_character_memory,
+            old.id,
+            new_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// The chapter number of a chat: 1, plus one for each chat it continues.
+    pub async fn chapter_of(&self, chat_id: i64) -> Result<i64> {
+        let mut chapter = 1;
+        let mut at = chat_id;
+        // The links only point to older chats, but a cap keeps a bad file safe.
+        while chapter < 10_000 {
+            let before =
+                sqlx::query_scalar!("SELECT continued_from_chat_id FROM chats WHERE id = ?", at)
+                    .fetch_optional(&self.pool)
+                    .await?
+                    .flatten();
+            let Some(before) = before else { break };
+            chapter += 1;
+            at = before;
+        }
+        Ok(chapter)
+    }
+
     pub async fn set_context_start(&self, chat_id: i64, message_id: Option<i64>) -> Result<()> {
         sqlx::query!(
             "UPDATE chats SET context_start_id = ? WHERE id = ?",

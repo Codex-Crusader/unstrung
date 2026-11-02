@@ -659,6 +659,9 @@ export const strings = {
       "The character repeats itself or drifts? From the next reply on, it sees the summary, the memories and only the last few lines. All messages stay.",
     editSummary: "Edit summary",
     editSummaryHint: "Opens the Memory panel, where you can change the story so far.",
+    nextChapter: "Next chapter",
+    nextChapterHint:
+      "A new chat that goes on from this one, with the same settings, the story so far and the facts. This chat stays in the list.",
     restart: "Restart from greeting",
     restartHint: "A new chat with only the card and the greeting. This chat stays in the list.",
     reload: "Reload AI",

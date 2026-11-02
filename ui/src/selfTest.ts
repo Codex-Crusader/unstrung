@@ -48,6 +48,8 @@ import {
   keepMemory,
   refreshContext,
   undoRefresh,
+  nextChapter,
+  deleteChat,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -429,6 +431,10 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   const point = refreshed.messages.findLast((m) => m.role === "user")?.id;
   if (refreshed.chat.context_start_id !== point) return `refresh: point ${String(refreshed.chat.context_start_id)}`;
   if ((await undoRefresh(chatId)).chat.context_start_id !== null) return "refresh: undo failed";
+  const chapter = await nextChapter(chatId);
+  await deleteChat(chapter.chat.id);
+  if (!chapter.chat.title.startsWith("Chapter ") || chapter.messages[0]?.role !== "system")
+    return `next chapter: ${chapter.chat.title}`;
   const creator = await checkCreator(show, ren.id);
   if (creator) return creator;
   const imported = await checkImport(show);

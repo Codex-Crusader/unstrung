@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT continued_from_chat_id FROM chats WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "continued_from_chat_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "6608932017161b54da0a64b3c01765e7f5268c18bdc80cccc4c2923fc90457e3"
+}

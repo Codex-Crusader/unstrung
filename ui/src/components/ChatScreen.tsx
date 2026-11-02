@@ -40,6 +40,7 @@ import {
   undoRefresh,
   refreshContext,
   restartEngine,
+  nextChapter,
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
@@ -439,6 +440,9 @@ export function ChatScreen({
             editSummary: () => {
               setListOpen(false);
               setMemoryOpen(true);
+            },
+            nextChapter: () => {
+              change(() => nextChapter(chatId));
             },
             restart: () => {
               change(() => newChat(character.id, view.chat.persona_id, false));

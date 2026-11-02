@@ -44,6 +44,7 @@ export function ChatHeader({
   refresh: {
     context: () => void;
     editSummary: () => void;
+    nextChapter: () => void;
     restart: () => void;
     reload: () => void;
   };
@@ -93,6 +94,7 @@ export function ChatHeader({
               <ul className="menu-list">
                 {item("refresh", r.context, r.contextHint, refresh.context)}
                 {item("edit", r.editSummary, r.editSummaryHint, refresh.editSummary)}
+                {item("book", r.nextChapter, r.nextChapterHint, refresh.nextChapter)}
                 {item("bubble", r.restart, r.restartHint, refresh.restart)}
                 {item("models", r.reload, r.reloadHint, refresh.reload)}
               </ul>
