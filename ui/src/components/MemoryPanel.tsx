@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   chatMemories,
   editMemory,
   forgetKeptMemory,
   keepMemory,
   keptMemories,
+  rebuildSummary,
   remember,
+  saveSummary,
   setChatUseMemory,
   setMemoryFlags,
   setMemoryMode,
+  stopReply,
   toUiError,
   type Kept,
   type Memory,
@@ -70,6 +73,22 @@ export function MemoryPanel({
   }
   const [error, setError] = useState<UiError | null>(null);
   const [kept, setKept] = useState<Kept | null>(null);
+  // "Rebuild summary": running, or the new text to read before it is saved.
+  const [rebuild, setRebuild] = useState<"running" | { throughId: number; text: string } | null>(null);
+  const stopped = useRef(false);
+  const startRebuild = () => {
+    stopped.current = false;
+    setRebuild("running");
+    setError(null);
+    rebuildSummary(chatId)
+      .then((r) => {
+        setRebuild({ throughId: r.through_id, text: r.summary });
+      })
+      .catch((e: unknown) => {
+        setRebuild(null);
+        if (!stopped.current) setError(toUiError(e));
+      });
+  };
 
   useEffect(() => {
     let active = true;
@@ -252,7 +271,64 @@ export function MemoryPanel({
       {summary && (
         <section className="memory-section">
           <h3>{strings.memory.summary}</h3>
-          {entry(summary)}
+          {rebuild === null && entry(summary)}
+          {rebuild === null && (
+            <div className="memory-actions">
+              <button type="button" className="link-button" disabled={disabled} onClick={startRebuild}>
+                {strings.memory.rebuild}
+              </button>
+            </div>
+          )}
+          {rebuild === "running" && (
+            <p className="memory-intro" role="status">
+              {strings.memory.rebuilding}{" "}
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  stopped.current = true;
+                  void stopReply().catch(() => undefined);
+                }}
+              >
+                {strings.memory.stop}
+              </button>
+            </p>
+          )}
+          {rebuild !== null && rebuild !== "running" && (
+            <form
+              className="memory-edit"
+              onSubmit={(e) => {
+                e.preventDefault();
+                run(saveSummary(chatId, rebuild.throughId, rebuild.text), () => {
+                  setRebuild(null);
+                });
+              }}
+            >
+              <p className="memory-intro">{strings.memory.rebuilt}</p>
+              <textarea
+                value={rebuild.text}
+                rows={6}
+                aria-label={strings.memory.summary}
+                onChange={(e) => {
+                  setRebuild({ ...rebuild, text: e.target.value });
+                }}
+              />
+              <div className="memory-actions">
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    setRebuild(null);
+                  }}
+                >
+                  {strings.memory.discard}
+                </button>
+                <button type="submit" className="link-button" disabled={disabled || !rebuild.text.trim()}>
+                  {strings.memory.useRebuilt}
+                </button>
+              </div>
+            </form>
+          )}
         </section>
       )}
       {facts.length > 0 && (

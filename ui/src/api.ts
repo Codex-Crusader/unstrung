@@ -281,6 +281,14 @@ export const newChat = (characterId: number, personaId: number | null, useMemory
 export const refreshContext = (chatId: number) => invoke<ChatView>("refresh_context", { chatId });
 /** A new chat that goes on from this one, with its notes. */
 export const nextChapter = (chatId: number) => invoke<ChatView>("next_chapter", { chatId });
+/** The story so far, written again from the whole chat. Nothing is saved yet. */
+export interface RebuiltSummary {
+  summary: string;
+  through_id: number;
+}
+export const rebuildSummary = (chatId: number) => invoke<RebuiltSummary>("rebuild_summary", { chatId });
+export const saveSummary = (chatId: number, throughId: number, text: string) =>
+  invoke<Memory[]>("save_summary", { chatId, throughId, text });
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
 export const keepMemory = (chatId: number, memoryId: number) => invoke<Kept>("keep_memory", { chatId, memoryId });

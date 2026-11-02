@@ -658,7 +658,7 @@ export const strings = {
     contextHint:
       "The character repeats itself or drifts? From the next reply on, it sees the summary, the memories and only the last few lines. All messages stay.",
     editSummary: "Edit summary",
-    editSummaryHint: "Opens the Memory panel, where you can change the story so far.",
+    editSummaryHint: "Opens the Memory panel, where you can change the story so far or rebuild it from the whole chat.",
     nextChapter: "Next chapter",
     nextChapterHint:
       "A new chat that goes on from this one, with the same settings, the story so far and the facts. This chat stays in the list.",
@@ -674,6 +674,12 @@ export const strings = {
     intro: "Older messages leave the model's view in a long chat. These notes stay. You can change them.",
     goal: "What you came for",
     summary: "Story so far",
+    rebuild: "Rebuild from the whole chat",
+    rebuilding: "Reading the whole chat again. In a long chat this takes some minutes.",
+    stop: "Stop",
+    rebuilt: "The new story so far. Read it, change it if you like, then use it.",
+    useRebuilt: "Use this",
+    discard: "Discard",
     facts: "Facts",
     empty: "Nothing yet. The chat starts to take notes after about 10 messages.",
     add: "Add a fact",

@@ -132,6 +132,8 @@ fn main() {
             commands::open_character,
             commands::open_chat,
             commands::new_chat,
+            commands::rebuild_summary,
+            commands::save_summary,
             commands::next_chapter,
             commands::refresh_context,
             commands::undo_refresh,

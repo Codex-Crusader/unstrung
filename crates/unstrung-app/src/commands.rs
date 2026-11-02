@@ -7,7 +7,7 @@ use tauri::State;
 use tauri::ipc::Channel;
 use unstrung_core::Error;
 use unstrung_core::catalog::Advanced;
-use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RegenMode, ReplyResult};
+use unstrung_core::chat::{ChatView, DeleteUndo, Progress, RebuiltSummary, RegenMode, ReplyResult};
 use unstrung_core::db::{
     Character, ChatSummary, DeletedChat, Kept, Memory, Message, Persona, RecentChat,
 };
@@ -294,6 +294,24 @@ pub async fn refresh_context(state: State<'_, AppState>, chat_id: i64) -> CmdRes
 #[tauri::command]
 pub async fn next_chapter(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
     Ok(state.chats.next_chapter(chat_id).await?)
+}
+
+#[tauri::command]
+pub async fn rebuild_summary(
+    state: State<'_, AppState>,
+    chat_id: i64,
+) -> CmdResult<RebuiltSummary> {
+    Ok(state.chats.rebuild_summary(chat_id).await?)
+}
+
+#[tauri::command]
+pub async fn save_summary(
+    state: State<'_, AppState>,
+    chat_id: i64,
+    through_id: i64,
+    text: String,
+) -> CmdResult<Vec<Memory>> {
+    Ok(state.chats.save_summary(chat_id, through_id, &text).await?)
 }
 
 #[tauri::command]

@@ -50,6 +50,8 @@ import {
   undoRefresh,
   nextChapter,
   deleteChat,
+  rebuildSummary,
+  saveSummary,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -435,6 +437,10 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   await deleteChat(chapter.chat.id);
   if (!chapter.chat.title.startsWith("Chapter ") || chapter.messages[0]?.role !== "system")
     return `next chapter: ${chapter.chat.title}`;
+  const rebuilt = await rebuildSummary(chatId);
+  if (!rebuilt.summary.trim()) return "rebuild summary: empty";
+  const saved = await saveSummary(chatId, rebuilt.through_id, rebuilt.summary);
+  if (saved.find((m) => m.kind === "summary")?.origin !== "user") return "rebuild summary: not saved";
   const creator = await checkCreator(show, ren.id);
   if (creator) return creator;
   const imported = await checkImport(show);
