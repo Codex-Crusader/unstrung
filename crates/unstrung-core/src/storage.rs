@@ -172,8 +172,9 @@ fn set_aside(paths: &AppPaths) -> Vec<PathBuf> {
     let mut dirs = vec![paths.backups(), library.clone()];
     // A Replace sets old pictures aside next to the gallery. After the
     // pictures moved away from the app folder, older ones stay there.
-    // shortcut: a library moved twice (D: then E:) leaves the D: ones out,
-    // add a list of old library folders if that ever happens for real.
+    // shortcut: a library moved away and then back, or moved twice, leaves
+    // the ones in the middle folder out (D:\Pics after D: then back, or
+    // D: then E:). Add a list of old library folders if users hit it.
     if crate::relocate::key(&library) != crate::relocate::key(paths.root()) {
         dirs.push(paths.root().to_path_buf());
     }
@@ -320,6 +321,34 @@ mod tests {
                 .iter()
                 .all(|c| c.id != "set_aside")
         );
+    }
+
+    #[tokio::test]
+    async fn deleted_adult_chats_are_counted_but_named_only_with_adult_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        paths.ensure().unwrap();
+        let db = Db::open(&paths.database()).await.unwrap();
+        let fields = crate::db::CharacterFields {
+            name: "Vex".into(),
+            age: 30,
+            is_adult: true,
+            ..Default::default()
+        };
+        let vex = db
+            .character(db.insert_character(&fields, None, "{}").await.unwrap())
+            .await
+            .unwrap();
+        let chat = db.create_chat(&vex, None, "", true).await.unwrap();
+        db.delete_chat(chat).await.unwrap();
+        let deleted = |list: Vec<Candidate>| {
+            let c = list.into_iter().find(|c| c.id == "deleted_chats").unwrap();
+            (c.items.len(), c.hidden)
+        };
+
+        assert_eq!(deleted(candidates(&db, &paths).await.unwrap()), (0, 1));
+        crate::content::set_adult(&db, true).await.unwrap();
+        assert_eq!(deleted(candidates(&db, &paths).await.unwrap()), (1, 0));
     }
 
     #[test]
