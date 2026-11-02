@@ -280,14 +280,15 @@ fn main() {
 
 /// `theme` is the saved theme setting, so the window opens in its color.
 fn open_window(app: &tauri::App, background: bool, theme: Option<&str>) -> tauri::Result<()> {
+    let theme = settings::window_theme(settings::value_of(settings::THEME_KEY, theme));
     tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
         .title("Unstrung")
         .inner_size(1100.0, 760.0)
         .min_inner_size(640.0, 480.0)
-        .background_color(window_background(settings::value_of(
-            settings::THEME_KEY,
-            theme,
-        )))
+        // WebView2 takes the window theme as the page's prefers-color-scheme,
+        // so the splash and the app open in the saved theme.
+        .theme(theme)
+        .background_color(window_background(theme))
         .focused(!background)
         .build()?;
     Ok(())
@@ -295,11 +296,11 @@ fn open_window(app: &tauri::App, background: bool, theme: Option<&str>) -> tauri
 
 /// The page background of the Windows app theme, so the window does not
 /// flash the other color before the page draws (`--bg` in styles.css).
-fn window_background(theme: &str) -> tauri::window::Color {
+fn window_background(theme: Option<tauri::Theme>) -> tauri::window::Color {
     let light = match theme {
-        "light" => true,
-        "dark" | "contrast" => false,
-        _ => prefers_light_theme(),
+        Some(tauri::Theme::Dark) => false,
+        Some(_) => true,
+        None => prefers_light_theme(),
     };
     if light {
         tauri::window::Color(244, 239, 230, 255)

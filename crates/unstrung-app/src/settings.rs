@@ -4,7 +4,7 @@
 use crate::commands::CmdResult;
 use crate::state::AppState;
 use std::collections::BTreeMap;
-use tauri::State;
+use tauri::{Manager, State};
 use unstrung_core::Error;
 
 pub const THEME_KEY: &str = "ui_theme";
@@ -28,6 +28,15 @@ pub fn value_of(key: &str, saved: Option<&str>) -> &'static str {
         .unwrap_or(values[0])
 }
 
+/// The window theme for a theme setting. `None` follows Windows.
+pub fn window_theme(theme: &str) -> Option<tauri::Theme> {
+    match theme {
+        "light" => Some(tauri::Theme::Light),
+        "dark" | "contrast" => Some(tauri::Theme::Dark),
+        _ => None,
+    }
+}
+
 #[tauri::command]
 pub async fn get_ui_settings(state: State<'_, AppState>) -> CmdResult<BTreeMap<String, String>> {
     let mut out = BTreeMap::new();
@@ -40,6 +49,7 @@ pub async fn get_ui_settings(state: State<'_, AppState>) -> CmdResult<BTreeMap<S
 
 #[tauri::command]
 pub async fn set_ui_setting(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     key: String,
     value: String,
@@ -51,6 +61,15 @@ pub async fn set_ui_setting(
         return Err(Error::Invalid(format!("{key} cannot be {value}")).into());
     }
     state.chats.db().set_meta(&key, &value).await?;
+    if key == THEME_KEY
+        && let Some(window) = app.get_webview_window("main")
+    {
+        // Only the title bar and the page's color scheme; the page also
+        // reads the setting itself, so a failure here changes little.
+        if let Err(e) = window.set_theme(window_theme(&value)) {
+            log::warn!("could not set the window theme: {e}");
+        }
+    }
     Ok(())
 }
 
