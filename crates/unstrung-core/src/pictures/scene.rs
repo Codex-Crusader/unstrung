@@ -391,9 +391,10 @@ fn looks_text(appearance: &str) -> String {
 
 /// True when a saved prompt still describes someone with these Looks. A
 /// variation uses today's profile picture only for the same person: after a
-/// persona switch, "image 2" would be someone else.
+/// persona switch, "image 2" would be someone else. No Looks proves nothing.
 pub fn describes(prompt: &str, appearance: &str) -> bool {
-    prompt.contains(&looks_text(appearance))
+    let looks = looks_text(appearance);
+    !looks.is_empty() && prompt.contains(&looks)
 }
 
 /// `positive` without the words about profile pictures, for a picture made
@@ -773,6 +774,9 @@ mod tests {
         let text = positive(&scene, "", &kai, Some(&kai));
         assert!(describes(&text, kai.appearance), "{text}");
         assert!(!describes(&text, "woman, wavy brown hair, round glasses"));
+        // A persona with only a picture and a name: no proof, so no picture.
+        assert!(!describes(&text, ""));
+        assert!(!describes(&text, "woman"));
         // No persona in the chat: nobody, not the character in the user's place.
         assert!(references(&scene, &kai, None).is_empty());
         assert!(!positive(&scene, "", &kai, None).contains("stubble"));

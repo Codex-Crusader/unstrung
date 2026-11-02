@@ -439,15 +439,14 @@ impl PictureService {
                 negative: old.negative_prompt.clone(),
             };
             // The same people as references, with their pictures of today.
-            // A picture that is gone now, or a person the prompt does not
-            // describe (another persona since), means tags only.
+            // A picture that is gone now, or a persona the prompt does not
+            // describe (another persona since), means tags only. The
+            // character of a chat never changes.
             let order = References::parse(&old.ref_mode);
-            let same_people = order.iter().all(|w| match w {
-                scene::Who::Persona => persona
+            let same_people = !order.contains(&scene::Who::Persona)
+                || persona
                     .as_ref()
-                    .is_some_and(|p| scene::describes(&old.prompt, &p.appearance_tags)),
-                _ => scene::describes(&old.prompt, &character.appearance_tags),
-            });
+                    .is_some_and(|p| scene::describes(&old.prompt, &p.appearance_tags));
             let refs = if order.is_empty()
                 || !same_people
                 || !model.ref_images

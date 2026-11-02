@@ -295,9 +295,14 @@ export function CreatorScreen({
     if (fields.appearance_tags.trim() !== "" && fields.outfit.trim() !== "") return;
     if (cardText.trim() === "") return;
     autoLooks.current = true;
+    // The same "Suggesting..." as the button: the chat model is busy meanwhile.
+    setLookingUp(true);
     suggestLooks(fields.name, cardText)
       .then(fill(true))
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        setLookingUp(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, when the engine is ready
   }, [ready]);
 
