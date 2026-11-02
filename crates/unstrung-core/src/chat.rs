@@ -956,6 +956,7 @@ impl ChatService {
         name: &str,
         picture: String,
     ) -> Result<pictures::looks::Suggested> {
+        self.idle()?;
         if !self.can_see().await {
             return Err(Error::Invalid(
                 "the chosen chat model cannot read pictures".into(),
@@ -996,6 +997,8 @@ impl ChatService {
         name: &str,
         card: &str,
     ) -> Result<pictures::looks::Suggested> {
+        // A picture job holds the graphics card.
+        self.idle()?;
         let client = self.engine.client()?;
         let name = clean_line(name, 80);
         let card: String = card.chars().take(4000).collect();

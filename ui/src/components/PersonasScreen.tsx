@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  canReadPictures,
+  suggestLooksFromPicture,
   deletePersona,
   listPersonas,
   savePersona,
@@ -27,6 +29,15 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<UiError | null>(null);
+  const [canSee, setCanSee] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  useEffect(() => {
+    canReadPictures()
+      .then(setCanSee)
+      .catch(() => {
+        setCanSee(false);
+      });
+  }, []);
 
   const load = useCallback(() => {
     listPersonas()
@@ -67,6 +78,40 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
   };
 
   const hasDefault = personas.some((p) => p.is_default);
+
+  /** The picture the model can read: the new upload, or the saved one. */
+  const pictureSource = !editing
+    ? null
+    : editing.avatar.kind === "staged"
+      ? { token: editing.avatar.token }
+      : editing.avatar.kind === "keep" && editing.persona?.avatar_path
+        ? { avatar: editing.persona.avatar_path }
+        : null;
+
+  const lookUp = () => {
+    if (!editing || !pictureSource) return;
+    setLookingUp(true);
+    setError(null);
+    suggestLooksFromPicture(editing.fields.name, pictureSource)
+      .then((s) => {
+        setEditing((e) =>
+          e
+            ? {
+                ...e,
+                fields: {
+                  ...e.fields,
+                  appearance_tags: s.looks || e.fields.appearance_tags,
+                  outfit: s.outfit || e.fields.outfit,
+                },
+              }
+            : e,
+        );
+      })
+      .catch(fail)
+      .finally(() => {
+        setLookingUp(false);
+      });
+  };
 
   return (
     <section className="page personas">
@@ -148,6 +193,11 @@ export function PersonasScreen({ onChanged }: { onChanged: () => void }) {
               />
               <span className="field-hint">{strings.personas.outfitHint}</span>
             </label>
+            {canSee && pictureSource && (
+              <button type="button" className="link-button" disabled={lookingUp} onClick={lookUp}>
+                {lookingUp ? strings.creator.suggesting : strings.creator.suggestLooksPicture}
+              </button>
+            )}
             <label className="field field-short">
               <span className="field-label">{strings.personas.age}</span>
               <input

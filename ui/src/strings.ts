@@ -259,7 +259,7 @@ export const strings = {
     descriptionHint: "Who you are, in 1 to 3 short sentences.",
     count: (n: number) => `About ${String(n)} of 100 tokens`,
     tags: "Looks",
-    tagsHint: "Stay the same in every picture: hair, eyes, face, build.",
+    tagsHint: "Start with woman, man or person, then what stays the same in every picture: hair, eyes, face, build.",
     outfit: "Usual outfit",
     outfitHint: "What you usually wear. If the story changes your clothes, the pictures follow the story.",
     age: "Age (optional)",
