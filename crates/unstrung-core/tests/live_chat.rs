@@ -801,7 +801,7 @@ async fn append(
     role: &'static str,
     text: &str,
     persona: i64,
-) -> i64 {
+) -> unstrung_core::Result<i64> {
     db.append_message(&unstrung_core::db::NewMessage {
         chat_id: chat,
         parent_id: parent,
@@ -815,8 +815,7 @@ async fn append(
         sampler_json: None,
     })
     .await
-    .unwrap()
-    .id
+    .map(|m| m.id)
 }
 
 /// Phase 7 done test: a 200-message chat still knows facts from message 10.
@@ -878,8 +877,10 @@ async fn a_long_chat_still_knows_facts_from_message_10() {
         } else {
             format!("{} (day {})", USER[i % USER.len()], i + 1)
         };
-        let u = append(&db, chat, parent, "user", &user, kai).await;
-        let c = append(&db, chat, Some(u), "character", REPLY[i % REPLY.len()], kai).await;
+        let u = append(&db, chat, parent, "user", &user, kai).await.unwrap();
+        let c = append(&db, chat, Some(u), "character", REPLY[i % REPLY.len()], kai)
+            .await
+            .unwrap();
         parent = Some(c);
     }
 
