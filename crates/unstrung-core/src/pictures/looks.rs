@@ -28,13 +28,29 @@ pub fn prompt(name: &str, card: &str) -> String {
     format!(
         "Character: {name}\nCard:\n{card}\n\n\
          Write two lines for a picture of this character.\n\
-         Looks: hair, eyes, face, build and other features that never change, as short tags \
-         separated by commas. No clothes.\n\
+         Looks: start with woman, man or person. Then hair, eyes, face, build and other \
+         features that never change, as short tags separated by commas. No clothes.\n\
          Outfit: what they usually wear, as short tags separated by commas.\n\
          Use what the card says. Where the card says nothing, pick plain looks that fit the \
          character. Do not write an age.\n\
          Example:\n\
-         Looks: short silver hair, grey eyes, sharp face, tall and lean\n\
+         Looks: woman, short silver hair, grey eyes, sharp face, tall and lean\n\
+         Outfit: black leather jacket, white shirt, dark jeans\n\
+         Write only the two lines."
+    )
+}
+
+/// The prompt for a chat model that sees the profile picture.
+pub fn picture_prompt(name: &str) -> String {
+    format!(
+        "This is a picture of the character {name}.\n\
+         Write two lines that describe the person in it, for more pictures of them.\n\
+         Looks: start with woman or man. Write person only if you cannot tell. Then hair, eyes, face, build and other \
+         features that never change, as short tags separated by commas. No clothes.\n\
+         Outfit: what they wear in the picture, as short tags separated by commas.\n\
+         Do not write an age.\n\
+         Example:\n\
+         Looks: woman, short silver hair, grey eyes, sharp face, tall and lean\n\
          Outfit: black leather jacket, white shirt, dark jeans\n\
          Write only the two lines."
     )
@@ -63,7 +79,10 @@ pub fn parse(answer: &str) -> Suggested {
         for tag in rest.split(',') {
             let tag = tag.trim().trim_matches(['*', '"', '.', ' ']);
             if !tag.is_empty() && !safety::flagged(tag) {
-                to.push(tag.to_owned());
+                let tag = adult_words(tag);
+                if !tag.is_empty() {
+                    to.push(tag);
+                }
             }
         }
     }
@@ -78,6 +97,26 @@ pub fn parse(answer: &str) -> Suggested {
         looks: join(&kept),
         outfit: join(&outfit),
     }
+}
+
+/// The tag with "girl" and "boy" as "woman" and "man", and without words
+/// that make a person look younger. Looks go into every picture, and the
+/// person word must never point at a child.
+fn adult_words(tag: &str) -> String {
+    tag.split(' ')
+        .filter_map(|w| {
+            let bare = w
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase();
+            match bare.as_str() {
+                "young" | "younger" | "youthful" | "little" => None,
+                "girl" => Some("woman".to_owned()),
+                "boy" => Some("man".to_owned()),
+                _ => Some(w.to_owned()),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn is_clothes(tag: &str) -> bool {
@@ -129,6 +168,14 @@ mod tests {
         let s = parse("LOOKS: İrem's dark hair, İİİİİİİ, Kelvin eyes\nOutfit: grey coat");
         assert_eq!(s.looks, "İrem's dark hair, İİİİİİİ, Kelvin eyes");
         assert_eq!(s.outfit, "grey coat");
+    }
+
+    #[test]
+    fn the_person_word_is_always_an_adult_one() {
+        let s = parse("Looks: girl, young girl, long black hair, little freckles");
+        assert_eq!(s.looks, "woman, long black hair, freckles");
+        let s = parse("Looks: Boy, youthful face, brown eyes, young");
+        assert_eq!(s.looks, "man, face, brown eyes");
     }
 
     #[test]

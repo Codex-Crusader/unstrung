@@ -413,6 +413,17 @@ export const suggestAnchor = (name: string, personality: string) =>
 export const suggestLooks = (name: string, card: string) =>
   invoke<{ looks: string; outfit: string }>("suggest_looks", { name, card });
 
+/** Reads Looks from a profile picture: `token` for an unsaved upload, else the saved `avatar`. */
+export const suggestLooksFromPicture = (name: string, picture: { token?: string; avatar?: string }) =>
+  invoke<{ looks: string; outfit: string }>("suggest_looks_from_picture", {
+    name,
+    token: picture.token ?? null,
+    avatar: picture.avatar ?? null,
+  });
+
+/** True when the chosen chat model can read pictures. */
+export const canReadPictures = () => invoke<boolean>("can_read_pictures");
+
 /** Sends the raw bytes of a picture file. The core decodes it and keeps a clean copy. */
 export const stageUpload = (bytes: Uint8Array) => invoke<Staged>("stage_upload", bytes);
 

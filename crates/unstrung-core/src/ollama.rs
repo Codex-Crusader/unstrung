@@ -16,6 +16,9 @@ const MAX_REPLY_BYTES: usize = 256 * 1024;
 pub struct ChatMessage {
     pub role: &'static str,
     pub content: String,
+    /// Pictures for a model that can see, as base64 PNG.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -129,6 +132,10 @@ pub struct ModelInfo {
 impl ModelInfo {
     pub fn can_think(&self) -> bool {
         self.capabilities.iter().any(|c| c == "thinking")
+    }
+
+    pub fn can_see(&self) -> bool {
+        self.capabilities.iter().any(|c| c == "vision")
     }
 }
 

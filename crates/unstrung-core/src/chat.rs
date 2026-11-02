@@ -898,10 +898,12 @@ impl ChatService {
         let messages = [
             ChatMessage {
                 role: "system",
+                images: Vec::new(),
                 content: "You help write roleplay characters. Answer with plain text only.".into(),
             },
             ChatMessage {
                 role: "user",
+                images: Vec::new(),
                 content: format!(
                     "Character: {name}\nPersonality: {personality}\n\n\
                      Write the voice of this character in 2 to 4 short sentences: how they talk, \
@@ -936,6 +938,59 @@ impl ChatService {
 
     /// Suggests Looks and a usual outfit from a card's text, for a card that
     /// has none. Nothing is saved: the creator shows the text to check first.
+    /// True when the chosen chat model can read pictures.
+    pub async fn can_see(&self) -> bool {
+        let Ok(client) = self.engine.client() else {
+            return false;
+        };
+        client
+            .info(&self.engine.model())
+            .await
+            .is_ok_and(|i| i.can_see())
+    }
+
+    /// Looks and an outfit read from a profile picture (`picture` from
+    /// `avatar::for_vision`). The user checks them before saving.
+    pub async fn suggest_looks_from_picture(
+        &self,
+        name: &str,
+        picture: String,
+    ) -> Result<pictures::looks::Suggested> {
+        if !self.can_see().await {
+            return Err(Error::Invalid(
+                "the chosen chat model cannot read pictures".into(),
+            ));
+        }
+        let client = self.engine.client()?;
+        let name = clean_line(name, 80);
+        let messages = [ChatMessage {
+            role: "user",
+            images: vec![picture],
+            content: pictures::looks::picture_prompt(&name),
+        }];
+        let options = Options {
+            temperature: 0.2,
+            min_p: 0.05,
+            top_p: 1.0,
+            top_k: 40,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.08,
+            repeat_last_n: 64,
+            num_ctx: 4096,
+            num_predict: 160,
+            stop: Vec::new(),
+        };
+        let model = self.engine.model();
+        let think = self.engine.tuning_for(&model).think.map(|_| false);
+        let text = client
+            .complete(
+                &chat_params(&model, &messages, &options, think),
+                REPLY_TIMEOUT,
+            )
+            .await?;
+        Ok(pictures::looks::parse(&text))
+    }
+
     pub async fn suggest_looks(
         &self,
         name: &str,
@@ -952,10 +1007,12 @@ impl ChatService {
         let messages = [
             ChatMessage {
                 role: "system",
+                images: Vec::new(),
                 content: "You help write roleplay characters. Answer with plain text only.".into(),
             },
             ChatMessage {
                 role: "user",
+                images: Vec::new(),
                 content: pictures::looks::prompt(&name, &card),
             },
         ];
@@ -1094,11 +1151,13 @@ impl ChatService {
             let messages = [
                 ChatMessage {
                     role: "system",
+                    images: Vec::new(),
                     content: "You keep notes about a roleplay chat. Answer with plain text only."
                         .into(),
                 },
                 ChatMessage {
                     role: "user",
+                    images: Vec::new(),
                     content: question,
                 },
             ];
@@ -1206,11 +1265,13 @@ impl ChatService {
         let messages = [
             ChatMessage {
                 role: "system",
+                images: Vec::new(),
                 content: "You read a roleplay chat and answer one question about it. Answer with plain text only."
                     .into(),
             },
             ChatMessage {
                 role: "user",
+                images: Vec::new(),
                 content: question,
             },
         ];
@@ -1327,10 +1388,12 @@ impl ChatService {
         let messages = [
             ChatMessage {
                 role: "system",
+                images: Vec::new(),
                 content: pictures::scene::SYSTEM.into(),
             },
             ChatMessage {
                 role: "user",
+                images: Vec::new(),
                 content: pictures::scene::question(&character.name, &user_name, &lines, wish),
             },
         ];

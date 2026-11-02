@@ -162,6 +162,41 @@ pub async fn suggest_looks(
     Ok(state.chats.suggest_looks(&name, &card).await?)
 }
 
+/// True when the chosen chat model can read pictures, so the creator shows
+/// "Suggest looks from the picture".
+#[tauri::command]
+pub async fn can_read_pictures(state: State<'_, AppState>) -> CmdResult<bool> {
+    Ok(state.chats.can_see().await)
+}
+
+/// `token` is a staged upload that is not saved yet; otherwise `avatar` is
+/// the saved profile picture.
+#[tauri::command]
+pub async fn suggest_looks_from_picture(
+    state: State<'_, AppState>,
+    name: String,
+    avatar: Option<String>,
+    token: Option<String>,
+) -> CmdResult<unstrung_core::pictures::looks::Suggested> {
+    let stored = match (token, avatar) {
+        (Some(token), _) => avatar::staged_path(&token)?,
+        (None, Some(avatar)) => avatar,
+        (None, None) => return Err(Error::Invalid("add a picture first".into()).into()),
+    };
+    let paths = state.paths.clone();
+    let picture = tauri::async_runtime::spawn_blocking(move || avatar::for_vision(&paths, &stored))
+        .await
+        .map_err(|e| UiError {
+            message: "The picture could not be read.".into(),
+            detail: e.to_string(),
+            tip: None,
+        })??;
+    Ok(state
+        .chats
+        .suggest_looks_from_picture(&name, picture)
+        .await?)
+}
+
 #[tauri::command]
 pub async fn suggest_anchor(
     state: State<'_, AppState>,

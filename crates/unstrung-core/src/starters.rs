@@ -57,7 +57,7 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Then we make a new one. Voss does not leave crew behind, and she does not leave cargo either.",
         anchor: "Calm, clipped orders. Dry jokes under pressure. Calls the crew by their surname. \
             Never panics out loud.",
-        tags: "short silver hair, scar on left cheek, grey eyes",
+        tags: "woman, short silver hair, scar on left cheek, grey eyes",
         outfit: "worn navy flight jacket",
         art_style: "sci-fi",
         tone: "dramatic",
@@ -80,7 +80,7 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Dragons? Third aisle, top shelf, the red one that is warm to the touch. *He fetches it and hands it over with care.* Read it slowly. It reads you back, you know.",
         anchor: "Warm and slow. Old-fashioned words (\"my dear\", \"indeed\") now and then, never at the start of a \
             reply. Gives what is asked first, then adds a story or a riddle. Often loses his train of thought.",
-        tags: "long white beard, round spectacles, ink-stained fingers",
+        tags: "man, long white beard, round spectacles, ink-stained fingers",
         outfit: "deep green robes",
         art_style: "fantasy",
         tone: "wholesome",
@@ -103,7 +103,7 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: My price is already low. That is why the lights flicker. *He taps ash into a coffee cup.* Talk, and we will see.",
         anchor: "Short, dry sentences. Sarcastic, tired, honest. Calls people \"kid\". \
             Never uses exclamation marks.",
-        tags: "messy black hair, stubble",
+        tags: "man, messy black hair, stubble",
         outfit: "loose tie, long grey trench coat",
         art_style: "noir",
         tone: "dark",
@@ -126,7 +126,7 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Regular it is. Oops, almost dropped the cup. Do you work nearby?",
         anchor: "Warm, quick and chatty. Asks small personal questions. Remembers names and \
             orders. Apologizes when she drops things.",
-        tags: "auburn hair in a messy bun, freckles",
+        tags: "woman, auburn hair in a messy bun, freckles",
         outfit: "green apron",
         art_style: "",
         tone: "casual",
@@ -150,7 +150,7 @@ const CHARACTERS: &[StarterCharacter] = &[
 {{char}}: Something that was here before me. It is patient. I would ask you to be patient too.",
         anchor: "Quiet, polite and formal. Short answers that hold something back. Speaks of the \
             house as if it is alive. Never raises their voice.",
-        tags: "pale skin, black hair",
+        tags: "person, pale skin, black hair",
         outfit: "long dark coat",
         art_style: "gothic",
         tone: "dark",
@@ -165,7 +165,7 @@ const PERSONAS: &[StarterPersona] = &[
         avatar: include_bytes!("../assets/starters/kai.png"),
         name: "Kai",
         description: "A traveler and mechanic who is good with his hands and bad at staying in one place.",
-        tags: "messy brown hair, stubble",
+        tags: "man, messy brown hair, stubble",
         outfit: "brass goggles, worn olive jacket",
         age: 25,
     },
@@ -174,7 +174,7 @@ const PERSONAS: &[StarterPersona] = &[
         avatar: include_bytes!("../assets/starters/nora.png"),
         name: "Nora",
         description: "A journalist who asks too many questions and writes everything down.",
-        tags: "wavy brown hair, round glasses",
+        tags: "woman, wavy brown hair, round glasses",
         outfit: "mustard scarf, denim jacket, notebook",
         age: 24,
     },

@@ -7,6 +7,8 @@ import {
   setCharacterModel,
   suggestAnchor,
   suggestLooks,
+  suggestLooksFromPicture,
+  canReadPictures,
   toUiError,
   type AvatarChange,
   type Character,
@@ -144,6 +146,7 @@ export function CreatorScreen({
   const [suggesting, setSuggesting] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
+  const [canSee, setCanSee] = useState(false);
   const autoLooks = useRef(false);
   /** The fields as the screen shows them now, for a suggestion that comes back later. */
   const shown = useRef(fields);
@@ -249,10 +252,30 @@ export function CreatorScreen({
     }));
   };
 
-  const lookUp = () => {
+  useEffect(() => {
+    if (!ready) return;
+    canReadPictures()
+      .then(setCanSee)
+      .catch(() => {
+        setCanSee(false);
+      });
+  }, [ready]);
+
+  /** The picture the model can read: the new upload, or the saved one. */
+  const pictureSource =
+    avatar.kind === "staged"
+      ? { token: avatar.token }
+      : avatar.kind === "keep" && saved?.avatar_path
+        ? { avatar: saved.avatar_path }
+        : null;
+
+  const lookUp = (fromPicture: boolean) => {
     setLookingUp(true);
     setError(null);
-    suggestLooks(fields.name, cardText)
+    (fromPicture && pictureSource
+      ? suggestLooksFromPicture(fields.name, pictureSource)
+      : suggestLooks(fields.name, cardText)
+    )
       .then(fill(false))
       .catch((e: unknown) => {
         setError(toUiError(e));
@@ -456,10 +479,24 @@ export function CreatorScreen({
             type="button"
             className="link-button"
             disabled={!ready || lookingUp || cardText.trim() === ""}
-            onClick={lookUp}
+            onClick={() => {
+              lookUp(false);
+            }}
           >
             {lookingUp ? strings.creator.suggesting : strings.creator.suggestLooks}
           </button>
+          {canSee && pictureSource && (
+            <button
+              type="button"
+              className="link-button"
+              disabled={!ready || lookingUp}
+              onClick={() => {
+                lookUp(true);
+              }}
+            >
+              {lookingUp ? strings.creator.suggesting : strings.creator.suggestLooksPicture}
+            </button>
+          )}
           {lookedUp && (
             <p className="hint" role="status">
               {strings.creator.lookedUp}

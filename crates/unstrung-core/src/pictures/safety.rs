@@ -248,6 +248,19 @@ pub fn check(
     })
 }
 
+/// True when the profile pictures may go to the engine as references. A
+/// reference brings a real face, which the age in the database cannot vouch
+/// for: a photo of a child under an adult age. So no reference for a prompt
+/// with explicit or suggestive words, in any chat. The Phase 7 adult
+/// setting must keep this.
+pub fn allows_references(prompt: &str, scene_sexual: bool) -> bool {
+    let words = Words::new(prompt);
+    !(scene_sexual
+        || words.any(EXPLICIT)
+        || words.any_start(EXPLICIT_STARTS)
+        || words.any(SUGGESTIVE))
+}
+
 /// True when `text` has a word that any rule here reacts to. Text that the
 /// chat model suggests for a character's Looks must have none.
 pub fn flagged(text: &str) -> bool {
@@ -606,6 +619,7 @@ mod tests {
         let character = Person {
             appearance: "short brown hair",
             outfit: "school uniform",
+            picture: false,
         };
         let mut scene = fallback("she sits by the window", "");
         scene.who = Who::Character;
@@ -630,5 +644,20 @@ mod tests {
             adults_only: true,
         });
         assert!(adult.contains(&"child") && !adult.contains(&"nude"));
+    }
+
+    #[test]
+    fn references_only_for_pictures_without_suggestive_or_explicit_words() {
+        for (prompt, sexual, ok) in [
+            ("a single person, drinking coffee in a galley", false, true),
+            ("exactly two people, playing cards, friendly", false, true),
+            ("two people kissing on a balcony", false, false),
+            ("she wears lingerie", false, false),
+            ("nude on a beach", false, false),
+            ("a quiet scene", true, false),
+            ("they masturbate", false, false),
+        ] {
+            assert_eq!(allows_references(prompt, sexual), ok, "{prompt}");
+        }
     }
 }

@@ -464,3 +464,226 @@ async fn looks_come_from_a_card_from_another_app() {
     }
     engine.stop().await;
 }
+
+/// Phase 6 done test: the character looks the same across 5 pictures in one
+/// chat, through the real path from the chat to the picture engine.
+/// `UNSTRUNG_TEST_PICTURE_HOME` is a folder with `engines/sdcpp` installed
+/// and FLUX.2 klein in `models/image`. It is used read-only, through a
+/// junction and the models location. The pictures go to `UNSTRUNG_TEST_OUT`.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama, the picture engine and FLUX.2 klein"]
+async fn references_keep_one_face_in_a_chat() {
+    use unstrung_core::avatar;
+    use unstrung_core::db::{CharacterFields, NewMessage};
+    use unstrung_core::location::Location;
+    use unstrung_core::models::{self, ModelService};
+    use unstrung_core::pictures::service::PictureService;
+    let source = std::path::PathBuf::from(std::env::var_os("UNSTRUNG_TEST_PICTURE_HOME").unwrap());
+    let out = std::path::PathBuf::from(std::env::var_os("UNSTRUNG_TEST_OUT").unwrap());
+    std::fs::create_dir_all(&out).unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let ok = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        // mklink reads "/" as the start of a switch.
+        .arg(home.path().join("engines"))
+        .arg(source.join("engines").to_string_lossy().replace('/', "\\"))
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok, "junction");
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths
+        .set_location(Location {
+            library: None,
+            models: Some(source.join("models")),
+        })
+        .unwrap();
+    paths.ensure().unwrap();
+    let db = Db::open(&paths.database()).await.unwrap();
+    starters::ensure(&db, &paths).await.unwrap();
+    let startup = models::startup(&db, &paths).await.unwrap();
+    let engine = Engine::with_model(paths.clone(), &startup.model, startup.advanced.clone());
+    let models = ModelService::new(engine.clone(), db.clone(), &startup);
+    engine.start().await;
+    assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
+    let chats = Arc::new(ChatService::new(db.clone(), engine.clone()));
+    let pictures = PictureService::new(paths.clone(), chats.clone(), models);
+    pictures.select("flux2-klein-4b").await.unwrap();
+
+    let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
+    let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
+
+    // The vision suggestion reads Mara's own picture.
+    if chats.can_see().await {
+        let avatar_path = db.character(mara).await.unwrap().avatar_path.unwrap();
+        let picture = avatar::for_vision(&paths, &avatar_path).unwrap();
+        let s = chats
+            .suggest_looks_from_picture("Mara", picture)
+            .await
+            .unwrap();
+        println!(
+            "Mara from her picture: looks [{}] outfit [{}]",
+            s.looks, s.outfit
+        );
+        let looks = s.looks.to_lowercase();
+        assert!(
+            looks.starts_with("woman") || looks.starts_with("person"),
+            "{s:?}"
+        );
+        assert!(
+            looks.contains("silver") || looks.contains("grey") || looks.contains("gray"),
+            "{s:?}"
+        );
+    } else {
+        println!("the chat model cannot read pictures, so the vision step is skipped");
+    }
+
+    let say = |chat: i64, parent: Option<i64>, role: &'static str, text: &'static str| {
+        let db = db.clone();
+        async move {
+            db.append_message(&NewMessage {
+                chat_id: chat,
+                parent_id: parent,
+                role,
+                persona_id: Some(kai),
+                content: text,
+                raw_content: None,
+                token_count: None,
+                model: None,
+                prompt_version: None,
+                sampler_json: None,
+            })
+            .await
+            .unwrap()
+            .id
+        }
+    };
+    let paint_story =
+        |character: i64, name: &'static str, story: &'static [(&'static str, &'static str)]| {
+            let chats = chats.clone();
+            let pictures = pictures.clone();
+            let out = out.clone();
+            let paths = paths.clone();
+            let say = &say;
+            async move {
+                let view = chats.new_chat(character, Some(kai)).await.unwrap();
+                let chat = view.chat.id;
+                let mut parent = view.messages.last().map(|m| m.message.id);
+                let mut images = Vec::new();
+                for (i, (user, reply)) in story.iter().enumerate() {
+                    let u = say(chat, parent, "user", user).await;
+                    let c = say(chat, Some(u), "character", reply).await;
+                    parent = Some(c);
+                    let image = pictures.paint(chat, Some(c), "").await.unwrap();
+                    println!("{name} {}: {} | {}", i + 1, image.ref_mode, image.prompt);
+                    std::fs::copy(
+                        paths.gallery().join(&image.file_path),
+                        out.join(format!("{name}-{}.png", i + 1)),
+                    )
+                    .unwrap();
+                    images.push(image);
+                }
+                images
+            }
+        };
+
+    const MARA_STORY: &[(&str, &str)] = &[
+        (
+            "Morning, Captain.",
+            "*Mara leans on the cockpit console and laughs.* Morning. Coffee is cold again.",
+        ),
+        (
+            "The engine sounds wrong.",
+            "*She kneels in the engine room and works a wrench on the coupling, sparks flying.* It always sounds wrong.",
+        ),
+        (
+            "Can we stop for supplies?",
+            "*She walks through the busy station market under neon signs, looking at the stalls.* Ten minutes. Not one more.",
+        ),
+        (
+            "Look at that planet.",
+            "*She stands alone at the big window of the observation deck and looks at the blue planet below, quiet for once.*",
+        ),
+        (
+            "Deal me in.",
+            "*Mara sits across the galley table from you and deals the cards to both of you, grinning.* Loser cleans the filters.",
+        ),
+    ];
+    let images = paint_story(mara, "mara", MARA_STORY).await;
+    let with_refs = images
+        .iter()
+        .filter(|i| i.ref_mode.starts_with("ref:"))
+        .count();
+    assert!(
+        with_refs >= 4,
+        "only {with_refs} of 5 used the profile picture"
+    );
+
+    // A custom character from scratch: no picture first, so tags only.
+    let tessa = db
+        .insert_character(
+            &CharacterFields {
+                name: "Tessa Vale".into(),
+                personality: "A calm botanist on a research station.".into(),
+                greeting: "*Tessa looks up from the seedlings.* Careful where you step.".into(),
+                appearance_tags: "woman, long black hair in a braid, brown eyes, round face".into(),
+                outfit: "white lab coat, green sweater".into(),
+                art_style: "sci-fi".into(),
+                age: 34,
+                default_tone: "balanced".into(),
+                default_reply_style: "storyteller".into(),
+                ..Default::default()
+            },
+            None,
+            "{}",
+        )
+        .await
+        .unwrap();
+    const TESSA_STORY: &[(&str, &str)] = &[
+        (
+            "What are you growing?",
+            "*Tessa holds up a small pot with a glowing plant and smiles.* Breakfast, one day.",
+        ),
+        (
+            "Need help?",
+            "*She kneels alone between the rows of the greenhouse and checks the soil.* Hand me the scanner.",
+        ),
+    ];
+    let plain = paint_story(tessa, "tessa-tags", TESSA_STORY).await;
+    // Kai has a picture, so he can be a reference. Tessa cannot.
+    assert!(plain.iter().all(|i| !i.ref_mode.contains("character")));
+    // "Set as profile picture" from her first gallery picture.
+    let bytes = std::fs::read(paths.gallery().join(&plain[0].file_path)).unwrap();
+    let staged = avatar::stage(&paths, &bytes).unwrap();
+    // The user crops to Tessa, who is on the left when Kai is in the picture.
+    let side = staged.width.min(staged.height) / 2;
+    let stored = avatar::finish(
+        &paths,
+        &staged.token,
+        avatar::Crop {
+            x: 0,
+            y: side / 4,
+            size: side,
+        },
+        "tessa",
+    )
+    .unwrap();
+    db.set_character_avatar(tessa, Some(&stored)).await.unwrap();
+    const TESSA_MORE: &[(&str, &str)] = &[
+        (
+            "Lunch?",
+            "*Tessa sits alone on a crate in the station canteen, eating soup.* Only if you are buying.",
+        ),
+        (
+            "Storm warning.",
+            "*She looks out of the dark window at the storm, holding a mug.* The plants will not like this.",
+        ),
+    ];
+    let with_picture = paint_story(tessa, "tessa-ref", TESSA_MORE).await;
+    let used = with_picture
+        .iter()
+        .filter(|i| i.ref_mode.contains("character"))
+        .count();
+    assert!(used >= 1, "the new profile picture was never used");
+    engine.stop().await;
+}

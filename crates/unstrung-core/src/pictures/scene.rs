@@ -181,6 +181,9 @@ pub struct Person<'a> {
     pub appearance: &'a str,
     /// What the person usually wears.
     pub outfit: &'a str,
+    /// True when the engine gets this person's profile picture as a
+    /// reference. The silhouette never counts as a picture.
+    pub picture: bool,
 }
 
 /// The prompts for the image engine.
@@ -204,22 +207,31 @@ pub fn positive(
     if !art_style.trim().is_empty() {
         parts.push(art_style.trim().to_owned());
     }
-    // Each person with the clothes the story gave them, if any. Without a
-    // persona the character is drawn, and keeps the character's own clothes.
-    let as_character = (character, scene.character_outfit.as_str());
-    let people: Vec<(&Person, &str)> = match (scene.who, persona) {
-        (Who::Nobody, _) => Vec::new(),
-        (Who::Character, _) | (Who::Both | Who::Persona, None) => vec![as_character],
-        (Who::Persona, Some(p)) => vec![(p, scene.persona_outfit.as_str())],
-        (Who::Both, Some(p)) => vec![as_character, (p, scene.persona_outfit.as_str())],
+    let people = people(scene, character, persona);
+    // "image N" counts only the people with a picture, in the order of the
+    // engine's reference list (see `references`).
+    let mut n = 0;
+    let mut label = |base: &str, (_, p, _): &(Who, &Person, &str)| {
+        if p.picture {
+            n += 1;
+            format!("{base}, the person from image {n}")
+        } else {
+            base.to_owned()
+        }
     };
     match people.as_slice() {
         [] => {}
+        // "a single person" keeps the engine from drawing the reference
+        // person twice, which it does without it.
+        [one] if one.1.picture => parts.push(person_text(
+            "a single person, the same person as in image 1",
+            one,
+        )),
         [one] => parts.push(person_text("one person", one)),
         [first, second] => {
-            parts.push("two people".into());
-            parts.push(person_text("the first person", first));
-            parts.push(person_text("the second person", second));
+            parts.push("exactly two people".into());
+            parts.push(person_text(&label("the first person", first), first));
+            parts.push(person_text(&label("the second person", second), second));
         }
         _ => {}
     }
@@ -231,7 +243,49 @@ pub fn positive(
     parts.join(", ")
 }
 
-fn person_text(label: &str, (p, story_outfit): &(&Person, &str)) -> String {
+/// The people in the picture, in prompt order, each with the clothes the
+/// story gave them, if any. Without a persona the character is drawn, and
+/// keeps the character's own clothes.
+fn people<'a, 'p>(
+    scene: &'a Scene,
+    character: &'a Person<'p>,
+    persona: Option<&'a Person<'p>>,
+) -> Vec<(Who, &'a Person<'p>, &'a str)> {
+    let as_character = (Who::Character, character, scene.character_outfit.as_str());
+    match (scene.who, persona) {
+        (Who::Nobody, _) => Vec::new(),
+        (Who::Character, _) | (Who::Both | Who::Persona, None) => vec![as_character],
+        (Who::Persona, Some(p)) => vec![(Who::Persona, p, scene.persona_outfit.as_str())],
+        (Who::Both, Some(p)) => vec![
+            as_character,
+            (Who::Persona, p, scene.persona_outfit.as_str()),
+        ],
+    }
+}
+
+/// `positive` without the words about profile pictures, for a picture made
+/// from tags only.
+pub fn without_references(positive: &str) -> String {
+    positive
+        .replace(
+            "a single person, the same person as in image 1",
+            "one person",
+        )
+        .replace(", the person from image 1", "")
+        .replace(", the person from image 2", "")
+}
+
+/// Whose profile pictures go to the engine, in order: the first is "image 1"
+/// in the prompt. `Who::Character` or `Who::Persona` only.
+pub fn references(scene: &Scene, character: &Person, persona: Option<&Person>) -> Vec<Who> {
+    people(scene, character, persona)
+        .into_iter()
+        .filter(|(_, p, _)| p.picture)
+        .map(|(w, _, _)| w)
+        .collect()
+}
+
+fn person_text(label: &str, (_, p, story_outfit): &(Who, &Person, &str)) -> String {
     let outfit = if story_outfit.is_empty() {
         clean(p.outfit)
     } else {
@@ -348,10 +402,12 @@ mod tests {
         let character = Person {
             appearance: "silver hair, red eyes",
             outfit: "black coat",
+            picture: false,
         };
         let persona = Person {
             appearance: "short brown hair",
             outfit: "green jacket",
+            picture: false,
         };
         let mut scene = parse("{\"setting\": \"a tavern\", \"action\": \"the character pours tea\", \"mood\": \"calm\", \"camera\": \"close-up\", \"who\": \"character\", \"sexual\": false}").unwrap();
         let p = positive(&scene, "anime", &character, Some(&persona));
@@ -362,7 +418,7 @@ mod tests {
         scene.who = Who::Both;
         let p = positive(&scene, "", &character, Some(&persona));
         assert!(
-            p.starts_with("two people, the first person: silver hair"),
+            p.starts_with("exactly two people, the first person: silver hair"),
             "{p}"
         );
         assert!(p.contains("the second person: short brown hair"), "{p}");
@@ -377,10 +433,12 @@ mod tests {
         let character = Person {
             appearance: "silver hair",
             outfit: "black coat",
+            picture: false,
         };
         let persona = Person {
             appearance: "brown hair",
             outfit: "green jacket",
+            picture: false,
         };
         let mut scene = fallback("they dance", "");
         scene.who = Who::Both;
@@ -482,5 +540,67 @@ mod tests {
         assert!(q.contains("Ren: Sit down."));
         assert!(q.contains("never names"));
         assert!(q.contains("The user wants this picture: us on the roof"));
+    }
+
+    #[test]
+    fn image_numbers_follow_the_people_with_a_picture() {
+        let with = |picture| Person {
+            appearance: "silver hair",
+            outfit: "coat",
+            picture,
+        };
+        let mut scene = fallback("they talk", "");
+        scene.who = Who::Both;
+        // Both pictures: image 1 is the character, image 2 the persona.
+        let (c, p) = (with(true), with(true));
+        let text = positive(&scene, "", &c, Some(&p));
+        assert!(
+            text.contains("the first person, the person from image 1:"),
+            "{text}"
+        );
+        assert!(
+            text.contains("the second person, the person from image 2:"),
+            "{text}"
+        );
+        assert_eq!(
+            references(&scene, &c, Some(&p)),
+            vec![Who::Character, Who::Persona]
+        );
+        // Only the persona has one: it is image 1.
+        let (c, p) = (with(false), with(true));
+        let text = positive(&scene, "", &c, Some(&p));
+        assert!(text.contains("the first person: silver hair"), "{text}");
+        assert!(
+            text.contains("the second person, the person from image 1:"),
+            "{text}"
+        );
+        assert_eq!(references(&scene, &c, Some(&p)), vec![Who::Persona]);
+        // Only the character.
+        let (c, p) = (with(true), with(false));
+        assert_eq!(references(&scene, &c, Some(&p)), vec![Who::Character]);
+        // Neither: no image words.
+        let (c, p) = (with(false), with(false));
+        assert!(!positive(&scene, "", &c, Some(&p)).contains("image"));
+        assert!(references(&scene, &c, Some(&p)).is_empty());
+        // One person with a picture is drawn once.
+        scene.who = Who::Character;
+        let c = with(true);
+        let text = positive(&scene, "", &c, None);
+        assert!(
+            text.starts_with("a single person, the same person as in image 1: silver hair"),
+            "{text}"
+        );
+        assert_eq!(references(&scene, &c, None), vec![Who::Character]);
+        // Without the pictures, the prompt is the tags-only one.
+        assert_eq!(
+            without_references(&text),
+            positive(&scene, "", &with(false), None)
+        );
+        scene.who = Who::Both;
+        let (c, p) = (with(true), with(true));
+        assert_eq!(
+            without_references(&positive(&scene, "", &c, Some(&p))),
+            positive(&scene, "", &with(false), Some(&with(false)))
+        );
     }
 }

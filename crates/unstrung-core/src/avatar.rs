@@ -167,6 +167,26 @@ fn encode_png(picture: &DynamicImage) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+/// A profile picture as base64 PNG, at most 512 pixels a side, for a chat
+/// model that can see. `stored` is a saved avatar (`avatars/...`) or a staged
+/// upload (`staging/...`); nothing else is read.
+pub fn for_vision(paths: &AppPaths, stored: &str) -> Result<String> {
+    use base64::Engine as _;
+    if !(stored.starts_with("avatars/") || stored.starts_with(&format!("{STAGING}/"))) {
+        return Err(Error::Invalid("this is not a profile picture".into()));
+    }
+    let bytes = std::fs::read(paths.stored(stored)?)
+        .map_err(|_| Error::Invalid("the picture is gone; choose the picture again".into()))?;
+    let picture = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+        .map_err(|e| Error::Invalid(format!("the picture could not be read ({e})")))?;
+    let picture = if picture.width().max(picture.height()) > AVATAR_SIDE {
+        picture.resize(AVATAR_SIDE, AVATAR_SIDE, FilterType::Triangle)
+    } else {
+        picture
+    };
+    Ok(base64::engine::general_purpose::STANDARD.encode(encode_png(&picture)?))
+}
+
 /// A unique name part: time, process and a counter.
 fn new_token() -> String {
     let nanos = std::time::SystemTime::now()

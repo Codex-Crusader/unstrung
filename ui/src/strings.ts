@@ -85,9 +85,11 @@ export const strings = {
     suggest: "Suggest from personality",
     suggesting: "Writing...",
     suggestLooks: "Suggest looks from the card",
-    lookedUp: "Looks and outfit were filled from the card. Check them before you save.",
+    suggestLooksPicture: "Suggest looks from the picture",
+    lookedUp: "Looks and outfit were filled in. Check them before you save.",
     tags: "Looks",
-    tagsHint: "Stay the same in every picture: hair, eyes, face, build. For example: short silver hair, grey eyes.",
+    tagsHint:
+      "Start with woman, man or person, then what stays the same in every picture: hair, eyes, face, build. For example: woman, short silver hair, grey eyes.",
     outfit: "Usual outfit",
     outfitHint: "What they usually wear. If the story changes their clothes, the pictures follow the story.",
     artStyle: "Art style",

@@ -216,7 +216,11 @@ fn push_merged(messages: &mut Vec<ChatMessage>, role: &'static str, content: Str
             last.content.push_str("\n\n");
             last.content.push_str(&content);
         }
-        _ => messages.push(ChatMessage { role, content }),
+        _ => messages.push(ChatMessage {
+            role,
+            content,
+            images: Vec::new(),
+        }),
     }
 }
 
@@ -486,6 +490,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
 
     let mut messages = vec![ChatMessage {
         role: "system",
+        images: Vec::new(),
         content: system,
     }];
     for message in kept {
@@ -508,6 +513,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     if let Some(p) = prefill {
         messages.push(ChatMessage {
             role: "assistant",
+            images: Vec::new(),
             content: p.content.clone(),
         });
     }

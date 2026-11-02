@@ -438,14 +438,39 @@ impl PictureService {
                 positive: scene::varied(&old.prompt, seed),
                 negative: old.negative_prompt.clone(),
             };
-            self.render(
+            // The same people as references, with their pictures of today.
+            // A picture that is gone now means tags only.
+            let order = References::parse(&old.ref_mode);
+            let refs = if order.is_empty()
+                || !model.ref_images
+                || !safety::allows_references(&old.prompt, false)
+            {
+                References::none()
+            } else {
+                let character_picture = self.reference_file(character.avatar_path.as_deref());
+                let persona_picture = persona
+                    .as_ref()
+                    .and_then(|p| self.reference_file(p.avatar_path.as_deref()));
+                References::of(&order, character_picture.as_ref(), persona_picture.as_ref())
+            };
+            let plain = scene::Prompts {
+                positive: scene::without_references(&prompts.positive),
+                negative: prompts.negative.clone(),
+            };
+            let prompts = if refs.files.is_empty() {
+                plain.clone()
+            } else {
+                prompts
+            };
+            self.render_or_tags(
                 model,
                 &exe,
                 old.chat_id,
                 old.message_id,
-                prompts,
+                (prompts, plain),
                 seed,
                 &chat_model,
+                &refs,
                 &token,
             )
             .await
@@ -499,14 +524,26 @@ impl PictureService {
             .await?;
         let message_id = input.message_id;
 
-        let character = scene::Person {
-            appearance: &input.character.appearance_tags,
-            outfit: &input.character.outfit,
+        let character_picture = self.reference_file(input.character.avatar_path.as_deref());
+        let persona_picture = input
+            .persona
+            .as_ref()
+            .and_then(|p| self.reference_file(p.avatar_path.as_deref()));
+        let persons = |pictures: bool| {
+            let character = scene::Person {
+                appearance: &input.character.appearance_tags,
+                outfit: &input.character.outfit,
+                picture: pictures && character_picture.is_some(),
+            };
+            let persona = input.persona.as_ref().map(|p| scene::Person {
+                appearance: &p.appearance_tags,
+                outfit: &p.outfit,
+                picture: pictures && persona_picture.is_some(),
+            });
+            (character, persona)
         };
-        let persona = input.persona.as_ref().map(|p| scene::Person {
-            appearance: &p.appearance_tags,
-            outfit: &p.outfit,
-        });
+        // The check reads the prompt without the reference words.
+        let (character, persona) = persons(false);
         let positive = scene::positive(
             &input.scene,
             &input.character.art_style,
@@ -531,23 +568,106 @@ impl PictureService {
                 .await?
                 .iter()
                 .any(|i| i.message_id == message_id);
-        let positive = if again {
-            scene::varied(&positive, seed)
-        } else {
-            positive
+        let frame = |text: String| {
+            if again {
+                scene::varied(&text, seed)
+            } else {
+                text
+            }
         };
-        let prompts = scene::with_rules(&positive, rules);
-        self.render(
+        let plain = scene::with_rules(&frame(positive), rules);
+        // The profile pictures, for a model that takes them and a prompt
+        // that allows them.
+        let (character, persona) = persons(true);
+        let order = if model.ref_images && safety::allows_references(&checked, input.scene.sexual) {
+            scene::references(&input.scene, &character, persona.as_ref())
+        } else {
+            Vec::new()
+        };
+        if order.is_empty() {
+            return self
+                .render(
+                    model,
+                    exe,
+                    chat_id,
+                    message_id,
+                    plain,
+                    seed,
+                    &input.chat_model,
+                    &References::none(),
+                    token,
+                )
+                .await;
+        }
+        let refs = References::of(&order, character_picture.as_ref(), persona_picture.as_ref());
+        let with_refs = scene::with_rules(
+            &frame(scene::positive(
+                &input.scene,
+                &input.character.art_style,
+                &character,
+                persona.as_ref(),
+            )),
+            rules,
+        );
+        self.render_or_tags(
             model,
             exe,
             chat_id,
             message_id,
-            prompts,
+            (with_refs, plain),
             seed,
             &input.chat_model,
+            &refs,
             token,
         )
         .await
+    }
+
+    /// Renders with the references. When that fails (for example, too little
+    /// free VRAM for the pictures), it renders once more with tags only.
+    #[allow(clippy::too_many_arguments)]
+    async fn render_or_tags(
+        &self,
+        model: &'static ImageModel,
+        exe: &std::path::Path,
+        chat_id: i64,
+        message_id: Option<i64>,
+        (with_refs, plain): (scene::Prompts, scene::Prompts),
+        seed: i64,
+        chat_model: &str,
+        refs: &References,
+        token: &CancellationToken,
+    ) -> Result<Image> {
+        match self
+            .render(
+                model, exe, chat_id, message_id, with_refs, seed, chat_model, refs, token,
+            )
+            .await
+        {
+            Err(e) if !matches!(e, Error::Cancelled) && !token.is_cancelled() => {
+                log::warn!("a picture with profile pictures failed, so it is made from tags: {e}");
+                self.render(
+                    model,
+                    exe,
+                    chat_id,
+                    message_id,
+                    plain,
+                    seed,
+                    chat_model,
+                    &References::none(),
+                    token,
+                )
+                .await
+            }
+            other => other,
+        }
+    }
+
+    /// A stored profile picture that exists on disk. `None` for no picture,
+    /// which the screens show as the silhouette.
+    fn reference_file(&self, avatar: Option<&str>) -> Option<std::path::PathBuf> {
+        let file = self.paths.stored(avatar?).ok()?;
+        file.is_file().then_some(file)
     }
 
     /// Runs the engine for one picture and saves it.
@@ -561,6 +681,7 @@ impl PictureService {
         prompts: scene::Prompts,
         seed: i64,
         chat_model: &str,
+        refs: &References,
         token: &CancellationToken,
     ) -> Result<Image> {
         let show = |phase: &'static str| {
@@ -598,6 +719,7 @@ impl PictureService {
             height: size,
             seed,
             output: &output,
+            references: &refs.files,
         };
         let mut cmd = std::process::Command::new(exe);
         cmd.args(runner::args(&job));
@@ -659,7 +781,7 @@ impl PictureService {
                 negative_prompt: prompts.negative,
                 seed,
                 image_model: model.id.clone(),
-                ref_mode: "tags".into(),
+                ref_mode: refs.mode.clone(),
                 width: i64::from(size),
                 height: i64::from(size),
                 adult: false,
@@ -739,4 +861,72 @@ async fn free_gpu(client: &crate::ollama::Client, model: &str) -> bool {
         }
     }
     true
+}
+
+/// The profile pictures of one picture job, and how the `images` row records
+/// them: "tags", or "ref:character,persona" in "image N" order.
+struct References {
+    files: Vec<std::path::PathBuf>,
+    mode: String,
+}
+
+impl References {
+    fn none() -> Self {
+        Self {
+            files: Vec::new(),
+            mode: "tags".into(),
+        }
+    }
+
+    /// The files in `order`. Any missing one means tags only, because the
+    /// prompt counts the images.
+    fn of(
+        order: &[scene::Who],
+        character: Option<&std::path::PathBuf>,
+        persona: Option<&std::path::PathBuf>,
+    ) -> Self {
+        let files: Option<Vec<std::path::PathBuf>> = order
+            .iter()
+            .map(|w| match w {
+                scene::Who::Character => character.cloned(),
+                scene::Who::Persona => persona.cloned(),
+                _ => None,
+            })
+            .collect();
+        match files {
+            Some(files) if !files.is_empty() => {
+                let names: Vec<&str> = order
+                    .iter()
+                    .map(|w| {
+                        if *w == scene::Who::Persona {
+                            "persona"
+                        } else {
+                            "character"
+                        }
+                    })
+                    .collect();
+                Self {
+                    files,
+                    mode: format!("ref:{}", names.join(",")),
+                }
+            }
+            _ => Self::none(),
+        }
+    }
+
+    /// The order from a stored mode. "tags" or anything unknown: none.
+    fn parse(mode: &str) -> Vec<scene::Who> {
+        let Some(list) = mode.strip_prefix("ref:") else {
+            return Vec::new();
+        };
+        let order: Option<Vec<scene::Who>> = list
+            .split(',')
+            .map(|n| match n {
+                "character" => Some(scene::Who::Character),
+                "persona" => Some(scene::Who::Persona),
+                _ => None,
+            })
+            .collect();
+        order.unwrap_or_default()
+    }
 }

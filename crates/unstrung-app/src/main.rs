@@ -188,6 +188,8 @@ fn main() {
             creator::import_card,
             creator::suggest_anchor,
             creator::suggest_looks,
+            creator::suggest_looks_from_picture,
+            creator::can_read_pictures,
             creator::test_reply,
             selftest::self_test_mode,
             selftest::self_test_report,

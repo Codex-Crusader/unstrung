@@ -24,6 +24,8 @@ pub struct Job<'a> {
     pub seed: i64,
     /// The PNG to write. It exists only after a good run.
     pub output: &'a Path,
+    /// Profile pictures, "image 1" first. Only for a model with `ref_images`.
+    pub references: &'a [std::path::PathBuf],
 }
 
 /// The options for `sd-cli`.
@@ -53,6 +55,12 @@ pub fn args(job: &Job) -> Vec<OsString> {
     a.push("--vae-tiling".into());
     // The prompt stays in the database, not inside an exported picture.
     a.push("--disable-image-metadata".into());
+    if job.model.ref_images {
+        for r in job.references {
+            a.push("--ref-image".into());
+            a.push(r.clone().into_os_string());
+        }
+    }
     a
 }
 
@@ -205,6 +213,7 @@ mod tests {
             negative: "blurry".into(),
         };
         let dir = Path::new("C:\\models\\image");
+        let refs = vec![std::path::PathBuf::from("C:\\a.png")];
         let job = Job {
             model,
             models_dir: dir,
@@ -213,6 +222,7 @@ mod tests {
             height: 1024,
             seed: 7,
             output: Path::new("C:\\out.png"),
+            references: &refs,
         };
         let a: Vec<String> = args(&job)
             .iter()
@@ -232,6 +242,19 @@ mod tests {
         assert_eq!(value("--seed"), "7");
         assert_eq!(value("--prompt"), "a tavern");
         assert!(a.contains(&"--disable-image-metadata".to_owned()));
+        // Z-Image takes no reference pictures: none go to the engine.
+        assert!(!a.contains(&"--ref-image".to_owned()));
+        let klein = catalog::model("flux2-klein-4b").unwrap();
+        let job = Job {
+            model: klein,
+            ..job
+        };
+        let a: Vec<String> = args(&job)
+            .iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
+        let at = a.iter().position(|x| x == "--ref-image").unwrap();
+        assert_eq!(a[at + 1], "C:\\a.png");
     }
 
     #[test]
@@ -330,6 +353,7 @@ mod tests {
             height: size,
             seed: 42,
             output: &out,
+            references: &[],
         };
         let exe = setup::folder(&paths, Engine::Image).join(Engine::Image.exe());
         let mut cmd = Command::new(exe);
