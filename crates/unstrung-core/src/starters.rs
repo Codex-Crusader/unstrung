@@ -75,11 +75,11 @@ const CHARACTERS: &[StarterCharacter] = &[
         greeting: "Ah, a visitor. Mind the third shelf, it bites. Now, which book called you here?",
         examples: "\
 {{user}}: Where am I?
-{{char}}: *He peers over his spectacles.* Indeed, my dear, that is the oldest question in the building. The short answer is: somewhere between chapter one and the index.
+{{char}}: *He peers over his spectacles.* Somewhere between chapter one and the index, my dear. It is the oldest question in the building, and you are welcome to stay while you think about it.
 {{user}}: Can you help me find a book about dragons?
-{{char}}: Dragons? Oh, they dislike being looked up. But a riddle might coax one out. What has pages but never reads?",
-        anchor: "Warm and slow. Old-fashioned words (\"indeed\", \"my dear\"). Answers questions \
-            with riddles. Often loses his train of thought.",
+{{char}}: Dragons? Third aisle, top shelf, the red one that is warm to the touch. *He fetches it and hands it over with care.* Read it slowly. It reads you back, you know.",
+        anchor: "Warm and slow. Old-fashioned words (\"my dear\", \"indeed\") now and then, never at the start of a \
+            reply. Gives what is asked first, then adds a story or a riddle. Often loses his train of thought.",
         tags: "long white beard, round spectacles, ink-stained fingers",
         outfit: "deep green robes",
         art_style: "fantasy",
@@ -264,6 +264,14 @@ mod tests {
             "pale skin, long dark coat, black hair, candle light, old manor, gothic",
         ),
     ];
+    /// Elden's example dialogue and voice before migration 0006.
+    const OLD_ELDEN: (&str, &str) = (
+        "{{user}}: Where am I?
+{{char}}: *He peers over his spectacles.* Indeed, my dear, that is the oldest question in the building. The short answer is: somewhere between chapter one and the index.
+{{user}}: Can you help me find a book about dragons?
+{{char}}: Dragons? Oh, they dislike being looked up. But a riddle might coax one out. What has pages but never reads?",
+        "Warm and slow. Old-fashioned words (\"indeed\", \"my dear\"). Answers questions with riddles. Often loses his train of thought.",
+    );
     const OLD_PERSONAS: &[(&str, &str)] = &[
         (
             "kai",
@@ -283,8 +291,11 @@ mod tests {
             .await
             .unwrap();
         for (key, tags) in OLD_CHARACTERS {
-            sqlx::query("INSERT INTO characters (name, starter_key, appearance_tags, age, created_at) VALUES (?, ?, ?, 30, 0)")
-                .bind(*key).bind(*key).bind(*tags).execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO characters (name, starter_key, appearance_tags, example_dialogue, voice_anchor, age, created_at) VALUES (?, ?, ?, ?, ?, 30, 0)")
+                .bind(*key).bind(*key).bind(*tags)
+                .bind(if *key == "elden_thorne" { OLD_ELDEN.0 } else { "" })
+                .bind(if *key == "elden_thorne" { OLD_ELDEN.1 } else { "" })
+                .execute(&pool).await.unwrap();
         }
         for (key, tags) in OLD_PERSONAS {
             sqlx::query("INSERT INTO personas (name, starter_key, appearance_tags, created_at) VALUES (?, ?, ?, 0)")
@@ -309,6 +320,12 @@ mod tests {
                 "{}",
                 c.key
             );
+            if c.key == "elden_thorne" {
+                assert_eq!(
+                    (row.example_dialogue.as_str(), row.voice_anchor.as_str()),
+                    (c.examples, c.anchor)
+                );
+            }
         }
         for p in PERSONAS {
             let id = db.persona_by_starter(p.key).await.unwrap().unwrap();
