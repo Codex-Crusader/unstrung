@@ -69,7 +69,8 @@ export function StatusBar({
             className="link-button"
             onClick={() => {
               setShowDetail(false);
-              void restartEngine();
+              // It refuses only while a reply runs, and then the engine works.
+              restartEngine().catch(() => undefined);
             }}
           >
             {strings.status.retry}

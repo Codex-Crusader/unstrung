@@ -665,7 +665,8 @@ export const strings = {
     restart: "Restart from greeting",
     restartHint: "A new chat with only the card and the greeting. This chat stays in the list.",
     reload: "Reload AI",
-    reloadHint: "Starts the chat engine again. Use it when replies are slow or stuck. It does not change the replies.",
+    reloadHint:
+      "Starts the chat engine again. Use it when replies stay slow. If a reply is still running, press Stop first. It does not change the replies.",
   },
   memory: {
     title: "Memory",
