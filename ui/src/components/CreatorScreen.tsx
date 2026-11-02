@@ -295,9 +295,13 @@ export function CreatorScreen({
     if (fields.appearance_tags.trim() !== "" && fields.outfit.trim() !== "") return;
     if (cardText.trim() === "") return;
     autoLooks.current = true;
-    // The same "Suggesting..." as the button: the chat model is busy meanwhile.
-    setLookingUp(true);
-    suggestLooks(fields.name, cardText)
+    // The same "Suggesting..." as the button: the chat model is busy
+    // meanwhile. Set in the promise, not in the effect body.
+    void Promise.resolve()
+      .then(() => {
+        setLookingUp(true);
+        return suggestLooks(fields.name, cardText);
+      })
       .then(fill(true))
       .catch(() => undefined)
       .finally(() => {
