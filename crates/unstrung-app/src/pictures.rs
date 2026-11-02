@@ -15,8 +15,10 @@ pub async fn pictures_page(state: State<'_, AppState>) -> CmdResult<Page> {
     Ok(state.pictures.page().await?)
 }
 
+/// Async so that Tauri runs it inside the Tokio runtime: a sync command runs
+/// on the main thread, where the spawn in `download` panics and the app aborts.
 #[tauri::command]
-pub fn download_picture_model(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+pub async fn download_picture_model(state: State<'_, AppState>, id: String) -> CmdResult<()> {
     Ok(state.pictures.download(&id)?)
 }
 
