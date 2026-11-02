@@ -73,7 +73,8 @@ pub fn question(character: &str, user: &str, lines: &[(String, String)], wish: &
 character. {user} is the user.\n\
 - setting: the place, time of day and light, in a few words.\n\
 - action: what the people in the picture do, in one short sentence. Use \
-\"the character\" and \"the user\", never names.\n\
+\"the character\" and \"the user\", never names. Name only people who are \
+in the picture.\n\
 - mood: one to three words.\n\
 - camera: the shot, for example \"close-up\", \"medium shot\" or \"wide shot\".\n\
 - who: \"character\", \"persona\" (the user), \"both\" or \"nobody\".\n\
@@ -196,51 +197,116 @@ pub struct Prompts {
 const BASE_NEGATIVE: &str =
     "blurry, low quality, deformed hands, extra fingers, text, watermark, signature";
 
-/// The prompt without the content rules, for the content check.
+/// The prompt without the content rules, for the content check. Short
+/// sentences in the order the engine composes a picture: style and camera,
+/// place, what happens, mood, then who is who. The scene writer says "the
+/// character" and "the user"; the engine knows neither, so each person gets a
+/// label from their Looks ("the woman", "the second man") in the action too.
 pub fn positive(
     scene: &Scene,
     art_style: &str,
     character: &Person,
     persona: Option<&Person>,
 ) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    if !art_style.trim().is_empty() {
-        parts.push(art_style.trim().to_owned());
-    }
     let people = people(scene, character, persona);
+    let labels = labels(&people);
+    let mut sentences: Vec<String> = Vec::new();
+    let head: Vec<&str> = [art_style.trim(), scene.camera.as_str()]
+        .into_iter()
+        .filter(|t| !t.is_empty())
+        .collect();
+    if !head.is_empty() {
+        sentences.push(head.join(", "));
+    }
+    let named = |who: Who| {
+        people
+            .iter()
+            .position(|(w, _, _)| *w == who)
+            .map_or("someone out of view", |i| labels[i].as_str())
+    };
+    let action = replace_words(
+        &replace_words(&scene.action, "the character", named(Who::Character)),
+        "the user",
+        named(Who::Persona),
+    );
+    for field in [scene.setting.as_str(), action.as_str()] {
+        if !field.is_empty() {
+            sentences.push(field.to_owned());
+        }
+    }
+    if !scene.mood.is_empty() {
+        sentences.push(format!("{} mood", scene.mood));
+    }
+    match people.as_slice() {
+        [] => {}
+        // "Only one" keeps the engine from drawing the reference person twice.
+        [one] => sentences.push(format!("Only one {}", noun(one.1))),
+        _ => sentences.push("Exactly two people".into()),
+    }
     // "image N" counts only the people with a picture, in the order of the
     // engine's reference list (see `references`).
     let mut n = 0;
-    let mut label = |base: &str, (_, p, _): &(Who, &Person, &str)| {
-        if p.picture {
+    for (person, label) in people.iter().zip(&labels) {
+        let label = if person.1.picture {
             n += 1;
-            format!("{base}, the person from image {n}")
+            format!("{label}, the person from image {n}")
         } else {
-            base.to_owned()
-        }
-    };
-    match people.as_slice() {
-        [] => {}
-        // "a single person" keeps the engine from drawing the reference
-        // person twice, which it does without it.
-        [one] if one.1.picture => parts.push(person_text(
-            "a single person, the same person as in image 1",
-            one,
-        )),
-        [one] => parts.push(person_text("one person", one)),
-        [first, second] => {
-            parts.push("exactly two people".into());
-            parts.push(person_text(&label("the first person", first), first));
-            parts.push(person_text(&label("the second person", second), second));
-        }
-        _ => {}
+            label.clone()
+        };
+        sentences.push(person_text(&label, person));
     }
-    for field in [&scene.action, &scene.setting, &scene.mood, &scene.camera] {
-        if !field.is_empty() {
-            parts.push(field.clone());
+    sentences
+        .iter()
+        .map(|t| capitalized(t.trim_end_matches(['.', ' '])))
+        .collect::<Vec<_>>()
+        .join(". ")
+}
+
+/// The kind of person, from the first Looks tag: woman, man or person.
+fn noun(p: &Person) -> &'static str {
+    let first = p.appearance.split(',').next().unwrap_or("").trim();
+    ["woman", "man"]
+        .into_iter()
+        .find(|w| first.eq_ignore_ascii_case(w))
+        .unwrap_or("person")
+}
+
+/// "the woman" and "the man", or "the first man" and "the second man".
+fn labels(people: &[(Who, &Person, &str)]) -> Vec<String> {
+    let nouns: Vec<&str> = people.iter().map(|(_, p, _)| noun(p)).collect();
+    match nouns.as_slice() {
+        [a, b] if a == b => vec![format!("the first {a}"), format!("the second {b}")],
+        _ => nouns.iter().map(|n| format!("the {n}")).collect(),
+    }
+}
+
+/// `text` with each whole-word `from` (any case) replaced by `to`.
+fn replace_words(text: &str, from: &str, to: &str) -> String {
+    // ASCII lowercasing keeps every byte offset.
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::new();
+    let mut at = 0;
+    for (i, _) in lower.match_indices(from) {
+        let before = text[..i].chars().next_back();
+        let after = text[i + from.len()..].chars().next();
+        let whole =
+            !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric);
+        if whole && i >= at {
+            out.push_str(&text[at..i]);
+            out.push_str(to);
+            at = i + from.len();
         }
     }
-    parts.join(", ")
+    out.push_str(&text[at..]);
+    out
+}
+
+fn capitalized(text: &str) -> String {
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// The people in the picture, in prompt order, each with the clothes the
@@ -267,10 +333,6 @@ fn people<'a, 'p>(
 /// from tags only.
 pub fn without_references(positive: &str) -> String {
     positive
-        .replace(
-            "a single person, the same person as in image 1",
-            "one person",
-        )
         .replace(", the person from image 1", "")
         .replace(", the person from image 2", "")
 }
@@ -286,19 +348,47 @@ pub fn references(scene: &Scene, character: &Person, persona: Option<&Person>) -
 }
 
 fn person_text(label: &str, (_, p, story_outfit): &(Who, &Person, &str)) -> String {
-    let outfit = if story_outfit.is_empty() {
+    // A story outfit made only of words of the usual one ("worn flight
+    // jacket" for "worn navy flight jacket") is the usual one with details
+    // lost, and a lost color makes the engine copy the other person's.
+    let words = |t: &str| -> Vec<String> {
+        t.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty() && !["a", "an", "the", "her", "his", "their"].contains(w))
+            .map(str::to_owned)
+            .collect()
+    };
+    let usual = words(p.outfit);
+    let same = words(story_outfit).iter().all(|w| usual.contains(w));
+    let outfit = if story_outfit.is_empty() || same {
         clean(p.outfit)
     } else {
-        format!("wearing {story_outfit}")
+        story_outfit.to_string()
     };
-    let tags: Vec<String> = [clean(p.appearance), outfit]
-        .into_iter()
-        .filter(|s| !s.is_empty())
+    // The kind of person is in the label already.
+    let looks: Vec<&str> = p
+        .appearance
+        .split(',')
+        .map(str::trim)
+        .filter(|t| {
+            !t.is_empty()
+                && !["woman", "man", "person"]
+                    .iter()
+                    .any(|w| t.eq_ignore_ascii_case(w))
+        })
         .collect();
+    let mut tags = clean(&looks.join(", "));
+    if !outfit.is_empty() {
+        if !tags.is_empty() {
+            tags.push_str(", ");
+        }
+        tags.push_str("wearing ");
+        tags.push_str(&outfit);
+    }
     if tags.is_empty() {
         label.to_owned()
     } else {
-        format!("{label}: {}", tags.join(", "))
+        format!("{label}: {tags}")
     }
 }
 
@@ -320,20 +410,29 @@ const FRAMINGS: [&str; 8] = [
 /// `positive` with a framing that `seed` picks, other than the framing it has
 /// now. Removes an earlier framing, so the prompt holds at most one.
 pub fn varied(positive: &str, seed: i64) -> String {
-    let parts: Vec<&str> = positive.split(", ").collect();
-    let old = parts.iter().find(|p| FRAMINGS.contains(p)).copied();
+    let lower = positive.to_ascii_lowercase();
+    let old = FRAMINGS.iter().find_map(|f| {
+        lower
+            .match_indices(f)
+            .map(|(i, _)| i)
+            .find(|&i| {
+                let before = lower[..i].chars().next_back();
+                let after = lower[i + f.len()..].chars().next();
+                !before.is_some_and(char::is_alphanumeric)
+                    && !after.is_some_and(char::is_alphanumeric)
+            })
+            .map(|i| (*f, i))
+    });
     let choices: Vec<&str> = FRAMINGS
         .iter()
         .copied()
-        .filter(|f| Some(*f) != old)
+        .filter(|f| Some(*f) != old.map(|(f, _)| f))
         .collect();
     let pick = choices[usize::try_from(seed.unsigned_abs() % choices.len() as u64).unwrap_or(0)];
-    let mut kept: Vec<&str> = parts
-        .into_iter()
-        .filter(|p| !FRAMINGS.contains(p))
-        .collect();
-    kept.push(pick);
-    kept.join(", ")
+    match old {
+        Some((f, i)) => format!("{}{pick}{}", &positive[..i], &positive[i + f.len()..]),
+        None => format!("{positive}, {pick}"),
+    }
 }
 
 pub fn with_rules(positive: &str, rules: Rules) -> Prompts {
@@ -358,6 +457,20 @@ pub fn with_rules(positive: &str, rules: Rules) -> Prompts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_variation_replaces_the_framing_where_it_is() {
+        let p = "Anime, medium shot. A tavern. Only one woman. The woman: red hair";
+        let next = varied(p, 1);
+        assert!(!next.contains("medium shot"), "{next}");
+        assert!(
+            next.starts_with("Anime, ")
+                && next.ends_with(". A tavern. Only one woman. The woman: red hair"),
+            "{next}"
+        );
+        // "medium shots" is not the framing "medium shot".
+        assert!(varied("two medium shots", 1).starts_with("two medium shots, "));
+    }
 
     #[test]
     fn a_variation_changes_the_framing_and_keeps_one() {
@@ -400,32 +513,72 @@ mod tests {
     #[test]
     fn the_prompt_uses_the_tags_of_the_people_in_the_scene() {
         let character = Person {
-            appearance: "silver hair, red eyes",
+            appearance: "woman, silver hair, red eyes",
             outfit: "black coat",
             picture: false,
         };
         let persona = Person {
-            appearance: "short brown hair",
+            appearance: "man, short brown hair",
             outfit: "green jacket",
             picture: false,
         };
-        let mut scene = parse("{\"setting\": \"a tavern\", \"action\": \"the character pours tea\", \"mood\": \"calm\", \"camera\": \"close-up\", \"who\": \"character\", \"sexual\": false}").unwrap();
+        let mut scene = parse("{\"setting\": \"a tavern\", \"action\": \"The character pours tea for the user.\", \"mood\": \"calm\", \"camera\": \"close-up\", \"who\": \"character\", \"sexual\": false}").unwrap();
+        // The place and the action come first, the looks last. The user is
+        // not in the picture, so the engine is not told to draw him.
         let p = positive(&scene, "anime", &character, Some(&persona));
         assert_eq!(
             p,
-            "anime, one person: silver hair, red eyes, black coat, the character pours tea, a tavern, calm, close-up"
+            "Anime, close-up. A tavern. The woman pours tea for someone out of view. Calm mood. Only one woman. The woman: silver hair, red eyes, wearing black coat"
         );
         scene.who = Who::Both;
         let p = positive(&scene, "", &character, Some(&persona));
-        assert!(
-            p.starts_with("exactly two people, the first person: silver hair"),
-            "{p}"
+        assert_eq!(
+            p,
+            "Close-up. A tavern. The woman pours tea for the man. Calm mood. Exactly two people. The woman: silver hair, red eyes, wearing black coat. The man: short brown hair, wearing green jacket"
         );
-        assert!(p.contains("the second person: short brown hair"), "{p}");
         scene.who = Who::Persona;
         assert!(positive(&scene, "", &character, None).contains("silver hair"));
         scene.who = Who::Nobody;
-        assert!(!positive(&scene, "", &character, Some(&persona)).contains("hair"));
+        let p = positive(&scene, "", &character, Some(&persona));
+        assert!(!p.contains("hair") && !p.contains("woman"), "{p}");
+    }
+
+    #[test]
+    fn people_of_one_kind_are_told_apart() {
+        let a = Person {
+            appearance: "man, red beard",
+            outfit: "",
+            picture: false,
+        };
+        let b = Person {
+            appearance: "Man, bald",
+            outfit: "",
+            picture: false,
+        };
+        let mut scene = fallback("the character shakes hands with the user", "");
+        scene.who = Who::Both;
+        let p = positive(&scene, "", &a, Some(&b));
+        assert!(
+            p.contains("The first man shakes hands with the second man"),
+            "{p}"
+        );
+        assert!(
+            p.contains("The first man: red beard. The second man: bald"),
+            "{p}"
+        );
+        // No kind in the Looks: person.
+        let c = Person {
+            appearance: "red beard",
+            outfit: "",
+            picture: false,
+        };
+        let p = positive(&scene, "", &c, Some(&b));
+        assert!(p.contains("The person shakes hands with the man"), "{p}");
+        // Only whole words change.
+        assert_eq!(
+            replace_words("The users wait. THE USER waves.", "the user", "the man"),
+            "The users wait. the man waves."
+        );
     }
 
     #[test]
@@ -444,8 +597,14 @@ mod tests {
         scene.who = Who::Both;
         // No change in the story: the usual outfits.
         let p = positive(&scene, "", &character, Some(&persona));
-        assert!(p.contains("first person: silver hair, black coat"), "{p}");
-        assert!(p.contains("second person: brown hair, green jacket"), "{p}");
+        assert!(
+            p.contains("first person: silver hair, wearing black coat"),
+            "{p}"
+        );
+        assert!(
+            p.contains("second person: brown hair, wearing green jacket"),
+            "{p}"
+        );
         // Each person gets their own new clothes.
         scene.character_outfit = "a red evening dress".into();
         scene.persona_outfit = "a grey suit".into();
@@ -462,10 +621,14 @@ mod tests {
             !p.contains("black coat") && !p.contains("green jacket"),
             "{p}"
         );
+        // A story outfit that only drops words of the usual one keeps it.
+        scene.persona_outfit = "his jacket".into();
+        let p = positive(&scene, "", &character, Some(&persona));
+        assert!(p.contains("brown hair, wearing green jacket"), "{p}");
         // Only the character changed.
         scene.persona_outfit.clear();
         let p = positive(&scene, "", &character, Some(&persona));
-        assert!(p.contains("brown hair, green jacket"), "{p}");
+        assert!(p.contains("brown hair, wearing green jacket"), "{p}");
         // With no persona the character is drawn: the user's clothes never
         // dress the character.
         scene.who = Who::Persona;
@@ -473,7 +636,7 @@ mod tests {
         scene.persona_outfit = "a grey suit".into();
         let p = positive(&scene, "", &character, None);
         assert!(
-            p.contains("silver hair, black coat") && !p.contains("grey suit"),
+            p.contains("silver hair, wearing black coat") && !p.contains("grey suit"),
             "{p}"
         );
     }
@@ -555,11 +718,11 @@ mod tests {
         let (c, p) = (with(true), with(true));
         let text = positive(&scene, "", &c, Some(&p));
         assert!(
-            text.contains("the first person, the person from image 1:"),
+            text.contains("The first person, the person from image 1:"),
             "{text}"
         );
         assert!(
-            text.contains("the second person, the person from image 2:"),
+            text.contains("The second person, the person from image 2:"),
             "{text}"
         );
         assert_eq!(
@@ -569,9 +732,9 @@ mod tests {
         // Only the persona has one: it is image 1.
         let (c, p) = (with(false), with(true));
         let text = positive(&scene, "", &c, Some(&p));
-        assert!(text.contains("the first person: silver hair"), "{text}");
+        assert!(text.contains("The first person: silver hair"), "{text}");
         assert!(
-            text.contains("the second person, the person from image 1:"),
+            text.contains("The second person, the person from image 1:"),
             "{text}"
         );
         assert_eq!(references(&scene, &c, Some(&p)), vec![Who::Persona]);
@@ -587,7 +750,7 @@ mod tests {
         let c = with(true);
         let text = positive(&scene, "", &c, None);
         assert!(
-            text.starts_with("a single person, the same person as in image 1: silver hair"),
+            text.contains("Only one person. The person, the person from image 1: silver hair"),
             "{text}"
         );
         assert_eq!(references(&scene, &c, None), vec![Who::Character]);
