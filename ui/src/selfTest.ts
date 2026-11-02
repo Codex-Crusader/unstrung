@@ -2,6 +2,7 @@
 // The core writes the report to logs/self-test.json and exits.
 
 import type { Screen } from "./App";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { strings } from "./strings";
 import {
   chatMemories,
@@ -38,6 +39,10 @@ import {
   type SelfTestReport,
   type StyleSettings,
   type ViewMessage,
+  canReadPictures,
+  getUiSettings,
+  listCopies,
+  setUiSetting,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -164,7 +169,19 @@ async function checkImport(show: (screen: Screen) => void): Promise<string> {
   const saved = await saveCharacter(null, { ...draft.fields, age: 40 }, { kind: "keep" }, draft.extras);
   const back = await getCharacter(saved.id);
   if (back.greeting !== "*{{char}} lifts the lantern.* Fare?") return `import greeting: ${back.greeting}`;
-  await deleteCharacter(saved.id);
+  // The card has no Looks, so the creator suggests them. Leaving the screen
+  // stops the suggestion; the delete then finds the AI slot free.
+  show({ name: "home" });
+  const end = Date.now() + 10_000;
+  for (;;) {
+    try {
+      await deleteCharacter(saved.id);
+      break;
+    } catch (e) {
+      if (Date.now() > end) return `import: the Looks suggestion did not stop: ${toUiError(e).detail}`;
+      await pause(250);
+    }
+  }
   return "";
 }
 
@@ -323,6 +340,22 @@ async function installFromStatusBar(): Promise<string> {
   return "";
 }
 
+/** Settings, and the commands that once had no permission: each must reach the app. */
+async function checkSettings(show: (screen: Screen) => void): Promise<string> {
+  show({ name: "settings" });
+  await pause(SHOW_MS);
+  const overflow = pageOverflow();
+  if (overflow) return overflow;
+  const ui = await getUiSettings();
+  if (ui.ui_theme === undefined || ui.ui_text_size === undefined || ui.ui_motion === undefined)
+    return `settings: ${JSON.stringify(ui)}`;
+  await setUiSetting("ui_theme", ui.ui_theme);
+  await getCurrentWebview().setZoom(1);
+  if (!Array.isArray(await listCopies())) return "settings: the copies did not list";
+  if (typeof (await canReadPictures()) !== "boolean") return "settings: can_read_pictures";
+  return "";
+}
+
 async function check(report: SelfTestReport, show: (screen: Screen) => void): Promise<string> {
   let installed = "";
   // The engine says "starting" for a moment before it knows it is missing.
@@ -374,6 +407,8 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   const pictures = await picturesPage();
   if (pictures.models.length === 0) return "pictures: the model list is empty";
   await gallery();
+  const settings = await checkSettings(show);
+  if (settings) return settings;
   const recent = await recentChats();
   if (!recent.some((r) => r.character_id === ren.id)) return "recent chats: the test chat is missing";
   return `ok: ${reply.content}${models.note}${installed}`;

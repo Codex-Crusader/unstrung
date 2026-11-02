@@ -26,8 +26,9 @@
   color-scheme: light;
 }
 
+/* "Same as Windows" follows the system; a saved theme overrides it. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]):not([data-theme="contrast"]) {
     --bg: #1e1e1e;
     --surface: #262624;
     --panel: #2d2c29;
@@ -43,6 +44,53 @@
     --user-bubble: #3a3630;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #1e1e1e;
+  --surface: #262624;
+  --panel: #2d2c29;
+  --panel-line: #3b3934;
+  --text: #ece6db;
+  --text-soft: #a79f93;
+  --action: #b3a898;
+  --accent: #c9a052;
+  --accent-strong: #c9a052;
+  --bad: #d87868;
+  --accent-text: #1e1e1e;
+  --accent-soft: rgba(201, 160, 82, 0.18);
+  --user-bubble: #3a3630;
+  color-scheme: dark;
+}
+
+/* High contrast: white on black, yellow actions. Every pair passes WCAG AAA. */
+:root[data-theme="contrast"] {
+  --bg: #000000;
+  --surface: #000000;
+  --panel: #121212;
+  --panel-line: #ffffff;
+  --text: #ffffff;
+  --text-soft: #e8e8e8;
+  --action: #ffffff;
+  --accent: #ffd447;
+  --accent-strong: #ffd447;
+  --accent-text: #000000;
+  --accent-soft: rgba(255, 212, 71, 0.28);
+  --user-bubble: #1f1f1f;
+  --ok: #8be08b;
+  --warn: #ffd447;
+  --bad: #ff8a7a;
+  color-scheme: dark;
+}
+
+/* Settings > Reduce motion, on top of the Windows setting. */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 * {
@@ -2651,4 +2699,28 @@ dialog.viewer::backdrop {
 .picture-who {
   max-width: 280px;
   margin-bottom: 14px;
+}
+
+.settings-group {
+  margin: 0 0 24px;
+  max-width: 640px;
+}
+
+.choices {
+  border: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.choices legend {
+  margin-bottom: 6px;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

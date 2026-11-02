@@ -2,9 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   downloadModel,
   downloadRunning,
-  getNotify,
   importModelFile,
-  setNotify,
   modelsPage,
   onDownload,
   recheckHardware,
@@ -34,29 +32,6 @@ function gb(bytes: number): string {
 /** Memory sizes: a card sold as "8 GB" has 8 GiB. */
 function gib(bytes: number): string {
   return (bytes / 1024 ** 3).toFixed(1);
-}
-
-/** The Windows notification when a download ends in the background. */
-function NotifyToggle() {
-  const [on, setOn] = useState<boolean | null>(null);
-  useEffect(() => {
-    void getNotify().then(setOn);
-  }, []);
-  if (on === null) return null;
-  return (
-    <label className="check-confirm">
-      <input
-        type="checkbox"
-        checked={on}
-        onChange={(e) => {
-          const next = e.target.checked;
-          setOn(next);
-          void setNotify(next);
-        }}
-      />
-      {strings.welcome.notifyLabel}
-    </label>
-  );
 }
 
 /** `name` is the model name to show, or the tag for a model outside the catalog. */
@@ -483,7 +458,6 @@ export function ModelsView({
       <details className="more advanced">
         <summary>{s.advanced}</summary>
         <p className="muted">{s.advancedIntro}</p>
-        <NotifyToggle />
         {advancedForm}
       </details>
     </section>

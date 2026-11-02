@@ -12,6 +12,7 @@ import {
   type Staged,
   type Persona,
   type StartView,
+  getUiSettings,
 } from "./api";
 import { ChatScreen } from "./components/ChatScreen";
 import { CreatorScreen } from "./components/CreatorScreen";
@@ -26,6 +27,8 @@ import { SafeStart } from "./components/SafeStart";
 import { Welcome } from "./components/Welcome";
 import { PicturesScreen } from "./components/PicturesScreen";
 import { ChatsScreen } from "./components/ChatsScreen";
+import { SettingsScreen } from "./components/SettingsScreen";
+import { applyAppearance } from "./appearance";
 import figure from "./assets/figure.png";
 
 export type Screen =
@@ -36,6 +39,7 @@ export type Screen =
   | { name: "personas" }
   | { name: "models" }
   | { name: "pictures" }
+  | { name: "settings" }
   | { name: "engine" };
 
 /** Closes open message menus on a click outside them, or on Escape. */
@@ -84,6 +88,9 @@ function FirstRunGate() {
     void startOk().catch(() => {
       // Only the start count stays. The next start still opens normally once.
     });
+    getUiSettings()
+      .then(applyAppearance)
+      .catch(() => undefined);
     setupState()
       .then((s) => {
         setFirstRun(s.first_run);
@@ -208,6 +215,16 @@ function MainApp() {
             <Icon name="picture" />
             {strings.nav.pictures}
           </button>
+          <button
+            type="button"
+            className={screen.name === "settings" ? "nav-item nav-current" : "nav-item"}
+            onClick={() => {
+              setScreen({ name: "settings" });
+            }}
+          >
+            <Icon name="sliders" />
+            {strings.nav.settings}
+          </button>
         </nav>
         <main className="app-main">
           {screen.name === "home" && (
@@ -269,6 +286,7 @@ function MainApp() {
               }}
             />
           )}
+          {screen.name === "settings" && <SettingsScreen />}
           {screen.name === "pictures" && (
             <PicturesScreen
               onOpenChat={(characterId, chatId) => {

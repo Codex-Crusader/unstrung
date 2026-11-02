@@ -577,6 +577,12 @@ export const listCopies = () => invoke<Snapshot[]>("list_copies");
 /** Puts a copy back as the chats file. Safe start only. */
 export const restoreCopy = (name: string) => invoke<null>("restore_copy", { name });
 
+/** Theme, text size and motion: `ui_theme`, `ui_text_size`, `ui_motion`. */
+export const getUiSettings = () => invoke<Record<string, string>>("get_ui_settings");
+export const setUiSetting = (key: string, value: string) => invoke<null>("set_ui_setting", { key, value });
+/** Restarts the app in safe start. */
+export const restartSafe = () => invoke<null>("restart_safe");
+
 export interface SelfTestReport {
   ok: boolean;
   detail: string;

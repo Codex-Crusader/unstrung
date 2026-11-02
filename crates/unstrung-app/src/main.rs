@@ -12,6 +12,7 @@ mod notify;
 mod pictures;
 mod safe;
 mod selftest;
+mod settings;
 mod setup;
 mod state;
 
@@ -200,6 +201,9 @@ fn main() {
             safe::repair_check,
             safe::repair_fix,
             safe::list_copies,
+            settings::get_ui_settings,
+            settings::set_ui_setting,
+            settings::restart_safe,
             safe::restore_copy,
             setup::setup_state,
             setup::pick_folder,
@@ -225,11 +229,17 @@ fn main() {
             if self_test {
                 selftest::arm_timeout(app.handle().clone());
             }
+            let mut theme = None;
             if info.safe.is_none() {
                 // If the chat data does not open, safe start shows why,
                 // instead of an app that closes at once.
                 match tauri::async_runtime::block_on(open_core(paths)) {
                     Ok(state) => {
+                        theme = tauri::async_runtime::block_on(
+                            state.chats.db().meta(settings::THEME_KEY),
+                        )
+                        .ok()
+                        .flatten();
                         start_engine(app.handle(), &state.engine, &state.models);
                         send_memory_changes(app.handle(), &state.chats);
                         app.manage(state);
@@ -244,7 +254,7 @@ fn main() {
                 }
             }
             app.manage(info);
-            open_window(app, background)?;
+            open_window(app, background, theme.as_deref())?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -268,12 +278,16 @@ fn main() {
     });
 }
 
-fn open_window(app: &tauri::App, background: bool) -> tauri::Result<()> {
+/// `theme` is the saved theme setting, so the window opens in its color.
+fn open_window(app: &tauri::App, background: bool, theme: Option<&str>) -> tauri::Result<()> {
     tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
         .title("Unstrung")
         .inner_size(1100.0, 760.0)
         .min_inner_size(640.0, 480.0)
-        .background_color(window_background())
+        .background_color(window_background(settings::value_of(
+            settings::THEME_KEY,
+            theme,
+        )))
         .focused(!background)
         .build()?;
     Ok(())
@@ -281,8 +295,13 @@ fn open_window(app: &tauri::App, background: bool) -> tauri::Result<()> {
 
 /// The page background of the Windows app theme, so the window does not
 /// flash the other color before the page draws (`--bg` in styles.css).
-fn window_background() -> tauri::window::Color {
-    if prefers_light_theme() {
+fn window_background(theme: &str) -> tauri::window::Color {
+    let light = match theme {
+        "light" => true,
+        "dark" | "contrast" => false,
+        _ => prefers_light_theme(),
+    };
+    if light {
         tauri::window::Color(244, 239, 230, 255)
     } else {
         tauri::window::Color(30, 30, 30, 255)

@@ -8,6 +8,7 @@ export const strings = {
     personas: "Personas",
     models: "Models",
     pictures: "Pictures",
+    settings: "Settings",
     main: "Main menu",
   },
   status: {
@@ -448,6 +449,37 @@ export const strings = {
     skip: "Skip",
     finish: "Start chatting",
     notifyLabel: "Tell me when a download finishes while Unstrung is in the background",
+  },
+  settings: {
+    title: "Settings",
+    appearance: "Appearance",
+    theme: "Theme",
+    themes: [
+      ["system", "Same as Windows"],
+      ["light", "Light"],
+      ["dark", "Dark"],
+      ["contrast", "High contrast"],
+    ] as [string, string][],
+    textSize: "Text size",
+    textSizes: [
+      ["normal", "Normal"],
+      ["large", "Large"],
+      ["larger", "Larger"],
+    ] as [string, string][],
+    reduceMotion: "Reduce motion",
+    reduceMotionHint: "Turns off animations. When this is off, Unstrung follows the Windows setting.",
+    notifications: "Notifications",
+    safety: "Copies and repair",
+    copies: (n: number) =>
+      n === 0
+        ? "Unstrung copies your chats once a day. There is no copy yet."
+        : `Unstrung copies your chats once a day. ${String(n)} ${n === 1 ? "copy is" : "copies are"} ready.`,
+    copiesUnknown: "Unstrung copies your chats once a day.",
+    restartSafe: "Restart in safe start",
+    restartAsk:
+      "Unstrung closes and opens again in safe start. There you can put back a copy of your chats or run quick repair. A reply or a picture that is running now stops.",
+    restartYes: "Restart now",
+    help: "Help",
   },
   safe: {
     title: "Safe start",
