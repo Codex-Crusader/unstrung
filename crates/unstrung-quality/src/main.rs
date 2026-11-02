@@ -522,7 +522,8 @@ impl Run<'_> {
                         raw: raw.clone(),
                         flags,
                         restarts,
-                        hint: result.hint.is_some(),
+                        // Only the character-break hint, so "Break hints" means what it says.
+                        hint: result.hint == Some(unstrung_core::chat::OUT_OF_CHARACTER_HINT),
                         seconds,
                     });
                 }
