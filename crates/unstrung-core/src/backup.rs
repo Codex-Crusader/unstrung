@@ -509,7 +509,11 @@ async fn check_staged(paths: &AppPaths, id: &str, manifest: Manifest) -> Result<
     }
     // Brings an older backup up to this version, in the staging folder.
     let db = Db::open(&file).await?;
-    let counts = check_rows(&db).await;
+    // The 18+ confirmation is for this install, not something a file brings.
+    let counts = match crate::content::set_adult(&db, false).await {
+        Ok(()) => check_rows(&db).await,
+        Err(e) => Err(e),
+    };
     db.close().await;
     let [characters, personas, chats, pictures] = counts?;
     Ok(BackupInfo {
@@ -1119,10 +1123,20 @@ mod tests {
         paths.ensure().unwrap();
         let db = Db::open(&paths.database()).await.unwrap();
         crate::starters::ensure(&db, &paths).await.unwrap();
+        // A backup never brings the adult setting: the user confirms 18+ here.
+        crate::content::set_adult(&db, true).await.unwrap();
         let zip = dir.path().join("b.zip");
         export(&db, &paths, &zip, "1").await.unwrap();
         let info = open(&paths, &zip).await.unwrap();
         assert!(info.characters > 0 && info.personas > 0);
+        let (staged, _) = staging(&paths, &info.id).unwrap();
+        let copy = Db::open(&staged.join(DATABASE)).await.unwrap();
+        assert!(!crate::content::adult_on(&copy).await.unwrap());
+        copy.close().await;
+        assert!(
+            crate::content::adult_on(&db).await.unwrap(),
+            "this install keeps it"
+        );
     }
 
     /// The same on real data: a copy of an app folder that a person used.

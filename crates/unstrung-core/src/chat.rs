@@ -84,6 +84,8 @@ pub struct ChatView {
     pub model: String,
     /// The chat's own model, when it was removed. The default writes instead.
     pub model_removed: Option<String>,
+    /// Ask the persona's age once: see `content::needs_persona_age`.
+    pub ask_persona_age: bool,
 }
 
 /// Progress of one reply.
@@ -225,6 +227,11 @@ impl ChatService {
             .chat_model
             .clone()
             .filter(|m| known && !self.engine.is_installed(m));
+        let ask_persona_age = crate::content::needs_persona_age(
+            crate::content::adult_on(&self.db).await?,
+            &character,
+            persona.as_ref(),
+        );
         Ok(ChatView {
             chat,
             character,
@@ -233,6 +240,7 @@ impl ChatService {
             branches,
             model,
             model_removed,
+            ask_persona_age,
         })
     }
 
@@ -808,6 +816,8 @@ impl ChatService {
         let mut extra = note.clone();
         let mut retried = false;
         let (outcome, content, prompt, hint) = loop {
+            let mature =
+                crate::content::mature_chat(&self.db, &character, persona.as_ref()).await?;
             let prompt = prompt::build(&PromptInput {
                 character: &character,
                 persona: persona.as_ref(),
@@ -822,6 +832,7 @@ impl ChatService {
                 continuation: false,
                 tuning: &tuning,
                 old_user_names: &[],
+                mature,
             });
             let outcome = client
                 .chat(
@@ -923,6 +934,7 @@ impl ChatService {
         let tuning = self.engine.tuning_for(&model);
         let memories = self.db.memories(chat.id).await?;
         let recall = self.recall(&chat, &memories, &history).await?;
+        let mature = crate::content::mature_chat(&self.db, &character, persona.as_ref()).await?;
         let prompt = prompt::build(&PromptInput {
             character: &character,
             persona: persona.as_ref(),
@@ -937,6 +949,7 @@ impl ChatService {
             continuation: mid_sentence,
             tuning: &tuning,
             old_user_names: &old_names,
+            mature,
         });
         let outcome = client
             .chat(
@@ -986,6 +999,7 @@ impl ChatService {
         let client = self.engine.client()?;
         let model = self.resolve_model(None, character.model_override.as_deref());
         let tuning = self.engine.tuning_for(&model);
+        let mature = crate::content::mature_chat(&self.db, character, persona).await?;
         let prompt = prompt::build(&PromptInput {
             character,
             persona,
@@ -1003,6 +1017,7 @@ impl ChatService {
             continuation: false,
             tuning: &tuning,
             old_user_names: &[],
+            mature,
         });
         let outcome = client
             .chat(
@@ -1785,6 +1800,8 @@ impl ChatService {
         let mut extra: Option<String> = None;
         let mut hint = None;
         let (outcome, content, prompt) = loop {
+            let mature =
+                crate::content::mature_chat(&self.db, &character, persona.as_ref()).await?;
             let prompt = prompt::build(&PromptInput {
                 character: &character,
                 persona: persona.as_ref(),
@@ -1799,6 +1816,7 @@ impl ChatService {
                 continuation: false,
                 tuning: &tuning,
                 old_user_names: &old_names,
+                mature,
             });
             // The last try is kept even when it repeats, so it streams freely.
             let watch: &[&str] = if extra.is_none() { &recent } else { &[] };

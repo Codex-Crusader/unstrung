@@ -199,7 +199,8 @@ pub async fn candidates(db: &Db, paths: &AppPaths) -> Result<Vec<Candidate>> {
             checked: true,
         });
     }
-    let deleted = db.deleted_chats().await?;
+    // All of them, 18+ too: the purge removes all of them.
+    let deleted = db.deleted_chats(true).await?;
     if !deleted.is_empty() {
         list.push(Candidate {
             id: "deleted_chats",

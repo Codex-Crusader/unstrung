@@ -47,6 +47,9 @@ pub struct Rules {
     /// Add "adult" for each person and the child terms to the negative
     /// prompt. Only for chats where everyone is 18 or older.
     pub adults_only: bool,
+    /// A picture with explicit or suggestive words, made under adult rules.
+    /// Saved as `images.adult`, so the gallery can blur and hide it.
+    pub mature: bool,
 }
 
 /// Explicit words. They block a picture when the adult setting is off.
@@ -245,6 +248,7 @@ pub fn check(
     Ok(Rules {
         no_nudity: !adult_on || minor_possible,
         adults_only: adult_on && !minor_possible,
+        mature: adult_on && !minor_possible && (explicit || suggestive),
     })
 }
 
@@ -388,6 +392,56 @@ mod tests {
     /// (prompt, people, adult setting, scene flag, result)
     type Case = (&'static str, People, bool, bool, Result<Rules, Block>);
 
+    /// The hard limit with the adult setting on: the setting changes nothing
+    /// when anyone in the chat may be under 18, and minor words always block.
+    #[test]
+    fn the_adult_setting_never_opens_the_minor_rules() {
+        use Block::*;
+        let minor_persona = People {
+            character_age: 25,
+            persona_age: Some(16),
+        };
+        for prompt in ["nude on the bed", "a seductive look, lingerie"] {
+            assert_eq!(
+                check(prompt, MINOR_CHARACTER, true, false),
+                Err(MinorInChat)
+            );
+            assert_eq!(check(prompt, minor_persona, true, false), Err(MinorInChat));
+            assert_eq!(check(prompt, NO_PERSONA_AGE, true, false), Err(MinorInChat));
+        }
+        // The scene step's own flag counts as explicit.
+        assert_eq!(
+            check("a bedroom", NO_PERSONA_AGE, true, true),
+            Err(MinorInChat)
+        );
+        assert_eq!(
+            check("nude, a teenage girl", ADULTS, true, false),
+            Err(MinorWords)
+        );
+        assert_eq!(
+            check("nude, 16 years old", ADULTS, true, false),
+            Err(MinorWords)
+        );
+        // An all-adult chat gets the child terms in the negative prompt.
+        let rules = check("nude on the bed", ADULTS, true, false).unwrap();
+        assert!(rules.mature && rules.adults_only && !rules.no_nudity);
+        let negative = negative_terms(rules);
+        for term in ["child", "minor", "teen", "loli", "childlike body"] {
+            assert!(negative.contains(&term), "{term}");
+        }
+        // References stay off for explicit and suggestive prompts, whatever
+        // the setting: the setting is not even an input.
+        assert!(!allows_references("nude on the bed", false));
+        assert!(!allows_references("a seductive look", false));
+        assert!(!allows_references("a quiet bedroom", true));
+        // A clean picture in adult mode is not marked adult.
+        assert!(
+            !check("a tavern at night", ADULTS, true, false)
+                .unwrap()
+                .mature
+        );
+    }
+
     #[test]
     fn the_rules_table() {
         use Block::*;
@@ -395,8 +449,15 @@ mod tests {
             Ok(Rules {
                 no_nudity,
                 adults_only,
+                mature: false,
             })
         };
+        // Made under adult rules, with explicit or suggestive words.
+        let mature = Ok(Rules {
+            no_nudity: false,
+            adults_only: true,
+            mature: true,
+        });
         let cases: &[Case] = &[
             // Ordinary scenes pass in every chat.
             (
@@ -455,10 +516,10 @@ mod tests {
                 ADULTS,
                 true,
                 false,
-                ok(false, true),
+                mature,
             ),
             ("a quiet bedroom", ADULTS, false, true, Err(AdultOff)),
-            ("a quiet bedroom", ADULTS, true, true, ok(false, true)),
+            ("a quiet bedroom", ADULTS, true, true, mature),
             (
                 "nude on the bed",
                 MINOR_CHARACTER,
@@ -541,8 +602,8 @@ mod tests {
             ("NSFW, Child", ADULTS, true, false, Err(MinorWords)),
             ("masturbating kid", ADULTS, true, false, Err(MinorWords)),
             // Adult ages are not minor words.
-            ("naked, 25 years old", ADULTS, true, false, ok(false, true)),
-            ("aged 30, lingerie", ADULTS, true, false, ok(false, true)),
+            ("naked, 25 years old", ADULTS, true, false, mature),
+            ("aged 30, lingerie", ADULTS, true, false, mature),
             // Words that only contain a listed word do not match.
             (
                 "a sextant on the captain's desk",
@@ -637,11 +698,13 @@ mod tests {
         let sfw = negative_terms(Rules {
             no_nudity: true,
             adults_only: false,
+            mature: false,
         });
         assert!(sfw.contains(&"nude") && !sfw.contains(&"child"));
         let adult = negative_terms(Rules {
             no_nudity: false,
             adults_only: true,
+            mature: false,
         });
         assert!(adult.contains(&"child") && !adult.contains(&"nude"));
     }

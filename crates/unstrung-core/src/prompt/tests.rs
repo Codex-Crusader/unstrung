@@ -1,6 +1,6 @@
 use super::*;
 
-fn ren() -> Character {
+pub(crate) fn ren() -> Character {
     Character {
         id: 1,
         name: "Ren Kagami".into(),
@@ -24,7 +24,7 @@ fn ren() -> Character {
     }
 }
 
-fn kai() -> Persona {
+pub(crate) fn kai() -> Persona {
     Persona {
         id: 1,
         name: "Kai".into(),
@@ -65,6 +65,7 @@ fn input<'a>(c: &'a Character, p: Option<&'a Persona>, history: &'a [Message]) -
         extra_reminder: None,
         continuation: false,
         old_user_names: &[],
+        mature: false,
         tuning: &DEFAULT_TUNING,
     }
 }
@@ -680,4 +681,23 @@ fn after_a_persona_change_the_reminder_names_the_old_name() {
         text.contains("is named Kai now. Never call them Nora."),
         "{text}"
     );
+}
+
+#[test]
+fn the_mature_rule_keeps_the_minor_rule() {
+    let c = ren();
+    let p = kai();
+    let history = [msg("user", "Hello.")];
+    let general = build(&input(&c, Some(&p), &history)).messages[0]
+        .content
+        .clone();
+    let mut i = input(&c, Some(&p), &history);
+    i.mature = true;
+    let mature = build(&i).messages[0].content.clone();
+    assert!(general.contains(GENERAL_SENTENCE) && !general.contains(MATURE_SENTENCE));
+    assert!(mature.contains(MATURE_SENTENCE) && !mature.contains(GENERAL_SENTENCE));
+    for text in [&general, &mature] {
+        assert!(text.contains("Never write sexual content that involves anyone under 18."));
+        assert!(text.contains("If a scene goes there, Ren Kagami steers it away, in character."));
+    }
 }

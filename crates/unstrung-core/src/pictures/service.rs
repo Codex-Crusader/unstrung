@@ -437,11 +437,16 @@ impl PictureService {
                 character_age: character.age,
                 persona_age: persona.as_ref().and_then(|p| p.age),
             };
-            safety::check(&old.prompt, people, false, false).map_err(blocked)?;
+            let adult_on = adult_rules(
+                model,
+                crate::content::mature_chat(self.chats.db(), &character, persona.as_ref()).await?,
+            );
+            let rules = safety::check(&old.prompt, people, adult_on, false).map_err(blocked)?;
             let seed = runner::new_seed();
             let prompts = scene::Prompts {
                 positive: scene::varied(&old.prompt, seed),
                 negative: old.negative_prompt.clone(),
+                adult: rules.mature,
             };
             // The same people as references, with their pictures of today.
             // A picture that is gone now, or a persona the prompt does not
@@ -468,6 +473,7 @@ impl PictureService {
             let plain = scene::Prompts {
                 positive: scene::without_references(&prompts.positive),
                 negative: prompts.negative.clone(),
+                adult: prompts.adult,
             };
             let prompts = if refs.files.is_empty() {
                 plain.clone()
@@ -566,9 +572,15 @@ impl PictureService {
             character_age: input.character.age,
             persona_age: input.persona.as_ref().and_then(|p| p.age),
         };
-        // The adult setting comes in Phase 7. Until then pictures are made with it off.
+        // Read for this picture.
+        let adult_on = adult_rules(
+            model,
+            crate::content::mature_chat(self.chats.db(), &input.character, input.persona.as_ref())
+                .await?,
+        );
         let checked = format!("{positive}, {wish}");
-        let rules = safety::check(&checked, people, false, input.scene.sexual).map_err(blocked)?;
+        let rules =
+            safety::check(&checked, people, adult_on, input.scene.sexual).map_err(blocked)?;
         let seed = runner::new_seed();
         // A second picture of the same message gets another framing, or it
         // comes out almost the same.
@@ -796,7 +808,7 @@ impl PictureService {
                 ref_mode: refs.mode.clone(),
                 width: i64::from(size),
                 height: i64::from(size),
-                adult: false,
+                adult: prompts.adult,
             })
             .await;
         // A file without its row is never shown and never deleted, so it goes now.
@@ -832,6 +844,13 @@ fn blocked(block: safety::Block) -> Error {
 }
 
 /// The sentence the user sees for a blocked picture.
+/// Adult rules for one picture: the chat allows mature content now, and the
+/// model is marked for adult pictures. FLUX.2 klein is not, so explicit
+/// pictures stay off with it whatever the setting.
+fn adult_rules(model: &ImageModel, mature_chat: bool) -> bool {
+    model.mature_ok && mature_chat
+}
+
 pub fn blocked_message(block: safety::Block) -> &'static str {
     match block {
         safety::Block::MinorWords => {
@@ -940,5 +959,26 @@ impl References {
             })
             .collect();
         order.unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod adult_tests {
+    use super::*;
+
+    #[test]
+    fn a_model_without_the_adult_mark_never_makes_adult_pictures() {
+        let adults = safety::People {
+            character_age: 30,
+            persona_age: Some(30),
+        };
+        let klein = catalog::model("flux2-klein-4b").unwrap();
+        assert!(!adult_rules(klein, true));
+        assert_eq!(
+            safety::check("nude on the bed", adults, adult_rules(klein, true), false),
+            Err(safety::Block::AdultOff)
+        );
+        let z_image = catalog::model("z-image-turbo").unwrap();
+        assert!(adult_rules(z_image, true) && !adult_rules(z_image, false));
     }
 }

@@ -524,13 +524,13 @@ mod tests {
                 .await
                 .unwrap();
         }
-        assert!(db.recent_chats(10).await.unwrap().is_empty());
-        assert!(db.gallery().await.unwrap().is_empty());
-        assert_eq!(db.deleted_chats().await.unwrap().len(), 2);
+        assert!(db.recent_chats(10, false).await.unwrap().is_empty());
+        assert!(db.gallery(false).await.unwrap().is_empty());
+        assert_eq!(db.deleted_chats(false).await.unwrap().len(), 2);
 
         purge_deleted_chats(&db, &paths, now).await.unwrap();
         let left: Vec<i64> = db
-            .deleted_chats()
+            .deleted_chats(false)
             .await
             .unwrap()
             .iter()
@@ -545,9 +545,12 @@ mod tests {
 
         // Restore brings the 6-day-old chat back, with its picture.
         db.restore_chat(*recent).await.unwrap();
-        assert!(db.deleted_chats().await.unwrap().is_empty());
-        assert_eq!(db.recent_chats(10).await.unwrap()[0].chat_id, *recent);
-        assert_eq!(db.gallery().await.unwrap().len(), 1);
+        assert!(db.deleted_chats(false).await.unwrap().is_empty());
+        assert_eq!(
+            db.recent_chats(10, false).await.unwrap()[0].chat_id,
+            *recent
+        );
+        assert_eq!(db.gallery(false).await.unwrap().len(), 1);
         assert!(db.restore_chat(*old).await.is_err(), "gone for good");
     }
 

@@ -243,10 +243,26 @@ pub fn get_status(state: State<'_, AppState>) -> EngineStatus {
 
 #[tauri::command]
 pub async fn list_characters(state: State<'_, AppState>) -> CmdResult<Vec<Character>> {
-    let mut all = state.chats.db().characters().await?;
-    // 18+ cards stay hidden until Phase 7 adds the adult content setting.
-    all.retain(|c| !c.is_adult);
+    let db = state.chats.db();
+    let mut all = db.characters().await?;
+    // 18+ cards show only with the adult content setting on.
+    if !unstrung_core::content::adult_on(db).await? {
+        all.retain(|c| !c.is_adult);
+    }
     Ok(all)
+}
+
+#[tauri::command]
+pub async fn get_adult_content(state: State<'_, AppState>) -> CmdResult<bool> {
+    Ok(unstrung_core::content::adult_on(state.chats.db()).await?)
+}
+
+/// Settings > Content. The page asks "Are you 18 or older?" before it sends
+/// `true`. Off needs no question.
+#[tauri::command]
+pub async fn set_adult_content(state: State<'_, AppState>, on: bool) -> CmdResult<()> {
+    log::info!("adult content setting: {}", if on { "on" } else { "off" });
+    Ok(unstrung_core::content::set_adult(state.chats.db(), on).await?)
 }
 
 #[tauri::command]
@@ -543,7 +559,9 @@ const RECENT_CHATS: i64 = 100;
 
 #[tauri::command]
 pub async fn recent_chats(state: State<'_, AppState>) -> CmdResult<Vec<RecentChat>> {
-    Ok(state.chats.db().recent_chats(RECENT_CHATS).await?)
+    let db = state.chats.db();
+    let adult = unstrung_core::content::adult_on(db).await?;
+    Ok(db.recent_chats(RECENT_CHATS, adult).await?)
 }
 
 #[tauri::command]
@@ -553,7 +571,9 @@ pub async fn delete_chat(state: State<'_, AppState>, chat_id: i64) -> CmdResult<
 
 #[tauri::command]
 pub async fn deleted_chats(state: State<'_, AppState>) -> CmdResult<Vec<DeletedChat>> {
-    Ok(state.chats.db().deleted_chats().await?)
+    let db = state.chats.db();
+    let adult = unstrung_core::content::adult_on(db).await?;
+    Ok(db.deleted_chats(adult).await?)
 }
 
 #[tauri::command]

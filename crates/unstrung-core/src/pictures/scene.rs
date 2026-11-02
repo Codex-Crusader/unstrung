@@ -194,6 +194,8 @@ pub struct Person<'a> {
 pub struct Prompts {
     pub positive: String,
     pub negative: String,
+    /// Made under adult rules (`Rules::mature`): saved as `images.adult`.
+    pub adult: bool,
 }
 
 const BASE_NEGATIVE: &str =
@@ -506,6 +508,7 @@ pub fn with_rules(positive: &str, rules: Rules) -> Prompts {
     Prompts {
         positive: pos,
         negative,
+        adult: rules.mature,
     }
 }
 
@@ -738,6 +741,7 @@ mod tests {
             Rules {
                 no_nudity: true,
                 adults_only: false,
+                mature: false,
             },
         );
         assert!(sfw.positive.ends_with("fully clothed"));
@@ -747,6 +751,7 @@ mod tests {
             Rules {
                 no_nudity: false,
                 adults_only: true,
+                mature: false,
             },
         );
         assert!(adult.positive.ends_with("adults"));

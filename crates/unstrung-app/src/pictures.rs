@@ -121,7 +121,9 @@ pub async fn chat_pictures(state: State<'_, AppState>, chat_id: i64) -> CmdResul
 
 #[tauri::command]
 pub async fn gallery(state: State<'_, AppState>) -> CmdResult<Vec<GalleryImage>> {
-    Ok(state.chats.db().gallery().await?)
+    let db = state.chats.db();
+    let adult = unstrung_core::content::adult_on(db).await?;
+    Ok(db.gallery(adult).await?)
 }
 
 #[tauri::command]

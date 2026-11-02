@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-adult-content"
+description = "Enables the set_adult_content command without any pre-configured scope."
+commands.allow = ["set_adult_content"]
+
+[[permission]]
+identifier = "deny-set-adult-content"
+description = "Denies the set_adult_content command without any pre-configured scope."
+commands.deny = ["set_adult_content"]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT i.id AS \"id!\", i.chat_id, i.message_id, i.file_path, i.prompt,\n                    i.negative_prompt, i.seed, i.image_model, i.ref_mode, i.width, i.height,\n                    i.adult AS \"adult: bool\", i.created_at,\n                    ch.id AS \"character_id!\", ch.name AS character_name\n             FROM images i\n             JOIN chats c ON c.id = i.chat_id\n             JOIN characters ch ON ch.id = c.character_id\n             WHERE c.deleted_at IS NULL\n             ORDER BY i.created_at DESC, i.id DESC",
+  "query": "SELECT i.id AS \"id!\", i.chat_id, i.message_id, i.file_path, i.prompt,\n                    i.negative_prompt, i.seed, i.image_model, i.ref_mode, i.width, i.height,\n                    i.adult AS \"adult: bool\", i.created_at,\n                    ch.id AS \"character_id!\", ch.name AS character_name\n             FROM images i\n             JOIN chats c ON c.id = i.chat_id\n             JOIN characters ch ON ch.id = c.character_id\n             WHERE c.deleted_at IS NULL AND (ch.is_adult = 0 OR ?)\n             ORDER BY i.created_at DESC, i.id DESC",
   "describe": {
     "columns": [
       {
@@ -80,7 +80,7 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       true,
@@ -100,5 +100,5 @@
       false
     ]
   },
-  "hash": "24c3b06060a96b58151539ffd0a03f83833c51cb7b09de215ba20b0290ea76e4"
+  "hash": "be601b5566c6ce871af188f4ee21b0bfc86793d78eabb8b3854f1c8cc0ec7e61"
 }

@@ -102,7 +102,8 @@ impl Db {
 
     /// The newest chats in which the user wrote at least one message.
     /// 18+ characters stay out until Phase 7 adds the adult content setting.
-    pub async fn recent_chats(&self, limit: i64) -> Result<Vec<RecentChat>> {
+    /// `adult`: the setting is on, so chats with 18+ characters show too.
+    pub async fn recent_chats(&self, limit: i64, adult: bool) -> Result<Vec<RecentChat>> {
         let rows = sqlx::query_as!(
             RecentChat,
             r#"SELECT c.id AS "chat_id!", ch.id AS "character_id!", ch.name AS "character_name!",
@@ -111,11 +112,12 @@ impl Db {
                               WHERE m.id = c.head_message_id AND m.deleted_at IS NULL), '')
                         AS "preview!: String"
              FROM chats c JOIN characters ch ON ch.id = c.character_id
-             WHERE c.deleted_at IS NULL AND ch.is_adult = 0
+             WHERE c.deleted_at IS NULL AND (ch.is_adult = 0 OR ?)
                AND EXISTS (SELECT 1 FROM messages m
                            WHERE m.chat_id = c.id AND m.role = 'user' AND m.deleted_at IS NULL)
              ORDER BY c.updated_at DESC, c.id DESC
              LIMIT ?"#,
+            adult,
             limit
         )
         .fetch_all(&self.pool)
@@ -289,7 +291,8 @@ impl Db {
 
     /// Deleted chats that are not yet gone for good, newest first. 18+
     /// characters stay out, as in `recent_chats`.
-    pub async fn deleted_chats(&self) -> Result<Vec<DeletedChat>> {
+    /// `adult`: as in `recent_chats`.
+    pub async fn deleted_chats(&self, adult: bool) -> Result<Vec<DeletedChat>> {
         let rows = sqlx::query_as!(
             DeletedChat,
             r#"SELECT c.id AS "chat_id!", ch.id AS "character_id!", ch.name AS "character_name!",
@@ -298,8 +301,9 @@ impl Db {
                               WHERE m.id = c.head_message_id AND m.deleted_at IS NULL), '')
                         AS "preview!: String"
              FROM chats c JOIN characters ch ON ch.id = c.character_id
-             WHERE c.deleted_at IS NOT NULL AND ch.is_adult = 0
-             ORDER BY c.deleted_at DESC, c.id DESC"#
+             WHERE c.deleted_at IS NOT NULL AND (ch.is_adult = 0 OR ?)
+             ORDER BY c.deleted_at DESC, c.id DESC"#,
+            adult
         )
         .fetch_all(&self.pool)
         .await?;

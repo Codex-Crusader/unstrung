@@ -8,6 +8,7 @@ pub mod backup;
 pub mod card;
 pub mod catalog;
 pub mod chat;
+pub mod content;
 pub mod db;
 pub mod download;
 pub mod engine;

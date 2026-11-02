@@ -208,12 +208,12 @@ async fn recent_chats_are_talked_in_newest_first_and_not_adult() {
     let adult = db.create_chat(&vex, None, "", true).await.unwrap();
     user(&db, adult, None, "Hidden").await;
 
-    let recent = db.recent_chats(8).await.unwrap();
+    let recent = db.recent_chats(8, false).await.unwrap();
     let ids: Vec<i64> = recent.iter().map(|r| r.chat_id).collect();
     assert_eq!(ids, [newer, older]);
     assert_eq!(recent[0].preview, "Where were we?");
     assert_eq!(recent[0].character_name, "Ren");
-    assert_eq!(db.recent_chats(1).await.unwrap().len(), 1);
+    assert_eq!(db.recent_chats(1, false).await.unwrap().len(), 1);
 }
 
 /// A database made by an older app: only the first `count` migrations.
@@ -327,7 +327,7 @@ async fn pictures_are_saved_listed_and_deleted() {
     let first = db.insert_image(&new("a.png")).await.unwrap();
     db.insert_image(&new("b.png")).await.unwrap();
     assert_eq!(db.chat_images(chat).await.unwrap().len(), 2);
-    let gallery = db.gallery().await.unwrap();
+    let gallery = db.gallery(false).await.unwrap();
     assert_eq!(gallery.len(), 2);
     assert_eq!(gallery[0].character_name, "Ren");
     assert_eq!(gallery[1].image.id, first, "newest first");
@@ -341,7 +341,7 @@ async fn pictures_are_saved_listed_and_deleted() {
 
     // A deleted chat leaves the gallery, but its files are still known.
     db.delete_chat(chat).await.unwrap();
-    assert!(db.gallery().await.unwrap().is_empty());
+    assert!(db.gallery(false).await.unwrap().is_empty());
     assert_eq!(
         db.character_image_files(id).await.unwrap(),
         [format!("{chat}/b.png")]

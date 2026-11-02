@@ -11,7 +11,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 12;
+pub const PROMPT_VERSION: i64 = 13;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -40,6 +40,11 @@ You write one side of a roleplay chat.
 5. Follow the reply style and tone at the end of this prompt.
 6. Keep content non-explicit. Never write sexual content that involves anyone under 18. \
 If a scene goes there, {{char}} steers it away, in character.";
+
+/// Rule 6 in a chat where `content::mature_chat` allows it. The sentence
+/// about minors and the steer-away line stay the same.
+const GENERAL_SENTENCE: &str = "Keep content non-explicit.";
+const MATURE_SENTENCE: &str = "Everyone in this story is an adult, so mature and sexual content is allowed when the story goes there.";
 
 /// The first line of the end reminder. The guard removes it if a reply copies it.
 pub const REMINDER_HEAD: &str = "[Reply guide for {{char}}. Not part of the story.]";
@@ -91,6 +96,8 @@ pub struct PromptInput<'a> {
     pub tuning: &'a Tuning,
     /// Names the user had earlier in this chat, before a persona change.
     pub old_user_names: &'a [String],
+    /// From `content::mature_chat`, read for this reply.
+    pub mature: bool,
 }
 
 pub struct Prompt {
@@ -409,7 +416,12 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
             ],
         ),
     };
-    let system = names.fill(SYSTEM_RULES)
+    let rules = if input.mature {
+        SYSTEM_RULES.replace(GENERAL_SENTENCE, MATURE_SENTENCE)
+    } else {
+        SYSTEM_RULES.to_owned()
+    };
+    let system = names.fill(&rules)
         + &fit(&names.fill(&card), card_budget)
         + &fit(&names.fill(&persona), persona_budget)
         + &input
@@ -553,4 +565,4 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
 
 mod guide;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

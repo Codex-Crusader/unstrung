@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT c.id AS \"chat_id!\", ch.id AS \"character_id!\", ch.name AS \"character_name!\",\n                    ch.avatar_path, c.deleted_at AS \"deleted_at!\",\n                    COALESCE((SELECT substr(m.content, 1, 120) FROM messages m\n                              WHERE m.id = c.head_message_id AND m.deleted_at IS NULL), '')\n                        AS \"preview!: String\"\n             FROM chats c JOIN characters ch ON ch.id = c.character_id\n             WHERE c.deleted_at IS NOT NULL AND ch.is_adult = 0\n             ORDER BY c.deleted_at DESC, c.id DESC",
+  "query": "SELECT c.id AS \"chat_id!\", ch.id AS \"character_id!\", ch.name AS \"character_name!\",\n                    ch.avatar_path, c.deleted_at AS \"deleted_at!\",\n                    COALESCE((SELECT substr(m.content, 1, 120) FROM messages m\n                              WHERE m.id = c.head_message_id AND m.deleted_at IS NULL), '')\n                        AS \"preview!: String\"\n             FROM chats c JOIN characters ch ON ch.id = c.character_id\n             WHERE c.deleted_at IS NOT NULL AND (ch.is_adult = 0 OR ?)\n             ORDER BY c.deleted_at DESC, c.id DESC",
   "describe": {
     "columns": [
       {
@@ -35,7 +35,7 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       false,
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "2ef9c2dd468d38c5fb3d1e886f644d32d5d9d8c1f5d99260bba83603610b0e9b"
+  "hash": "525d74e048c4adffc04293bb370827f5b79dfd8b447779d8ab59c7aa632126bf"
 }

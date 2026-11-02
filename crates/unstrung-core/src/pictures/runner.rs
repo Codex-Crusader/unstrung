@@ -211,6 +211,7 @@ mod tests {
         let prompts = Prompts {
             positive: "a tavern".into(),
             negative: "blurry".into(),
+            adult: false,
         };
         let dir = Path::new("C:\\models\\image");
         let refs = vec![std::path::PathBuf::from("C:\\a.png")];
@@ -336,6 +337,7 @@ mod tests {
 
         let size = if gpu.is_some() { 1024 } else { 512 };
         let prompts = super::super::scene::Prompts {
+            adult: false,
             // UNSTRUNG_TEST_PICTURE_PROMPT tries another prompt, for example one built from suggested Looks.
             positive: std::env::var("UNSTRUNG_TEST_PICTURE_PROMPT").unwrap_or_else(|_| {
                 "a cozy tavern at night, warm lantern light, wooden tables, a woman with red hair in a green cloak smiling, detailed illustration, fully clothed"

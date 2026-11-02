@@ -97,8 +97,9 @@ impl Db {
         Ok(rows)
     }
 
-    /// The gallery, newest first. Pictures of deleted chats are left out.
-    pub async fn gallery(&self) -> Result<Vec<GalleryImage>> {
+    /// The gallery, newest first. Pictures of deleted chats are left out, and
+    /// pictures of 18+ characters unless `adult` (the setting is on).
+    pub async fn gallery(&self, adult: bool) -> Result<Vec<GalleryImage>> {
         let rows = sqlx::query!(
             r#"SELECT i.id AS "id!", i.chat_id, i.message_id, i.file_path, i.prompt,
                     i.negative_prompt, i.seed, i.image_model, i.ref_mode, i.width, i.height,
@@ -107,8 +108,9 @@ impl Db {
              FROM images i
              JOIN chats c ON c.id = i.chat_id
              JOIN characters ch ON ch.id = c.character_id
-             WHERE c.deleted_at IS NULL
-             ORDER BY i.created_at DESC, i.id DESC"#
+             WHERE c.deleted_at IS NULL AND (ch.is_adult = 0 OR ?)
+             ORDER BY i.created_at DESC, i.id DESC"#,
+            adult
         )
         .fetch_all(&self.pool)
         .await?;
