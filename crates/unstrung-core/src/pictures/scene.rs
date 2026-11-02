@@ -72,12 +72,14 @@ pub fn question(character: &str, user: &str, lines: &[(String, String)], wish: &
         "Describe the latest moment of this chat as a picture. {character} is the \
 character. {user} is the user.\n\
 - setting: the place, time of day and light, in a few words.\n\
-- action: what the people in the picture do, in one short sentence. Use \
-\"the character\" and \"the user\", never names. Name only people who are \
-in the picture.\n\
+- who: who can be seen in the picture. The picture shows the moment as the user sees it, so the user is usually not in it.\n\
+  \"character\": the character is alone, or the user is somewhere else (another room, a radio, a screen), or the character acts or talks while the user only watches or listens.\n\
+  \"both\": the two are in the same place and the moment needs both of them: they touch, play a game, eat or drink together, dance, fight, or one hands the other something.\n\
+  \"persona\": only the user can be seen.\n\
+  \"nobody\": a place or a thing with no people.\n\
+- action: what the people who can be seen do, in one short sentence. Use \"the character\" and \"the user\", never names. Never mention a person who cannot be seen.\n\
 - mood: one to three words.\n\
 - camera: the shot, for example \"close-up\", \"medium shot\" or \"wide shot\".\n\
-- who: \"character\", \"persona\" (the user), \"both\" or \"nobody\".\n\
 - sexual: true if the moment is sexual or shows nudity, else false.\n\
 - character_outfit: what the character wears now, only if the chat says that \
 the character changed clothes, for example \"a red evening dress\". Else \

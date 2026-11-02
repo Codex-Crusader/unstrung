@@ -687,3 +687,98 @@ async fn references_keep_one_face_in_a_chat() {
     assert!(used >= 1, "the new profile picture was never used");
     engine.stop().await;
 }
+
+/// The scene writer puts the user in the picture only when the user is
+/// there. It put Kai into 4 of 5 Mara pictures, "she stands alone" too.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama and the default chat model"]
+async fn the_scene_writer_draws_only_who_is_there() {
+    use unstrung_core::db::NewMessage;
+    use unstrung_core::pictures::scene::Who;
+    let home = tempfile::tempdir().unwrap();
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths.ensure().unwrap();
+    let engine = Engine::new(paths.clone());
+    engine.start().await;
+    assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
+    let db = Db::open(&paths.database()).await.unwrap();
+    starters::ensure(&db, &paths).await.unwrap();
+    let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
+    let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
+    let service = Arc::new(ChatService::new(db.clone(), engine.clone()));
+
+    // Each case lists the answers that make a fair picture.
+    const CASES: &[(&str, &str, &[Who])] = &[
+        (
+            "I will leave you to it, Captain.",
+            "*She stands alone at the big window of the observation deck and looks at the blue planet below.*",
+            &[Who::Character],
+        ),
+        (
+            "I'll be in the cockpit if you need me.",
+            "*She kneels in the engine room and works a wrench on the coupling, sparks flying.* Go on, then.",
+            &[Who::Character],
+        ),
+        (
+            "Wait for me here.",
+            "*Mara leans on the console, alone in the cockpit, humming an old song while the stars drift by.*",
+            &[Who::Character],
+        ),
+        (
+            "Deal me in.",
+            "*Mara sits across the galley table from you and deals the cards to both of you, grinning.* Loser cleans the filters.",
+            &[Who::Both],
+        ),
+        (
+            "I made it back.",
+            "*She pulls you into a tight hug and does not let go for a long moment.* Never do that again.",
+            &[Who::Both],
+        ),
+        (
+            "*I climb out onto the hull alone in my suit and stare at the stars.*",
+            "*Her voice crackles over your helmet radio from the bridge.* Do not drift off. I am not coming out there.",
+            // The latest moment is her on the bridge: her alone is fair too.
+            &[Who::Persona, Who::Character],
+        ),
+    ];
+    let token = tokio_util::sync::CancellationToken::new();
+    let mut right = 0;
+    let mut total = 0;
+    for (user, reply, want) in CASES {
+        let view = service.new_chat(mara, Some(kai)).await.unwrap();
+        let mut parent = view.messages.last().map(|m| m.message.id);
+        for (role, text) in [("user", *user), ("character", *reply)] {
+            let m = db
+                .append_message(&NewMessage {
+                    chat_id: view.chat.id,
+                    parent_id: parent,
+                    role,
+                    persona_id: Some(kai),
+                    content: text,
+                    raw_content: None,
+                    token_count: None,
+                    model: None,
+                    prompt_version: None,
+                    sampler_json: None,
+                })
+                .await
+                .unwrap();
+            parent = Some(m.id);
+        }
+        for _ in 0..3 {
+            let s = service
+                .picture_scene(view.chat.id, None, "", &token)
+                .await
+                .unwrap()
+                .scene;
+            total += 1;
+            if want.contains(&s.who) {
+                right += 1;
+            }
+            println!("want {want:?}, got {:?}: {}", s.who, s.action);
+        }
+    }
+    engine.stop().await;
+    println!("who right: {right} of {total}");
+    assert!(right * 6 >= total * 5, "who right only {right} of {total}");
+}
