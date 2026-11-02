@@ -792,3 +792,119 @@ async fn the_scene_writer_draws_only_who_is_there() {
     println!("who right: {right} of {total}");
     assert!(right * 6 >= total * 5, "who right only {right} of {total}");
 }
+
+/// One scripted message under `parent`.
+async fn append(
+    db: &Db,
+    chat: i64,
+    parent: Option<i64>,
+    role: &'static str,
+    text: &str,
+    persona: i64,
+) -> i64 {
+    db.append_message(&unstrung_core::db::NewMessage {
+        chat_id: chat,
+        parent_id: parent,
+        role,
+        persona_id: Some(persona),
+        content: text,
+        raw_content: None,
+        token_count: None,
+        model: None,
+        prompt_version: None,
+        sampler_json: None,
+    })
+    .await
+    .unwrap()
+    .id
+}
+
+/// Phase 7 done test: a 200-message chat still knows facts from message 10.
+/// The messages are scripted, so only the memory passes and the last reply
+/// use the model.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Ollama and the default chat model"]
+async fn a_long_chat_still_knows_facts_from_message_10() {
+    let home = tempfile::tempdir().unwrap();
+    let paths = AppPaths::at(home.path().to_path_buf());
+    paths.ensure().unwrap();
+    let engine = Engine::new(paths.clone());
+    engine.start().await;
+    assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
+    let db = Db::open(&paths.database()).await.unwrap();
+    starters::ensure(&db, &paths).await.unwrap();
+    let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
+    let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
+    let service = Arc::new(ChatService::new(db.clone(), engine.clone()));
+    let view = service.new_chat(mara, Some(kai)).await.unwrap();
+    let chat = view.chat.id;
+    let mut parent = view.messages.last().map(|m| m.message.id);
+
+    const USER: [&str; 12] = [
+        "How is the fuel looking today?",
+        "I fixed the latch on the cargo door.",
+        "Do you want coffee? It is the bad kind again.",
+        "The nav computer keeps beeping at me.",
+        "I think the port engine sounds better now.",
+        "Any word from the station about the delivery?",
+        "I cleaned the air filters like you asked.",
+        "Tell me about the worst run you ever flew.",
+        "The galley light is flickering again.",
+        "I saw a comet out of the window earlier.",
+        "Should we stop at the next depot?",
+        "I lost at cards to the autopilot. Somehow.",
+    ];
+    const REPLY: [&str; 12] = [
+        "*Mara checks the gauge and taps it twice.* Enough for two jumps. Do not waste it.",
+        "*She tests the latch and nods.* Good. One less thing to rattle at night.",
+        "*She takes the mug anyway.* Bad coffee is still coffee.",
+        "*She leans over the console.* It beeps when it is bored. Ignore it.",
+        "*Mara listens for a moment.* Better. Not good. Better.",
+        "*She shakes her head.* Nothing yet. They are slow on purpose.",
+        "*She runs a finger over the vent.* Clean. I am almost impressed.",
+        "*She smiles, thin and tired.* A long story with a bad ending. Another day.",
+        "*She hits the panel with her palm and the light steadies.* Fixed.",
+        "*She looks out of the window too.* Pretty. Also a lot of ice moving fast.",
+        "*She checks the chart.* Maybe. If the prices are fair.",
+        "*She snorts.* The autopilot cheats. Everyone knows that.",
+    ];
+    const FACT: &str = "Before I forget: my sister Lena flies cargo out of Ceres, \
+        and her ship is called the Marigold.";
+    // Message 1 is the greeting, so user message 5 is message 10. With the
+    // question at the end, the chat has 200 messages.
+    for i in 0..99 {
+        let user = if i == 4 {
+            FACT.to_owned()
+        } else {
+            format!("{} (day {})", USER[i % USER.len()], i + 1)
+        };
+        let u = append(&db, chat, parent, "user", &user, kai).await;
+        let c = append(&db, chat, Some(u), "character", REPLY[i % REPLY.len()], kai).await;
+        parent = Some(c);
+    }
+
+    // The passes the app runs after each reply, all at once.
+    let started = std::time::Instant::now();
+    service.update_memory(chat).await.unwrap();
+    println!("memory passes: {} s", started.elapsed().as_secs());
+    for m in service.memories(chat).await.unwrap() {
+        println!("{} [{}]: {}", m.kind, m.source_message_id, m.content);
+    }
+
+    let reply = service
+        .send(
+            chat,
+            "Remind me, what is my sister's name, and what is her ship called?",
+            |_| {},
+            |_| {},
+        )
+        .await
+        .unwrap()
+        .message
+        .expect("a reply");
+    println!("reply: {}", reply.content);
+    let text = reply.content.to_lowercase();
+    assert!(text.contains("lena"), "the sister's name is lost");
+    assert!(text.contains("marigold"), "the ship's name is lost");
+    engine.stop().await;
+}
