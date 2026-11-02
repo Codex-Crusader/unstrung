@@ -118,20 +118,62 @@ fn repeats(words: &[String], others: &[Vec<String>]) -> bool {
 /// Words at the start of a reply that wait for the repeat check.
 const START_WORDS: usize = 20;
 
+/// Both stream checks of a reply, in the order they must run: the cut at a
+/// line where the user speaks or acts first, then the repeat watch on the
+/// text that the cut lets through. The screen gets only text that both pass.
+pub struct ReplyWatch<'a> {
+    cut: LiveCut<'a>,
+    start: StartWatch,
+}
+
+impl<'a> ReplyWatch<'a> {
+    /// `recent` holds the last replies of the character. With none, the
+    /// start of the reply does not wait.
+    pub fn new(user_name: &'a str, recent: &[&str]) -> Self {
+        Self {
+            cut: LiveCut::new(user_name),
+            start: StartWatch::new(recent),
+        }
+    }
+
+    /// Adds streamed text and returns the text to show now.
+    pub fn push(&mut self, piece: &str) -> String {
+        let passed = self.cut.push(piece);
+        self.start.push(&passed)
+    }
+
+    /// The held-back text, when the stream is over. The cut's tail goes
+    /// through the repeat watch before the watch lets its own start out.
+    pub fn finish(&mut self) -> String {
+        let tail = self.cut.finish();
+        self.start.push(&tail) + &self.start.finish()
+    }
+
+    /// True when the engine must stop: a user line, or a copied opening.
+    pub fn stop(&self) -> bool {
+        self.cut.cut || self.start.repeated
+    }
+
+    /// True when the reply copied the opening of a recent reply.
+    pub fn repeated(&self) -> bool {
+        self.start.repeated
+    }
+}
+
 /// Watches the start of a streaming reply for a copy of a recent reply, with
 /// the same rule as `check`. The first words wait until the check clears, so
 /// a copied opening never reaches the screen, and the caller can stop and
 /// write the reply again before the user sees anything.
-pub struct StartWatch {
+struct StartWatch {
     others: Vec<Vec<String>>,
     held: String,
     open: bool,
-    pub repeated: bool,
+    repeated: bool,
 }
 
 impl StartWatch {
     /// With no `recent` replies, all text passes at once.
-    pub fn new(recent: &[&str]) -> Self {
+    fn new(recent: &[&str]) -> Self {
         Self {
             others: recent.iter().take(3).map(|e| words_of(e)).collect(),
             held: String::new(),
@@ -352,7 +394,7 @@ fn is_user_line(line: &str, user_name: &str) -> bool {
 /// so a line that the guard cuts never reaches the screen. When the model
 /// starts to write the user's part after some text, `cut` turns true and the
 /// caller stops the stream.
-pub struct LiveCut<'a> {
+struct LiveCut<'a> {
     user_name: &'a str,
     text: String,
     shown: usize,
@@ -360,11 +402,11 @@ pub struct LiveCut<'a> {
     decided: bool,
     skip: bool,
     kept_any: bool,
-    pub cut: bool,
+    cut: bool,
 }
 
 impl<'a> LiveCut<'a> {
-    pub fn new(user_name: &'a str) -> Self {
+    fn new(user_name: &'a str) -> Self {
         Self {
             user_name,
             text: String::new(),
@@ -647,6 +689,41 @@ mod tests {
         }
         shown.push_str(&live.finish());
         (shown, false)
+    }
+
+    #[test]
+    fn the_reply_watch_runs_both_checks() {
+        let feed = |watch: &mut ReplyWatch<'_>, text: &str| {
+            let mut shown = String::new();
+            for word in text.split_inclusive(' ') {
+                shown.push_str(&watch.push(word));
+                // Like the real stream: stop, then take the held text.
+                if watch.stop() {
+                    break;
+                }
+            }
+            shown + &watch.finish()
+        };
+        // A short reply ends with a user line: the line goes, the rest
+        // shows when the stream ends.
+        let mut watch = ReplyWatch::new("Kai", &["Something else entirely."]);
+        let shown = feed(&mut watch, "Mara nods. Sit down.\nKai sits down slowly. ");
+        assert_eq!(shown.trim(), "Mara nods. Sit down.");
+        assert!(watch.stop() && !watch.repeated());
+        // A copied opening stops the stream before anything shows.
+        let greeting = "Welcome aboard. The engine is dead, the coffee is worse.";
+        let mut watch = ReplyWatch::new("Kai", &[greeting]);
+        assert_eq!(
+            feed(&mut watch, "Welcome aboard. The engine is dead, again."),
+            ""
+        );
+        assert!(watch.repeated());
+        // A clean reply comes through in full.
+        let mut watch = ReplyWatch::new("Kai", &[]);
+        let clean = "Mara nods slowly.
+She hands you the wrench. Fix it.";
+        assert_eq!(feed(&mut watch, clean), clean);
+        assert!(!watch.stop());
     }
 
     #[test]

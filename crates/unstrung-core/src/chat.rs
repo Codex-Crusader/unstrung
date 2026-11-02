@@ -40,6 +40,8 @@ const CONTINUE_REMINDER: &str =
     "Continue your last reply with one more paragraph. Do not repeat what you already wrote.";
 /// Shown under a reply that failed the checks twice.
 pub const OUT_OF_CHARACTER_HINT: &str = "Not in character? Regenerate.";
+/// The hint when the retry still repeats an earlier reply.
+pub const REPEAT_HINT: &str = "Repeating itself? Regenerate.";
 
 /// The error for a reply with no text left. When the model wrote text and the
 /// guard removed all of it, the text was lines for the user.
@@ -1477,8 +1479,11 @@ impl ChatService {
                     progress(Progress::Restart);
                     extra = Some(p.reminder().replace("{{char}}", &character.name));
                 }
-                (Some(_), true) => {
-                    hint = Some(OUT_OF_CHARACTER_HINT);
+                (Some(p), true) => {
+                    hint = Some(match p {
+                        Problem::CharacterBreak => OUT_OF_CHARACTER_HINT,
+                        Problem::Repetition => REPEAT_HINT,
+                    });
                     break (outcome, content, prompt);
                 }
                 (None, retried) => {
@@ -1553,25 +1558,24 @@ async fn stream_reply(
     progress: &mut impl FnMut(Progress<'_>),
 ) -> Result<(crate::ollama::ChatOutcome, bool)> {
     let stop = cancel.child_token();
-    let mut live = guard::LiveCut::new(user_name);
-    let mut start = guard::StartWatch::new(recent);
+    let mut watch = guard::ReplyWatch::new(user_name, recent);
     let mut outcome = client
         .chat(params, REPLY_TIMEOUT, &stop, |t| {
-            let shown = start.push(&live.push(t));
+            let shown = watch.push(t);
             if !shown.is_empty() {
                 progress(Progress::Text(&shown));
             }
-            if live.cut || start.repeated {
+            if watch.stop() {
                 stop.cancel();
             }
         })
         .await?;
-    let rest = start.push(&live.finish()) + &start.finish();
+    let rest = watch.finish();
     if !rest.is_empty() {
         progress(Progress::Text(&rest));
     }
     outcome.stopped = cancel.is_cancelled();
-    Ok((outcome, start.repeated))
+    Ok((outcome, watch.repeated()))
 }
 
 fn chat_params<'a>(
