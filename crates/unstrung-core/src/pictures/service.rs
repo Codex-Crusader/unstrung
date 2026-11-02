@@ -586,12 +586,12 @@ impl PictureService {
         };
         if order.is_empty() {
             return self
-                .render(
+                .render_or_tags(
                     model,
                     exe,
                     chat_id,
                     message_id,
-                    plain,
+                    (plain.clone(), plain),
                     seed,
                     &input.chat_model,
                     &References::none(),
@@ -623,8 +623,10 @@ impl PictureService {
         .await
     }
 
-    /// Renders with the references. When that fails (for example, too little
-    /// free VRAM for the pictures), it renders once more with tags only.
+    /// Frees the GPU, renders with the references and, when that fails (for
+    /// example, too little free VRAM for the pictures), once more with tags
+    /// only. The chat model comes back once, after the last try: a reload
+    /// after the first try raced the retry for the VRAM.
     #[allow(clippy::too_many_arguments)]
     async fn render_or_tags(
         &self,
@@ -638,13 +640,32 @@ impl PictureService {
         refs: &References,
         token: &CancellationToken,
     ) -> Result<Image> {
-        match self
+        self.painting.send_replace(Some(Painting {
+            chat_id,
+            message_id,
+            phase: "loading",
+            step: 0,
+            total: 0,
+        }));
+        let client = self.chats.engine().client().ok();
+        let freed = if self.hardware().tier == Tier::High {
+            false
+        } else if let Some(client) = &client {
+            free_gpu(client, chat_model).await
+        } else {
+            false
+        };
+        let result = match self
             .render(
-                model, exe, chat_id, message_id, with_refs, seed, chat_model, refs, token,
+                model, exe, chat_id, message_id, with_refs, seed, refs, token,
             )
             .await
         {
-            Err(e) if !matches!(e, Error::Cancelled) && !token.is_cancelled() => {
+            Err(e)
+                if !refs.files.is_empty()
+                    && !matches!(e, Error::Cancelled)
+                    && !token.is_cancelled() =>
+            {
                 log::warn!("a picture with profile pictures failed, so it is made from tags: {e}");
                 self.render(
                     model,
@@ -653,14 +674,25 @@ impl PictureService {
                     message_id,
                     plain,
                     seed,
-                    chat_model,
                     &References::none(),
                     token,
                 )
                 .await
             }
             other => other,
+        };
+        // The chat model comes back whether the picture worked or not.
+        if freed && let Some(client) = client {
+            let model = chat_model.to_owned();
+            let context = self.chats.engine().tuning_for(&model).context;
+            tokio::spawn(async move {
+                match client.load(&model, KEEP_ALIVE, context).await {
+                    Ok(()) => log::info!("chat model loaded again after a picture: {model}"),
+                    Err(e) => log::warn!("the chat model did not load again after a picture: {e}"),
+                }
+            });
         }
+        result
     }
 
     /// A stored profile picture that exists on disk. `None` for no picture,
@@ -680,19 +712,9 @@ impl PictureService {
         message_id: Option<i64>,
         prompts: scene::Prompts,
         seed: i64,
-        chat_model: &str,
         refs: &References,
         token: &CancellationToken,
     ) -> Result<Image> {
-        let show = |phase: &'static str| {
-            self.painting.send_replace(Some(Painting {
-                chat_id,
-                message_id,
-                phase,
-                step: 0,
-                total: 0,
-            }));
-        };
         let hw = self.hardware();
         let on_gpu = Self::usable_gpu(&hw).is_some();
         let size = if on_gpu { 1024 } else { 512 };
@@ -700,16 +722,6 @@ impl PictureService {
         std::fs::create_dir_all(&folder)?;
         let file = format!("{}-{seed}.png", crate::db::now_ms());
         let output = folder.join(&file);
-
-        show("loading");
-        let client = self.chats.engine().client().ok();
-        let freed = if hw.tier == Tier::High {
-            false
-        } else if let Some(client) = &client {
-            free_gpu(client, chat_model).await
-        } else {
-            false
-        };
 
         let job = runner::Job {
             model,
@@ -750,18 +762,6 @@ impl PictureService {
         })
         .await
         .map_err(|e| Error::Engine(format!("the picture stopped: {e}")))?;
-
-        // The chat model comes back whether the picture worked or not.
-        if freed && let Some(client) = client {
-            let model = chat_model.to_owned();
-            let context = self.chats.engine().tuning_for(&model).context;
-            tokio::spawn(async move {
-                match client.load(&model, KEEP_ALIVE, context).await {
-                    Ok(()) => log::info!("chat model loaded again after a picture: {model}"),
-                    Err(e) => log::warn!("the chat model did not load again after a picture: {e}"),
-                }
-            });
-        }
         ran?;
         log::info!(
             "picture made in {} s with {} ({}x{})",

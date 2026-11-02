@@ -685,6 +685,16 @@ async fn references_keep_one_face_in_a_chat() {
         .filter(|i| i.ref_mode.contains("character"))
         .count();
     assert!(used >= 1, "the new profile picture was never used");
+
+    // A profile picture the engine cannot read: the picture is still made,
+    // from tags only.
+    std::fs::write(paths.stored(&stored).unwrap(), b"not a picture").unwrap();
+    let broken = paint_story(tessa, "tessa-broken", &TESSA_MORE[..1]).await;
+    assert!(
+        !broken[0].ref_mode.contains("character"),
+        "{}",
+        broken[0].ref_mode
+    );
     engine.stop().await;
 }
 
