@@ -112,6 +112,7 @@ function FolderRow({
   const [check, setCheck] = useState<FolderCheck | null>(null);
   const [picked, setPicked] = useState("");
   const [copied, setCopied] = useState<[number, number] | null>(null);
+  const [stayed, setStayed] = useState<string[]>([]);
   const [error, setError] = useState<UiError | null>(null);
   const issues = (check?.issues ?? []).map((i) => strings.welcome.issues.get(i) ?? i);
   return (
@@ -158,9 +159,10 @@ function FolderRow({
                   moveFolder(purpose, picked, (done, total) => {
                     setCopied([done, total]);
                   })
-                    .then(() => {
+                    .then((left) => {
                       setCopied(null);
-                      onDone();
+                      setStayed(left);
+                      if (left.length === 0) onDone();
                     })
                     .catch((e: unknown) => {
                       setCopied(null);
@@ -193,6 +195,21 @@ function FolderRow({
             </button>
           </p>
         </div>
+      )}
+      {stayed.length > 0 && (
+        <p className="field-hint warn" role="status">
+          {s.oldStayed(stayed.join(", "))}{" "}
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              setStayed([]);
+              onDone();
+            }}
+          >
+            {s.ok}
+          </button>
+        </p>
       )}
       {error && <ErrorNote error={error} />}
     </div>

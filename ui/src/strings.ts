@@ -515,6 +515,9 @@ export const strings = {
     moveYes: "Move",
     moving: (done: string, total: string) => `Copying ${done} of ${total}.`,
     stopMove: "Stop",
+    oldStayed: (folders: string) =>
+      `The move is done, but some old files could not be deleted: ${folders}. Close any program that uses them, then delete them by hand.`,
+    ok: "OK",
     freeUp: "Free up space",
     candidates: {
       temp: "Temporary files and old logs",

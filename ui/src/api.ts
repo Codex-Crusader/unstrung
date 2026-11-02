@@ -336,7 +336,8 @@ export function moveFolder(purpose: FolderPurpose, path: string, onProgress: (do
   ch.onmessage = ([done, total]) => {
     onProgress(done, total);
   };
-  return invoke<null>("move_folder", { purpose, path, onProgress: ch });
+  // The old folders that could not be deleted.
+  return invoke<string[]>("move_folder", { purpose, path, onProgress: ch });
 }
 export interface Candidate {
   id: "temp" | "deleted_chats" | "set_aside";

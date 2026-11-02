@@ -226,6 +226,11 @@ impl EngineSetup {
         self.progress.borrow().clone()
     }
 
+    /// An install runs. It starts the engine when it ends.
+    pub fn busy(&self) -> bool {
+        self.running.lock().map_or(true, |r| r.is_some())
+    }
+
     pub fn cancel(&self) {
         if let Ok(running) = self.running.lock()
             && let Some(token) = running.as_ref()

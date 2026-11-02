@@ -412,12 +412,12 @@ pub async fn move_folder(
     purpose: unstrung_core::location::Purpose,
     path: String,
     on_progress: Channel<[u64; 2]>,
-) -> CmdResult<()> {
+) -> CmdResult<Vec<std::path::PathBuf>> {
     use unstrung_core::relocate;
     let (token, _guard) = state.chats.begin_job()?;
     let _pictures = state.pictures.hold()?;
-    if state.models.downloading() {
-        return Err(Error::Invalid("Wait until the model download ends.".into()).into());
+    if state.models.downloading() || state.setup.busy() {
+        return Err(Error::Invalid("Wait until the download ends.".into()).into());
     }
     let joined = |e: tauri::Error| Error::Io(std::io::Error::other(e));
     let paths = state.paths.clone();
@@ -451,9 +451,12 @@ pub async fn move_folder(
     .map_err(joined);
     if models {
         state.engine.restart().await;
+        // The free space check of downloads reads the new disk.
+        if let Err(e) = state.models.recheck_hardware().await {
+            log::warn!("hardware check after the move: {e}");
+        }
     }
-    result??;
-    Ok(())
+    Ok(result??)
 }
 
 #[tauri::command]

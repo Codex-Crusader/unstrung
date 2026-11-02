@@ -85,6 +85,26 @@ pub fn plan(paths: &AppPaths, purpose: Purpose, picked: &Path) -> Result<Plan> {
     if key(&folder) == key(&old_folder) {
         return Err(Error::Invalid("this is the folder in use now".into()));
     }
+    // A folder of the other kind inside one that moves, or the reverse,
+    // would be deleted with the old files.
+    let others: Vec<PathBuf> = match purpose {
+        Purpose::Library => {
+            let m = now.models(root);
+            vec![m.join("ollama"), m.join("image")]
+        }
+        Purpose::Models => vec![now.library(root).join("gallery")],
+    };
+    // Inside the app folder, other code removes files (backups, logs,
+    // engines). Only the defaults are allowed there.
+    let default = match purpose {
+        Purpose::Library => root.to_path_buf(),
+        Purpose::Models => root.join("models"),
+    };
+    if inside(&folder, root) && key(&folder) != key(&default) {
+        return Err(Error::Invalid(
+            "pick a folder outside the Unstrung app folder".into(),
+        ));
+    }
     let mut moves = Vec::new();
     for old in olds {
         let new = folder.join(old.file_name().unwrap_or_default());
@@ -92,6 +112,14 @@ pub fn plan(paths: &AppPaths, purpose: Purpose, picked: &Path) -> Result<Plan> {
             return Err(Error::Invalid(
                 "the new folder cannot be inside the old one".into(),
             ));
+        }
+        for other in &others {
+            if inside(&new, other) || inside(other, &old) || inside(other, &new) {
+                return Err(Error::Invalid(
+                    "the pictures and the models cannot be inside each other. Pick another folder"
+                        .into(),
+                ));
+            }
         }
         if new.exists() && !empty_dir(&new) {
             return Err(Error::Invalid(format!(
@@ -160,11 +188,14 @@ fn copy_tree(
     Ok(())
 }
 
-fn remove(dir: &Path) {
-    if let Err(e) = std::fs::remove_dir_all(dir)
-        && e.kind() != std::io::ErrorKind::NotFound
-    {
-        log::warn!("could not delete {}: {e}", dir.display());
+/// False when the folder stayed.
+fn remove(dir: &Path) -> bool {
+    match std::fs::remove_dir_all(dir) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            log::warn!("could not delete {}: {e}", dir.display());
+            false
+        }
+        _ => true,
     }
 }
 
@@ -177,10 +208,12 @@ fn undo(plan: &Plan) {
 }
 
 /// The new location is in use: the old subfolders go.
-fn finish(paths: &AppPaths, plan: &Plan, old_library: &Path) {
+/// Returns the old folders that could not be deleted, for the user.
+fn finish(paths: &AppPaths, plan: &Plan, old_library: &Path) -> Vec<PathBuf> {
+    let mut stayed = Vec::new();
     for (old, new) in &plan.moves {
-        if new.is_dir() {
-            remove(old);
+        if new.is_dir() && !remove(old) {
+            stayed.push(old.clone());
         }
     }
     if plan.mark.is_some() && key(old_library) != key(paths.root()) {
@@ -194,16 +227,19 @@ fn finish(paths: &AppPaths, plan: &Plan, old_library: &Path) {
     {
         let _ = std::fs::remove_dir(parent);
     }
+    stayed
 }
 
 /// Does the move. Blocking: run it off the async threads, with the engines
 /// stopped and no job or download running. `progress` gets the bytes copied.
+/// Returns the old folders that stayed (a file was open): the move itself
+/// is done, the user can delete them by hand.
 pub fn run(
     paths: &AppPaths,
     plan: &Plan,
     progress: &mut dyn FnMut(u64),
     cancel: &CancellationToken,
-) -> Result<()> {
+) -> Result<Vec<PathBuf>> {
     let note = paths.backups().join(NOTE);
     crate::files::write_atomic(&note, &serde_json::to_vec_pretty(plan)?)?;
     let old_library = paths.library();
@@ -231,9 +267,9 @@ pub fn run(
         return Err(e);
     }
     log::info!("moved {} subfolders, {done} bytes", plan.moves.len());
-    finish(paths, plan, &old_library);
+    let stayed = finish(paths, plan, &old_library);
     let _ = std::fs::remove_file(&note);
-    Ok(())
+    Ok(stayed)
 }
 
 /// At start, before anything reads the folders: ends a move that a crash
@@ -251,7 +287,7 @@ pub fn recover(paths: &AppPaths) {
                 .first()
                 .and_then(|(old, _)| old.parent())
                 .map_or_else(|| paths.root().to_path_buf(), Path::to_path_buf);
-            finish(paths, &plan, &old_library);
+            let _ = finish(paths, &plan, &old_library);
         }
         Ok(plan) => {
             log::warn!("a move stopped before the switch: the copies go");
@@ -373,6 +409,25 @@ mod tests {
         recover(&paths);
         assert!(!old.exists() && to.join("gallery").exists());
         assert!(!paths.backups().join(NOTE).exists());
+    }
+
+    #[test]
+    fn the_pictures_and_the_models_never_nest() {
+        let (dir, paths) = home();
+        // Pictures inside a models subfolder: a models move would delete them.
+        assert!(plan(&paths, Purpose::Library, &paths.ollama_models().join("x")).is_err());
+        assert!(plan(&paths, Purpose::Library, &paths.image_models()).is_err());
+        // Models inside the gallery: a library move would delete them.
+        let lib = dir.path().join("lib");
+        let p = plan(&paths, Purpose::Library, &lib).unwrap();
+        run(&paths, &p, &mut |_| {}, &CancellationToken::new()).unwrap();
+        assert!(plan(&paths, Purpose::Models, &paths.gallery().join("m")).is_err());
+        // Other app subfolders are refused, the default models folder is not.
+        assert!(plan(&paths, Purpose::Library, &paths.logs()).is_err());
+        let m = dir.path().join("m");
+        let p = plan(&paths, Purpose::Models, &m).unwrap();
+        run(&paths, &p, &mut |_| {}, &CancellationToken::new()).unwrap();
+        assert!(plan(&paths, Purpose::Models, &paths.root().join("models")).is_ok());
     }
 
     #[test]

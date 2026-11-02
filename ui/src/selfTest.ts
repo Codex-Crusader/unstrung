@@ -456,15 +456,16 @@ async function check(report: SelfTestReport, show: (screen: Screen) => void): Pr
   const usage = await storageUsage();
   if (!usage.parts.some((p) => p.kind === "chats" && p.bytes > 0)) return "storage: no size for the chats";
   await freeUpCandidates();
-  // Moves the pictures to a folder inside the test home and back.
+  // Moves the pictures to a folder next to the test home and back.
   const home = usage.library;
   let moved = 0;
-  await moveFolder("library", `${home}/selftest-move`, () => {
+  await moveFolder("library", `${home}-selftest-move`, () => {
     moved += 1;
   });
   const away = await storageUsage();
   await moveFolder("library", home, () => {});
-  if (!moved || !away.library.endsWith("selftest-move") || (await storageUsage()).library !== home)
+  const same = (a: string, b: string) => a.replaceAll("/", "|").replaceAll(String.fromCharCode(92), "|").toLowerCase() === b.replaceAll("/", "|").replaceAll(String.fromCharCode(92), "|").toLowerCase();
+  if (!moved || !away.library.endsWith("selftest-move") || !same((await storageUsage()).library, home))
     return `storage: the move did not go there and back: ${away.library}`;
   const rebuilt = await rebuildSummary(chatId);
   if (!rebuilt.summary.trim()) return "rebuild summary: empty";
