@@ -207,3 +207,29 @@ fn user_notes_keep_their_words() {
         Some(SUMMARY_WORDS)
     );
 }
+
+#[test]
+fn a_refresh_keeps_four_messages_and_never_drops_what_the_summary_lacks() {
+    let p = path(20);
+    // No refresh point: all of it.
+    assert_eq!(window(&p, None, &[]).len(), 20);
+    // A summary up to message 16, refresh at the user message 18: 15..=20.
+    let summary = [mem(1, "summary", "the story", 16)];
+    let shown = window(&p, Some(18), &summary);
+    assert_eq!(shown.first().map(|m| m.id), Some(15));
+    assert_eq!(shown.last().map(|m| m.id), Some(20), "later messages stay");
+    // The summary lags at message 10: 11 onward stays in the prompt.
+    let lagging = [mem(1, "summary", "the story", 10)];
+    assert_eq!(
+        window(&p, Some(18), &lagging).first().map(|m| m.id),
+        Some(11)
+    );
+    // No summary at all: nothing leaves.
+    assert_eq!(window(&p, Some(18), &[]).len(), 20);
+    // A hidden summary covers nothing.
+    let mut hidden = mem(1, "summary", "the story", 16);
+    hidden.is_hidden = true;
+    assert_eq!(window(&p, Some(18), &[hidden]).len(), 20);
+    // A point that a rewind took off the path: all of it.
+    assert_eq!(window(&p, Some(99), &summary).len(), 20);
+}

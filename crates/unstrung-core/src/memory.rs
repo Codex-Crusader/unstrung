@@ -55,6 +55,29 @@ const STOP: [&str; 24] = [
     "said", "says",
 ];
 
+/// After "Refresh context", the prompt keeps this many messages up to the
+/// refresh point, so the reply still follows on from the last lines.
+pub const KEEP_BEFORE_REFRESH: usize = 4;
+
+/// The part of `path` that the prompt shows. Without a refresh point on the
+/// path (none, or rewound away), that is all of it. With one, it starts
+/// `KEEP_BEFORE_REFRESH` messages before the point, but never after a
+/// message that the summary does not cover yet, so no event leaves the
+/// prompt before the summary has it.
+pub fn window<'a>(path: &'a [Message], refresh: Option<i64>, memories: &[Memory]) -> &'a [Message] {
+    let Some(at) = refresh.and_then(|id| path.iter().position(|m| m.id == id)) else {
+        return path;
+    };
+    let from = (at + 1).saturating_sub(KEEP_BEFORE_REFRESH);
+    // The summary that the prompt uses: a hidden one covers nothing.
+    let covered = on_path(memories, path)
+        .iter()
+        .find(|m| m.kind == "summary")
+        .filter(|m| !m.is_hidden)
+        .map_or(0, |m| position(path, m.source_message_id) + 1);
+    &path[from.min(covered)..]
+}
+
 /// The memories that the prompt uses: the newest goal and summary, and the
 /// facts on the path.
 #[derive(Debug, Default)]

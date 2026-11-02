@@ -24,6 +24,8 @@ const COMMANDS: &[&str] = &[
     "open_character",
     "open_chat",
     "new_chat",
+    "refresh_context",
+    "undo_refresh",
     "kept_memories",
     "keep_memory",
     "forget_kept_memory",

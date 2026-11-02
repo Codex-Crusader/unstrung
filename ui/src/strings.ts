@@ -290,6 +290,8 @@ export const strings = {
     back: "Back to Home",
     oocHint: "Tip: start with /ooc to talk to the model outside the story.",
     oocLabel: "Note outside the story",
+    refreshed:
+      "Context refreshed here. The character now sees the summary, the memories and only the last few lines before this point.",
     hiddenBranch: (count: number) =>
       count === 1 ? "A later part of this chat is hidden." : `${String(count)} later parts of this chat are hidden.`,
     showHidden: "Show it",

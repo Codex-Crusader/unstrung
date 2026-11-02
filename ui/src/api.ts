@@ -75,6 +75,8 @@ export interface Chat {
   reply_custom: string;
   chat_model: string | null;
   head_message_id: number | null;
+  /** "Refresh context": the prompt starts near this message. */
+  context_start_id: number | null;
   /** The chat uses the character's kept memories. */
   use_character_memory: boolean;
   created_at: number;
@@ -275,6 +277,9 @@ export const openChat = (chatId: number) => invoke<ChatView>("open_chat", { chat
 /** `useMemory` answers the question of the "ask" memory setting. */
 export const newChat = (characterId: number, personaId: number | null, useMemory = false) =>
   invoke<ChatView>("new_chat", { characterId, personaId, useMemory });
+/** The next replies see the summary, the memories and only the last lines. */
+export const refreshContext = (chatId: number) => invoke<ChatView>("refresh_context", { chatId });
+export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
 export const keepMemory = (chatId: number, memoryId: number) => invoke<Kept>("keep_memory", { chatId, memoryId });
 export const forgetKeptMemory = (characterId: number, memoryId: number) =>

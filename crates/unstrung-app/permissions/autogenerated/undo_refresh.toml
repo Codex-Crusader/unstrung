@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-undo-refresh"
+description = "Enables the undo_refresh command without any pre-configured scope."
+commands.allow = ["undo_refresh"]
+
+[[permission]]
+identifier = "deny-undo-refresh"
+description = "Denies the undo_refresh command without any pre-configured scope."
+commands.deny = ["undo_refresh"]

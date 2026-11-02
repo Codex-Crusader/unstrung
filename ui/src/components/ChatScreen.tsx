@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   branchChat,
   continueReply,
@@ -37,6 +37,7 @@ import {
   type Painting,
   type Picture,
   type Staged,
+  undoRefresh,
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
@@ -469,19 +470,35 @@ export function ChatScreen({
           aria-busy={busy}
         >
           {shown.map((m, i) => (
-            <MessageItem
-              key={m.id}
-              message={m}
-              character={character}
-              persona={personaOf(m.persona_id)}
-              isLast={i === shown.length - 1}
-              locked={locked}
-              actions={actions}
-              pictures={pictures.filter((p) => p.message_id === m.id)}
-              painting={painting && (painting.message_id ?? last?.id) === m.id ? painting : null}
-              isNew={(id) => !oldPictures.has(id)}
-              onOpenPicture={setOpenPicture}
-            />
+            <Fragment key={m.id}>
+              <MessageItem
+                message={m}
+                character={character}
+                persona={personaOf(m.persona_id)}
+                isLast={i === shown.length - 1}
+                locked={locked}
+                actions={actions}
+                pictures={pictures.filter((p) => p.message_id === m.id)}
+                painting={painting && (painting.message_id ?? last?.id) === m.id ? painting : null}
+                isNew={(id) => !oldPictures.has(id)}
+                onOpenPicture={setOpenPicture}
+              />
+              {m.id === view.chat.context_start_id && (
+                <p className="system-note">
+                  {strings.chat.refreshed}{" "}
+                  <button
+                    type="button"
+                    className="link-button"
+                    disabled={locked}
+                    onClick={() => {
+                      change(() => undoRefresh(chatId));
+                    }}
+                  >
+                    {strings.chat.undo}
+                  </button>
+                </p>
+              )}
+            </Fragment>
           ))}
           {streaming}
           {!busy && view.branches.length > 0 && (

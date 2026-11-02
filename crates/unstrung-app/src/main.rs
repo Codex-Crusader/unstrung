@@ -132,6 +132,8 @@ fn main() {
             commands::open_character,
             commands::open_chat,
             commands::new_chat,
+            commands::refresh_context,
+            commands::undo_refresh,
             commands::kept_memories,
             commands::keep_memory,
             commands::forget_kept_memory,

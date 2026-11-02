@@ -332,6 +332,52 @@ impl ChatService {
         self.view(id).await
     }
 
+    /// What the prompt remembers on `path`: the chat's notes, and the
+    /// character's kept facts when the chat uses them.
+    async fn recall(
+        &self,
+        chat: &Chat,
+        memories: &[Memory],
+        path: &[Message],
+    ) -> Result<memory::Recall> {
+        let mut recall = memory::recall(memories, path);
+        if chat.use_character_memory {
+            recall.kept = self
+                .db
+                .kept(chat.character_id)
+                .await?
+                .memories
+                .into_iter()
+                .map(|m| m.content)
+                .collect();
+        }
+        Ok(recall)
+    }
+
+    /// "Refresh context": from the next reply on, the prompt keeps only the
+    /// last lines up to the newest user message, with the summary and the
+    /// memories (`memory::window`). The messages stay. The point is a user
+    /// message, so a regenerate of the last reply keeps it on the path.
+    pub async fn refresh_context(&self, chat_id: i64) -> Result<ChatView> {
+        self.idle()?;
+        self.db.chat(chat_id).await?;
+        let path = self.db.path_to_head(chat_id).await?;
+        let point = path
+            .iter()
+            .rev()
+            .find(|m| m.role == "user")
+            .ok_or_else(|| Error::Invalid("write a message first".into()))?;
+        self.db.set_context_start(chat_id, Some(point.id)).await?;
+        self.view(chat_id).await
+    }
+
+    pub async fn undo_refresh(&self, chat_id: i64) -> Result<ChatView> {
+        self.idle()?;
+        self.db.chat(chat_id).await?;
+        self.db.set_context_start(chat_id, None).await?;
+        self.view(chat_id).await
+    }
+
     /// Keeps a fact of this chat for new chats with the character.
     pub async fn keep_memory(&self, chat_id: i64, memory_id: i64) -> Result<crate::db::Kept> {
         let chat = self.db.chat(chat_id).await?;
@@ -824,16 +870,18 @@ impl ChatService {
         let old_names = self.old_user_names(&history, now).await;
         let model = self.model_for(&chat, &character);
         let tuning = self.engine.tuning_for(&model);
+        let memories = self.db.memories(chat.id).await?;
+        let recall = self.recall(&chat, &memories, &history).await?;
         let prompt = prompt::build(&PromptInput {
             character: &character,
             persona: persona.as_ref(),
             tone: &chat.tone,
             tone_custom: &chat.tone_custom,
             style: StyleSettings::of(&chat.reply_style, &chat.reply_custom),
-            history: &history,
+            history: memory::window(&history, chat.context_start_id, &memories),
             push_character: false,
             open_thread: None,
-            recall: None,
+            recall: Some(&recall),
             extra_reminder: Some(CONTINUE_REMINDER),
             continuation: mid_sentence,
             tuning: &tuning,
@@ -1576,17 +1624,8 @@ impl ChatService {
             .await
         };
         let memories = self.db.memories(chat.id).await?;
-        let mut recall = memory::recall(&memories, history);
-        if chat.use_character_memory {
-            recall.kept = self
-                .db
-                .kept(chat.character_id)
-                .await?
-                .memories
-                .into_iter()
-                .map(|m| m.content)
-                .collect();
-        }
+        let recall = self.recall(chat, &memories, history).await?;
+        let shown = memory::window(history, chat.context_start_id, &memories);
         let mut extra: Option<String> = None;
         let mut hint = None;
         let (outcome, content, prompt) = loop {
@@ -1596,7 +1635,7 @@ impl ChatService {
                 tone: &chat.tone,
                 tone_custom: &chat.tone_custom,
                 style,
-                history,
+                history: shown,
                 push_character: plan.push_character,
                 open_thread: open_thread.as_deref(),
                 recall: Some(&recall),

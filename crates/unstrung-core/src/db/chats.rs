@@ -14,6 +14,8 @@ pub struct Chat {
     pub reply_custom: String,
     pub chat_model: Option<String>,
     pub head_message_id: Option<i64>,
+    /// "Refresh context": the prompt starts near this message (`memory::window`).
+    pub context_start_id: Option<i64>,
     /// The chat uses the character's kept memories.
     pub use_character_memory: bool,
     pub created_at: i64,
@@ -57,7 +59,7 @@ impl Db {
         sqlx::query_as!(
             Chat,
             r#"SELECT id, character_id, persona_id, title, tone, tone_custom, reply_style,
-                    reply_custom, chat_model, head_message_id,
+                    reply_custom, chat_model, head_message_id, context_start_id,
                     use_character_memory AS "use_character_memory: bool", created_at, updated_at
              FROM chats WHERE id = ? AND deleted_at IS NULL"#,
             id
@@ -233,6 +235,17 @@ impl Db {
         sqlx::query!("UPDATE chats SET deleted_at = ? WHERE id = ?", now, chat_id)
             .execute(&self.pool)
             .await?;
+        Ok(())
+    }
+
+    pub async fn set_context_start(&self, chat_id: i64, message_id: Option<i64>) -> Result<()> {
+        sqlx::query!(
+            "UPDATE chats SET context_start_id = ? WHERE id = ?",
+            message_id,
+            chat_id
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 

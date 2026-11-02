@@ -31,6 +31,8 @@
     "allow-open-character",
     "allow-open-chat",
     "allow-new-chat",
+    "allow-refresh-context",
+    "allow-undo-refresh",
     "allow-kept-memories",
     "allow-keep-memory",
     "allow-forget-kept-memory",

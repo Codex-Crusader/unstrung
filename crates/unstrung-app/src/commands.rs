@@ -278,6 +278,24 @@ pub async fn new_chat(
         .await?)
 }
 
+/// "Refresh context". The memory pass starts, so the summary catches up.
+#[tauri::command]
+pub async fn refresh_context(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
+    let view = state.chats.refresh_context(chat_id).await?;
+    let chats = state.chats.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = chats.update_memory(chat_id).await {
+            log::warn!("memory pass failed: {e}");
+        }
+    });
+    Ok(view)
+}
+
+#[tauri::command]
+pub async fn undo_refresh(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
+    Ok(state.chats.undo_refresh(chat_id).await?)
+}
+
 /// The character's kept memories and whether new chats use them.
 #[tauri::command]
 pub async fn kept_memories(state: State<'_, AppState>, character_id: i64) -> CmdResult<Kept> {
