@@ -31,6 +31,7 @@ export function MemoryPanel({
   characterId,
   characterName,
   useKept,
+  onUseKept,
   anchorId,
   refreshKey,
   disabled,
@@ -43,6 +44,8 @@ export function MemoryPanel({
   characterName: string;
   /** The chat uses the kept facts, when the panel opens. */
   useKept: boolean;
+  /** The switch changed: the chat screen keeps the value for the next open. */
+  onUseKept: (on: boolean) => void;
   /**
    * The message that a fact typed in the panel belongs to: the newest user message.
    * A regenerate replaces the reply, so a fact on it would leave the path.
@@ -67,7 +70,6 @@ export function MemoryPanel({
   }
   const [error, setError] = useState<UiError | null>(null);
   const [kept, setKept] = useState<Kept | null>(null);
-  const [useHere, setUseHere] = useState(useKept);
 
   useEffect(() => {
     let active = true;
@@ -272,13 +274,13 @@ export function MemoryPanel({
           <label className="check-confirm">
             <input
               type="checkbox"
-              checked={useHere}
+              checked={useKept}
               disabled={disabled}
               onChange={(e) => {
                 const on = e.target.checked;
                 setChatUseMemory(chatId, on).then(
                   () => {
-                    setUseHere(on);
+                    onUseKept(on);
                   },
                   (err: unknown) => {
                     setError(toUiError(err));

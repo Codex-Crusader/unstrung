@@ -638,10 +638,14 @@ export function ChatScreen({
       )}
       {memoryOpen && (
         <MemoryPanel
+          key={chatId}
           chatId={chatId}
           characterId={character.id}
           characterName={character.name}
           useKept={view.chat.use_character_memory}
+          onUseKept={(on) => {
+            setView((v) => (v ? { ...v, chat: { ...v.chat, use_character_memory: on } } : v));
+          }}
           anchorId={view.messages.findLast((m) => m.role === "user")?.id ?? view.chat.head_message_id}
           refreshKey={`${String(view.chat.head_message_id)}-${String(memoryTick)}`}
           disabled={locked}
