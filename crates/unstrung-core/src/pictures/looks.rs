@@ -47,11 +47,16 @@ pub fn parse(answer: &str) -> Suggested {
     let mut outfit = Vec::new();
     for line in answer.lines() {
         let line = line.trim().trim_start_matches(['-', '*', '#', ' ']);
-        let lower = line.to_lowercase();
-        let (to, rest) = if let Some(rest) = lower.strip_prefix("looks:") {
-            (&mut looks, &line[line.len() - rest.len()..])
-        } else if let Some(rest) = lower.strip_prefix("outfit:") {
-            (&mut outfit, &line[line.len() - rest.len()..])
+        // No lowercased copy: some letters change their byte length when lowercased.
+        let label = |name: &str| {
+            line.get(..name.len())
+                .is_some_and(|p| p.eq_ignore_ascii_case(name))
+                .then(|| &line[name.len()..])
+        };
+        let (to, rest) = if let Some(rest) = label("looks:") {
+            (&mut looks, rest)
+        } else if let Some(rest) = label("outfit:") {
+            (&mut outfit, rest)
         } else {
             continue;
         };
@@ -117,6 +122,13 @@ mod tests {
         );
         assert_eq!(s.looks, "grey beard, kind eyes");
         assert_eq!(s.outfit, "wool sweater");
+    }
+
+    #[test]
+    fn letters_that_change_length_when_lowercased_are_kept() {
+        let s = parse("LOOKS: İrem's dark hair, İİİİİİİ, Kelvin eyes\nOutfit: grey coat");
+        assert_eq!(s.looks, "İrem's dark hair, İİİİİİİ, Kelvin eyes");
+        assert_eq!(s.outfit, "grey coat");
     }
 
     #[test]

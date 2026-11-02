@@ -145,6 +145,11 @@ export function CreatorScreen({
   const [lookingUp, setLookingUp] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
   const autoLooks = useRef(false);
+  /** The fields as the screen shows them now, for a suggestion that comes back later. */
+  const shown = useRef(fields);
+  useEffect(() => {
+    shown.current = fields;
+  });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
   const [staged, setStaged] = useState<Staged | null>(first);
@@ -231,12 +236,17 @@ export function CreatorScreen({
 
   /** Puts suggested looks in the form. `onlyEmpty`: keep what the user or the card wrote. */
   const fill = (onlyEmpty: boolean) => (s: { looks: string; outfit: string }) => {
+    const keep = (old: string, next: string) => (next === "" || (onlyEmpty && old.trim() !== "") ? old : next);
+    const now = shown.current;
+    // The note says the fields were filled, so only when one really changes.
+    if (keep(now.appearance_tags, s.looks) !== now.appearance_tags || keep(now.outfit, s.outfit) !== now.outfit) {
+      setLookedUp(true);
+    }
     setFields((f) => ({
       ...f,
-      appearance_tags: onlyEmpty && f.appearance_tags.trim() !== "" ? f.appearance_tags : s.looks,
-      outfit: onlyEmpty && f.outfit.trim() !== "" ? f.outfit : s.outfit,
+      appearance_tags: keep(f.appearance_tags, s.looks),
+      outfit: keep(f.outfit, s.outfit),
     }));
-    setLookedUp(s.looks !== "" || s.outfit !== "");
   };
 
   const lookUp = () => {

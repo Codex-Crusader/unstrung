@@ -945,7 +945,9 @@ impl ChatService {
         let name = clean_line(name, 80);
         let card: String = card.chars().take(4000).collect();
         if card.trim().is_empty() {
-            return Err(Error::Invalid("write the personality first".into()));
+            return Err(Error::Invalid(
+                "write the personality or greeting first".into(),
+            ));
         }
         let messages = [
             ChatMessage {
