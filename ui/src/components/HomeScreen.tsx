@@ -109,7 +109,10 @@ export function HomeScreen({
               }}
             >
               <Avatar kind="character" owner={c} size="large" />
-              <span className="card-name">{c.name}</span>
+              <span className="card-name">
+                {c.name}
+                {c.is_adult && <span className="badge-adult">{strings.home.adultBadge}</span>}
+              </span>
               <span className="card-tagline">{c.tagline}</span>
             </button>
             <button

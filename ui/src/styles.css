@@ -2822,3 +2822,23 @@ dialog.viewer::backdrop {
   width: 100%;
   max-width: 480px;
 }
+
+/* 18+ cards and pictures. */
+.badge-adult {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+  color: var(--bad);
+  border: 1px solid var(--bad);
+}
+
+.picture-thumb-adult img {
+  filter: blur(18px);
+}
+
+.persona-age input {
+  width: 6em;
+}

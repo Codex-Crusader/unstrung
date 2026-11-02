@@ -110,6 +110,8 @@ export interface ChatView {
   model: string;
   /** The chat's own model, when it was removed. The default writes instead. */
   model_removed: string | null;
+  /** Adult content is on, the character is 18+ and the persona has no age: ask it once. */
+  ask_persona_age: boolean;
 }
 
 /** One thing a chat remembers. See `db::Memory` in the core. */
@@ -500,6 +502,9 @@ export const saveCharacter = (
 export const importCard = (bytes: Uint8Array) => invoke<ImportDraft>("import_card", bytes);
 export const deleteCharacter = (characterId: number) => invoke<null>("delete_character", { characterId });
 export const restoreStarters = () => invoke<null>("restore_starters");
+export const getAdultContent = () => invoke<boolean>("get_adult_content");
+/** Ask "Are you 18 or older?" before `true`. */
+export const setAdultContent = (on: boolean) => invoke<null>("set_adult_content", { on });
 export const savePersona = (personaId: number | null, fields: PersonaFields, avatar: AvatarChange) =>
   invoke<Persona>("save_persona", { personaId, fields, avatar });
 export const deletePersona = (personaId: number) => invoke<null>("delete_persona", { personaId });
@@ -727,6 +732,8 @@ export interface Picture {
   image_model: string;
   width: number;
   height: number;
+  /** Made under adult rules. The gallery blurs it until it is opened. */
+  adult: boolean;
   created_at: number;
 }
 

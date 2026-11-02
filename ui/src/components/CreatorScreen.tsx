@@ -18,6 +18,7 @@ import {
   type Staged,
   type UiError,
   stopReply,
+  getAdultContent,
 } from "../api";
 import { CARD_BUDGET, checkCard, needsPersonWord } from "../cardCheck";
 import { strings } from "../strings";
@@ -146,6 +147,15 @@ export function CreatorScreen({
     first ? { kind: "staged", token: first.token, crop: centerCrop(first) } : { kind: "keep" },
   );
   const [error, setError] = useState<UiError | null>(null);
+  // The 18+ checkbox shows only with adult content on, or on a card that has it.
+  const [adultOn, setAdultOn] = useState(false);
+  useEffect(() => {
+    getAdultContent()
+      .then(setAdultOn)
+      .catch(() => {
+        setAdultOn(false);
+      });
+  }, []);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
@@ -389,6 +399,21 @@ export function CreatorScreen({
                 }}
               />
             </Field>
+            {(adultOn || fields.is_adult) && (
+              <label className="check-confirm">
+                <input
+                  type="checkbox"
+                  checked={fields.is_adult}
+                  onChange={(e) => {
+                    set("is_adult", e.target.checked);
+                  }}
+                />
+                {strings.creator.adult}
+              </label>
+            )}
+            {fields.is_adult && fields.age > 0 && fields.age < 18 && (
+              <p className="field-hint warn">{strings.creator.adultAge}</p>
+            )}
           </div>
           <div className="field card-preview" aria-label={strings.creator.preview}>
             <span className="field-label">{strings.creator.preview}</span>

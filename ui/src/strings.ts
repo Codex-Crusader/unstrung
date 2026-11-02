@@ -27,6 +27,7 @@ export const strings = {
     title: "Your characters",
     create: "Create a character",
     createHint: "Write one from scratch",
+    adultBadge: "18+",
     edit: (name: string) => `Edit ${name}`,
     empty: "You have no characters yet.",
     loadFailed: "Your characters could not load.",
@@ -61,6 +62,8 @@ export const strings = {
     tooLarge: "The picture is larger than 15 MB.",
   },
   creator: {
+    adult: "18+ character: mature chats and pictures are allowed with Allow adult content on",
+    adultAge: "An 18+ character must be 18 or older.",
     newTitle: "Create a character",
     editTitle: (name: string) => `Edit ${name}`,
     picture: "Picture",
@@ -128,7 +131,7 @@ export const strings = {
     title: "About this card",
     cut: (field: string) => `The ${field} was too long, so its end was cut.`,
     adult:
-      "This card is marked 18+. Adult content comes in a later version of Unstrung. After you save, the character is hidden from Home. Its chat opens once now.",
+      "This card is marked 18+. It shows on Home only while Settings > Content > Allow adult content is on.",
     noAge: "The card has no age. Enter the age before you save.",
     droppedPrompts: "The card has its own system prompt or instructions. Unstrung does not use them, so the character can act differently than in other apps.",
     moreGreetings: (n: number) =>
@@ -278,6 +281,11 @@ export const strings = {
     empty: "You have no personas yet.",
   },
   chat: {
+    personaAgeTitle: "Your persona's age",
+    personaAge: (name: string) =>
+      `This character is 18+. Mature content needs every person in the story to be 18 or older, so add the age of ${name}. Until then, the chat stays general.`,
+    personaAgeLabel: "Age",
+    personaAgeSave: "Save the age",
     placeholder: (name: string) => `Message ${name}`,
     notReady: (name: string) => `Getting ${name} ready...`,
     send: "Send",
@@ -478,6 +486,13 @@ export const strings = {
     reduceMotion: "Reduce motion",
     reduceMotionHint: "Turns off animations. When this is off, Unstrung follows the Windows setting.",
     notifications: "Notifications",
+    content: "Content",
+    adultLabel: "Allow adult content",
+    adultHint:
+      "Shows 18+ characters, and allows mature chats and pictures when the character is 18+ and your persona is 18 or older. Sexual content with anyone under 18 is always blocked.",
+    adultAsk: "Are you 18 or older?",
+    adultYes: "Yes, I am 18 or older",
+    adultNo: "No",
     safety: "Copies and repair",
     copies: (n: number) =>
       n === 0

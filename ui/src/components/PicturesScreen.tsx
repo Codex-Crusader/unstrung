@@ -220,7 +220,7 @@ export function PicturesScreen({
                 <li key={p.id}>
                   <button
                     type="button"
-                    className="picture-thumb"
+                    className={p.adult ? "picture-thumb picture-thumb-adult" : "picture-thumb"}
                     aria-label={`${strings.chat.openPicture}: ${p.character_name}`}
                     onClick={() => {
                       setOpen(p.id);

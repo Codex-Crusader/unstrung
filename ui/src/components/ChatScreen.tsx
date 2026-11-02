@@ -41,6 +41,7 @@ import {
   refreshContext,
   restartEngine,
   nextChapter,
+  savePersona,
 } from "../api";
 import { strings } from "../strings";
 import { Avatar } from "./Avatar";
@@ -60,6 +61,56 @@ const STICK_DISTANCE = 80;
 
 /** `replyAfter` value for a new greeting: no earlier message stays in view. Message IDs start at 1. */
 const BEFORE_FIRST = 0;
+
+/** Asks the persona's age once, for a chat with an 18+ character. */
+function PersonaAge({ persona, onSaved }: { persona: Persona; onSaved: () => void }) {
+  const t = strings.chat;
+  const [age, setAge] = useState("");
+  const [error, setError] = useState<UiError | null>(null);
+  const value = Math.trunc(Number(age));
+  return (
+    <div className="chat-notice persona-age" role="group" aria-label={t.personaAgeTitle}>
+      <p>{t.personaAge(persona.name)}</p>
+      <label>
+        {t.personaAgeLabel}{" "}
+        <input
+          type="number"
+          min={1}
+          max={150}
+          value={age}
+          onChange={(e) => {
+            setAge(e.target.value);
+          }}
+        />
+      </label>{" "}
+      <button
+        type="button"
+        className="button"
+        disabled={!(value >= 1 && value <= 150)}
+        onClick={() => {
+          savePersona(
+            persona.id,
+            {
+              name: persona.name,
+              description: persona.description,
+              appearance_tags: persona.appearance_tags,
+              outfit: persona.outfit,
+              age: value,
+            },
+            { kind: "keep" },
+          )
+            .then(onSaved)
+            .catch((e: unknown) => {
+              setError(toUiError(e));
+            });
+        }}
+      >
+        {t.personaAgeSave}
+      </button>
+      {error && <ErrorNote error={error} />}
+    </div>
+  );
+}
 
 export function ChatScreen({
   status,
@@ -483,6 +534,16 @@ export function ChatScreen({
         />
 
         {view.model_removed && <p className="chat-notice">{strings.header.modelRemoved(view.model_removed)}</p>}
+        {view.ask_persona_age && view.persona && (
+          <PersonaAge
+            persona={view.persona}
+            onSaved={() => {
+              openChat(view.chat.id)
+                .then(setView)
+                .catch(() => {});
+            }}
+          />
+        )}
         <div
           className="messages"
           ref={listRef}

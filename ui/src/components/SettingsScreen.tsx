@@ -7,6 +7,7 @@ import {
   exportBackup,
   freeUpCandidates,
   freeUpSpace,
+  getAdultContent,
   getNotify,
   getUiSettings,
   listCopies,
@@ -15,6 +16,7 @@ import {
   pickFolder,
   replaceFromBackup,
   restartSafe,
+  setAdultContent,
   setNotify,
   setUiSetting,
   stopReply,
@@ -57,6 +59,74 @@ function NotifyToggle() {
 }
 
 /** One setting as a row of choices. */
+/** Settings > Content: adult content, off at install. On asks for 18+ once. */
+function AdultToggle() {
+  const s = strings.settings;
+  const [on, setOn] = useState<boolean | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<UiError | null>(null);
+  useEffect(() => {
+    getAdultContent()
+      .then(setOn)
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  }, []);
+  const save = (next: boolean) => {
+    setAsking(false);
+    setAdultContent(next)
+      .then(() => {
+        setOn(next);
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  };
+  if (on === null) return error ? <ErrorNote error={error} /> : null;
+  return (
+    <>
+      <label className="check-confirm">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => {
+            if (e.target.checked) setAsking(true);
+            else save(false);
+          }}
+        />
+        {s.adultLabel}
+      </label>
+      <p className="field-hint">{s.adultHint}</p>
+      {asking && (
+        <div role="alertdialog" aria-label={s.adultAsk}>
+          <p>{s.adultAsk}</p>
+          <div className="safe-actions">
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                save(true);
+              }}
+            >
+              {s.adultYes}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
+                setAsking(false);
+              }}
+            >
+              {s.adultNo}
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <ErrorNote error={error} />}
+    </>
+  );
+}
+
 function Choices({
   label,
   name,
@@ -620,6 +690,11 @@ export function SettingsScreen() {
       <section className="settings-group" aria-label={s.notifications}>
         <h2>{s.notifications}</h2>
         <NotifyToggle />
+      </section>
+
+      <section className="settings-group" aria-label={s.content}>
+        <h2>{s.content}</h2>
+        <AdultToggle />
       </section>
 
       <section className="settings-group" aria-label={s.safety}>

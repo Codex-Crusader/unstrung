@@ -55,6 +55,8 @@ import {
   storageUsage,
   freeUpCandidates,
   moveFolder,
+  getAdultContent,
+  setAdultContent,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -383,6 +385,14 @@ async function checkSettings(show: (screen: Screen) => void): Promise<string> {
   await getCurrentWebview().setZoom(1);
   if (!Array.isArray(await listCopies())) return "settings: the copies did not list";
   if (typeof (await canReadPictures()) !== "boolean") return "settings: can_read_pictures";
+  // The adult setting: on, then back as it was in the same run.
+  const adultBefore = await getAdultContent();
+  try {
+    await setAdultContent(true);
+    if (!(await getAdultContent())) return "settings: adult content did not turn on";
+  } finally {
+    await setAdultContent(adultBefore);
+  }
   return "";
 }
 
