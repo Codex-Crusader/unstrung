@@ -5,6 +5,7 @@ use crate::commands::CmdResult;
 use serde::Serialize;
 use tauri::State;
 use unstrung_core::Error;
+use unstrung_core::db::snapshots::{self, Snapshot};
 use unstrung_core::paths::AppPaths;
 use unstrung_core::repair::{self, Finding};
 use unstrung_core::start::{self, SafeReason};
@@ -88,6 +89,21 @@ pub async fn repair_fix(info: State<'_, StartInfo>, full: bool) -> CmdResult<Vec
         if full { "full" } else { "quick" }
     );
     Ok(done)
+}
+
+/// The copies of the chats file, newest first.
+#[tauri::command]
+pub fn list_copies(info: State<'_, StartInfo>) -> Vec<Snapshot> {
+    snapshots::list(&info.paths.backups())
+}
+
+/// Puts a copy back as the chats file. Only in safe start, where the chats
+/// file is closed. "Start normally" then opens it.
+#[tauri::command]
+pub async fn restore_copy(info: State<'_, StartInfo>, name: String) -> CmdResult<()> {
+    only_in_safe_start(&info)?;
+    snapshots::restore(&info.paths, &name).await?;
+    Ok(())
 }
 
 /// Lines of the app log in the report.

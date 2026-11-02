@@ -199,6 +199,8 @@ fn main() {
             safe::diagnostic_report,
             safe::repair_check,
             safe::repair_fix,
+            safe::list_copies,
+            safe::restore_copy,
             setup::setup_state,
             setup::pick_folder,
             setup::check_folder,
@@ -306,6 +308,12 @@ fn prefers_light_theme() -> bool {
 async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     // Db::open checks the file for damage before it changes anything.
     let db = Db::open(&paths.database()).await?;
+    // A missed copy must not stop the app: the next start tries again.
+    match db.daily_snapshot(&paths.database()).await {
+        Ok(Some(file)) => log::info!("daily copy of the chats: {}", file.display()),
+        Ok(None) => {}
+        Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
+    }
     unstrung_core::avatar::clear_staging(&paths);
     starters::ensure(&db, &paths).await?;
     let startup = models::startup(&db, &paths).await?;

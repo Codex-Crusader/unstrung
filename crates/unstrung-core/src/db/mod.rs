@@ -6,6 +6,7 @@ mod images;
 mod memories;
 mod messages;
 mod personas;
+pub mod snapshots;
 
 pub use characters::{Character, CharacterFields, WorldEntry};
 pub use chats::{Chat, ChatSummary, RecentChat};
@@ -59,24 +60,8 @@ async fn backup(pool: &SqlitePool, db_path: &Path, schema: i64) -> Result<PathBu
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
     let file = dir.join(format!("{BACKUP_PREFIX}{schema}-{stamp}.db"));
-    sqlx::query("VACUUM INTO ?")
-        .bind(file.to_string_lossy().into_owned())
-        .execute(pool)
-        .await?;
-    let mut copies: Vec<(u128, PathBuf)> = std::fs::read_dir(&dir)?
-        .flatten()
-        .filter_map(|e| {
-            let name = e.file_name().into_string().ok()?;
-            let rest = name.strip_prefix(BACKUP_PREFIX)?.strip_suffix(".db")?;
-            Some((rest.rsplit('-').next()?.parse().ok()?, e.path()))
-        })
-        .collect();
-    copies.sort_unstable_by_key(|c| std::cmp::Reverse(c.0));
-    for (_, old) in copies.iter().skip(KEEP_BACKUPS) {
-        if let Err(e) = std::fs::remove_file(old) {
-            log::warn!("could not delete the old copy {}: {e}", old.display());
-        }
-    }
+    snapshots::copy_into(pool, &file).await?;
+    snapshots::prune(&dir, BACKUP_PREFIX, KEEP_BACKUPS)?;
     Ok(file)
 }
 
@@ -120,9 +105,15 @@ impl Db {
                 log::info!("database copied to {} before the update", copy.display());
             }
             _ if !ok => {
-                // Phase 7 adds snapshots and the restore screen. Until then
-                // the chats stay usable.
+                // With a copy to go back to, safe start offers it. Without
+                // one, the chats stay usable as they are.
                 log::error!("the database failed its quick check");
+                if !snapshots::list(&path.with_file_name("backups")).is_empty() {
+                    pool.close().await;
+                    return Err(Error::Damaged(
+                        "the chats file is damaged. Safe start can put back a copy".into(),
+                    ));
+                }
             }
             _ => {}
         }

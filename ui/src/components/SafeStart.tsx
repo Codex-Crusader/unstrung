@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   diagnosticReport,
+  listCopies,
   repairCheck,
+  restoreCopy,
   repairFix,
   selfTestMode,
   selfTestReport,
   startNormally,
   toUiError,
   type Finding,
+  type Snapshot,
   type StartView,
   type UiError,
 } from "../api";
@@ -67,6 +70,7 @@ export function SafeStart({ start }: { start: StartView }) {
         {copied === false && <p className="field-hint warn">{s.copyFailed}</p>}
         <p className="field-hint">{s.reportHint}</p>
         <QuickRepair />
+        <Copies />
         {error && <ErrorNote error={error} />}
       </div>
     </main>
@@ -95,6 +99,7 @@ function useSafeSelfTest() {
         if (found.map((f) => f.area).join() !== areas.join())
           return await fail(`quick repair returned ${found.map((f) => f.area).join()}`);
         if (found.find((f) => f.area === "data")?.state !== "ok") return await fail("quick repair: the test data failed");
+        if (!Array.isArray(await listCopies())) return await fail("the copies of the chats did not list");
         const fixed = await repairFix();
         if (fixed.some((f) => f.state === "can_fix" || f.state === "needs_action"))
           return await fail(`quick repair left a problem: ${JSON.stringify(fixed)}`);
@@ -109,6 +114,97 @@ function useSafeSelfTest() {
 function size(bytes: number): string {
   if (bytes < 1024 * 1024) return `${String(Math.max(1, Math.round(bytes / 1024)))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** The copies of the chats file. Putting one back asks first. */
+function Copies() {
+  const s = strings.safe;
+  const [copies, setCopies] = useState<Snapshot[] | null>(null);
+  const [chosen, setChosen] = useState<Snapshot | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<UiError | null>(null);
+  useEffect(() => {
+    listCopies()
+      .then(setCopies)
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  }, []);
+  const when = (c: Snapshot) => new Date(c.created_ms).toLocaleString();
+  const putBack = (c: Snapshot) => {
+    setBusy(true);
+    setError(null);
+    restoreCopy(c.name)
+      .then(() => {
+        setDone(true);
+        setChosen(null);
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
+  return (
+    <section className="quick-repair" aria-label={s.copies}>
+      <h2>{s.copies}</h2>
+      <p className="field-hint">{s.copiesHint}</p>
+      {copies?.length === 0 && <p className="field-hint">{s.noCopies}</p>}
+      {copies && copies.length > 0 && !done && (
+        <ul className="repair-list">
+          {copies.map((c) => (
+            <li key={c.name}>
+              <span>
+                {when(c)} · {s.copyKind(c.kind)} · {size(c.bytes)}
+              </span>
+              <button
+                type="button"
+                className="button button-quiet"
+                disabled={busy}
+                onClick={() => {
+                  setChosen(c);
+                }}
+              >
+                {s.putBack}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {chosen && !done && (
+        <div role="alertdialog" aria-label={s.putBack}>
+          <p>{s.putBackAsk(when(chosen))}</p>
+          <div className="safe-actions">
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                putBack(chosen);
+              }}
+            >
+              {busy ? s.puttingBack : s.putBackYes}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              disabled={busy}
+              onClick={() => {
+                setChosen(null);
+              }}
+            >
+              {s.cancel}
+            </button>
+          </div>
+        </div>
+      )}
+      {done && <p className="field-hint">{s.putBackDone}</p>}
+      {error && <ErrorNote error={error} />}
+    </section>
+  );
 }
 
 /** Checks first, shows the result, and fixes only after the user presses Fix. */

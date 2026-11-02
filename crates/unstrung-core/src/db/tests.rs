@@ -350,3 +350,102 @@ async fn pictures_are_saved_listed_and_deleted() {
     db.delete_character(id).await.unwrap();
     assert!(db.chat_images(chat).await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn one_copy_a_day_and_the_last_seven_stay() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("app.db");
+    let db = Db::open(&file).await.unwrap();
+    assert!(db.snapshot_on_day(&file, 1).await.unwrap().is_some());
+    // The same day: no second copy.
+    assert!(db.snapshot_on_day(&file, 1).await.unwrap().is_none());
+    for day in 2..=9 {
+        db.snapshot_on_day(&file, day).await.unwrap();
+    }
+    let list = snapshots::list(&dir.path().join("backups"));
+    assert_eq!(list.len(), 7, "{list:?}");
+    assert!(list.iter().all(|c| c.kind == "daily"));
+    assert!(
+        list[0].name.starts_with("daily-9-"),
+        "newest first: {list:?}"
+    );
+    assert!(!list.iter().any(|c| c.name.starts_with("daily-2-")));
+    db.close().await;
+}
+
+#[tokio::test]
+async fn a_copy_comes_back_and_the_replaced_file_is_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
+    let db = Db::open(&paths.database()).await.unwrap();
+    db.set_meta("story", "old").await.unwrap();
+    db.snapshot_on_day(&paths.database(), 1).await.unwrap();
+    db.set_meta("story", "new").await.unwrap();
+    db.close().await;
+    let name = snapshots::list(&paths.backups())[0].name.clone();
+
+    // Only a name from the list.
+    for bad in ["../app.db", "daily-1-.db", "app.db"] {
+        assert!(snapshots::restore(&paths, bad).await.is_err(), "{bad}");
+    }
+    snapshots::restore(&paths, &name).await.unwrap();
+    let db = Db::open(&paths.database()).await.unwrap();
+    assert_eq!(db.meta("story").await.unwrap().as_deref(), Some("old"));
+    db.close().await;
+    // The replaced file waits in backups, and is not offered as a copy.
+    let aside: Vec<_> = std::fs::read_dir(paths.backups())
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with("replaced-"))
+        .collect();
+    assert_eq!(aside.len(), 1);
+    assert!(aside[0].path().join("app.db").is_file());
+    assert_eq!(snapshots::list(&paths.backups()).len(), 1);
+
+    // A damaged copy is refused, and the chats file stays.
+    std::fs::write(paths.backups().join("daily-5-123.db"), b"not a database").unwrap();
+    let err = snapshots::restore(&paths, "daily-5-123.db")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Damaged(_)), "{err:?}");
+    let db = Db::open(&paths.database()).await.unwrap();
+    assert_eq!(db.meta("story").await.unwrap().as_deref(), Some("old"));
+    db.close().await;
+}
+
+/// A database that opens but fails the quick check: one table page is
+/// overwritten.
+async fn damaged_database(dir: &Path) -> PathBuf {
+    let file = dir.join("app.db");
+    let db = Db::open(&file).await.unwrap();
+    for i in 0..2000 {
+        db.set_meta(&format!("key {i}"), &"x".repeat(40))
+            .await
+            .unwrap();
+    }
+    db.close().await;
+    let mut bytes = std::fs::read(&file).unwrap();
+    let page = 4096;
+    let at = bytes.len() / 2 / page * page;
+    for b in &mut bytes[at + 8..at + page] {
+        *b = 0x5a;
+    }
+    std::fs::write(&file, bytes).unwrap();
+    file
+}
+
+#[tokio::test]
+async fn a_damaged_file_goes_to_safe_start_only_with_a_copy() {
+    // No copy: the chats stay usable.
+    let dir = tempfile::tempdir().unwrap();
+    let file = damaged_database(dir.path()).await;
+    Db::open(&file).await.unwrap().close().await;
+    // With a copy: safe start offers it.
+    std::fs::create_dir_all(dir.path().join("backups")).unwrap();
+    std::fs::write(dir.path().join("backups").join("daily-1-5.db"), b"copy").unwrap();
+    let err = Db::open(&file)
+        .await
+        .err()
+        .expect("a damaged file must not open");
+    assert!(matches!(err, Error::Damaged(_)), "{err:?}");
+}

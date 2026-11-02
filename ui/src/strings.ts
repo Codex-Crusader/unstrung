@@ -471,6 +471,17 @@ export const strings = {
     fixing: "Fixing...",
     fix: (n: number) => (n === 1 ? "Fix 1 problem" : `Fix ${String(n)} problems`),
     noProblems: "Quick repair found no problems.",
+    copies: "Copies of your chats",
+    copiesHint: "Unstrung copies your chats once a day and before each update. Put a copy back if your chats are damaged.",
+    noCopies: "There are no copies yet.",
+    copyKind: (kind: string) => (kind === "update" ? "Before an update" : "Daily copy"),
+    putBack: "Put back",
+    putBackAsk: (when: string) =>
+      `Your chats, characters and personas go back to ${when}. Later changes are lost. The current chats file moves to the backups folder, so nothing is deleted.`,
+    putBackYes: "Put this copy back",
+    cancel: "Cancel",
+    puttingBack: "Putting the copy back...",
+    putBackDone: "The copy is back. Press Start normally.",
     allFixed: "Quick repair is done. Press Start normally.",
     findings: new Map<string, (size: string) => string>([
       ["engine.ok", () => "Chat engine: none is left from an earlier run."],

@@ -564,6 +564,19 @@ export const repairCheck = (full = false) => invoke<Finding[]>("repair_check", {
 /** Quick repair, step 2: checks again and fixes. Safe start only. */
 export const repairFix = (full = false) => invoke<Finding[]>("repair_fix", { full });
 
+/** A copy of the chats file: one a day, and one before each update. */
+export interface Snapshot {
+  name: string;
+  kind: "daily" | "update";
+  created_ms: number;
+  bytes: number;
+}
+
+/** The copies of the chats file, newest first. */
+export const listCopies = () => invoke<Snapshot[]>("list_copies");
+/** Puts a copy back as the chats file. Safe start only. */
+export const restoreCopy = (name: string) => invoke<null>("restore_copy", { name });
+
 export interface SelfTestReport {
   ok: boolean;
   detail: string;
