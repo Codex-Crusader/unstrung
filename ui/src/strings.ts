@@ -540,6 +540,8 @@ export const strings = {
       set_aside: "Old data that a restore or an import set aside",
     },
     view: "View",
+    hiddenChats: (n: number) =>
+      n === 1 ? "1 chat with an 18+ character" : `${String(n)} chats with 18+ characters`,
     nothingToFree: "There is nothing to remove.",
     modelsHint: "To remove a chat or picture model, open Models.",
     freeButton: (size: string) => `Remove (${size})`,

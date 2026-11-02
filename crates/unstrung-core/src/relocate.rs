@@ -31,7 +31,7 @@ pub struct Plan {
     pub mark: Option<PathBuf>,
 }
 
-fn key(p: &Path) -> String {
+pub(crate) fn key(p: &Path) -> String {
     p.to_string_lossy()
         .trim_end_matches(['\\', '/'])
         .replace('/', "\\")

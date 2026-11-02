@@ -5,7 +5,7 @@
 use crate::db::{Db, now_ms};
 use crate::error::Result;
 use crate::paths::AppPaths;
-use crate::repair::folder_size;
+use crate::repair::{file_size, folder_size};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -34,13 +34,6 @@ pub struct Usage {
     /// The folders that Change location moves.
     pub library: PathBuf,
     pub models: PathBuf,
-}
-
-fn file_size(path: &Path) -> u64 {
-    std::fs::symlink_metadata(path)
-        .ok()
-        .filter(std::fs::Metadata::is_file)
-        .map_or(0, |m| m.len())
 }
 
 /// The entries of `dir` whose names start with `prefix`.
@@ -80,7 +73,7 @@ pub fn usage(paths: &AppPaths) -> Usage {
         + sum(named(&backups, "daily-"))
         + sum(named(&backups, "before-"));
     // Data that a restore or a Replace moved aside. Nothing removes it by itself.
-    let set_aside = sum(named(&backups, "replaced-")) + sum(named(&library, "gallery-replaced-"));
+    let set_aside = sum(set_aside(paths));
     let temp = crate::repair::temp_bytes(paths)
         + sum(named(&backups, "import-"))
         + sum(named(&backups, "export-"))
@@ -157,6 +150,9 @@ pub struct Candidate {
     pub bytes: u64,
     /// For "View": what goes.
     pub items: Vec<String>,
+    /// Deleted chats of 18+ characters that go too, but are not named
+    /// while adult content is off.
+    pub hidden: usize,
     /// Safe to remove, so it starts checked.
     pub checked: bool,
 }
@@ -172,8 +168,16 @@ fn set_aside_name(name: &str) -> bool {
 }
 
 fn set_aside(paths: &AppPaths) -> Vec<PathBuf> {
-    [paths.backups(), paths.library()]
-        .iter()
+    let library = paths.library();
+    let mut dirs = vec![paths.backups(), library.clone()];
+    // A Replace sets old pictures aside next to the gallery. After the
+    // pictures moved away from the app folder, older ones stay there.
+    // shortcut: a library moved twice (D: then E:) leaves the D: ones out,
+    // add a list of old library folders if that ever happens for real.
+    if crate::relocate::key(&library) != crate::relocate::key(paths.root()) {
+        dirs.push(paths.root().to_path_buf());
+    }
+    dirs.iter()
         .flat_map(|dir| {
             std::fs::read_dir(dir)
                 .into_iter()
@@ -196,11 +200,15 @@ pub async fn candidates(db: &Db, paths: &AppPaths) -> Result<Vec<Candidate>> {
             id: "temp",
             bytes: temp,
             items: Vec::new(),
+            hidden: 0,
             checked: true,
         });
     }
     // All of them, 18+ too: the purge removes all of them.
     let deleted = db.deleted_chats(true).await?;
+    let shown = db
+        .deleted_chats(crate::content::adult_on(db).await?)
+        .await?;
     if !deleted.is_empty() {
         list.push(Candidate {
             id: "deleted_chats",
@@ -208,10 +216,11 @@ pub async fn candidates(db: &Db, paths: &AppPaths) -> Result<Vec<Candidate>> {
                 .iter()
                 .map(|c| folder_size(&paths.gallery().join(c.chat_id.to_string())))
                 .sum(),
-            items: deleted
+            items: shown
                 .iter()
                 .map(|c| format!("{}: {}", c.character_name, c.preview))
                 .collect(),
+            hidden: deleted.len() - shown.len(),
             checked: false,
         });
     }
@@ -221,6 +230,7 @@ pub async fn candidates(db: &Db, paths: &AppPaths) -> Result<Vec<Candidate>> {
             id: "set_aside",
             bytes: aside.iter().map(|p| folder_size(p)).sum(),
             items: aside.iter().map(|p| p.display().to_string()).collect(),
+            hidden: 0,
             checked: false,
         });
     }
@@ -310,6 +320,27 @@ mod tests {
                 .iter()
                 .all(|c| c.id != "set_aside")
         );
+    }
+
+    #[test]
+    fn pictures_set_aside_before_a_move_still_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let moved = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        crate::location::Location {
+            library: Some(moved.path().to_path_buf()),
+            models: None,
+        }
+        .save(paths.root())
+        .unwrap();
+        paths.ensure().unwrap();
+        let old = paths.root().join("gallery-replaced-5");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(old.join("p.png"), [0u8; 4]).unwrap();
+        assert_eq!(set_aside(&paths), vec![old]);
+        let usage = usage(&paths);
+        let aside = usage.parts.iter().find(|p| p.kind == "set_aside").unwrap();
+        assert_eq!(aside.bytes, 4);
     }
 
     #[test]

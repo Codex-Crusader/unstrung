@@ -441,9 +441,7 @@ impl PictureService {
                 model,
                 crate::content::mature_chat(self.chats.db(), &character, persona.as_ref()).await?,
             );
-            // The scene step's flag is saved as `adult`: a clean prompt like
-            // "a quiet bedroom" can still be a sexual scene.
-            let rules = safety::check(&old.prompt, people, adult_on, old.adult).map_err(blocked)?;
+            let rules = repaint_rules(&old, people, adult_on).map_err(blocked)?;
             let seed = runner::new_seed();
             let prompts = scene::Prompts {
                 positive: scene::varied(&old.prompt, seed),
@@ -849,6 +847,17 @@ fn blocked(block: safety::Block) -> Error {
 /// Adult rules for one picture: the chat allows mature content now, and the
 /// model is marked for adult pictures. FLUX.2 klein is not, so explicit
 /// pictures stay off with it whatever the setting.
+/// The rules for a variation of `old`, with the ages of today. The scene
+/// step's flag is saved as `adult`: a clean prompt like "a quiet bedroom"
+/// can still be a sexual scene.
+fn repaint_rules(
+    old: &Image,
+    people: safety::People,
+    adult_on: bool,
+) -> std::result::Result<safety::Rules, safety::Block> {
+    safety::check(&old.prompt, people, adult_on, old.adult)
+}
+
 fn adult_rules(model: &ImageModel, mature_chat: bool) -> bool {
     model.mature_ok && mature_chat
 }
@@ -982,5 +991,38 @@ mod adult_tests {
         );
         let z_image = catalog::model("z-image-turbo").unwrap();
         assert!(adult_rules(z_image, true) && !adult_rules(z_image, false));
+    }
+
+    #[test]
+    fn a_variation_of_an_adult_scene_checks_the_ages_of_today() {
+        let old = Image {
+            id: 1,
+            chat_id: 1,
+            message_id: None,
+            file_path: "1/p.png".into(),
+            prompt: "a quiet bedroom".into(),
+            negative_prompt: String::new(),
+            seed: 1,
+            image_model: "z-image-turbo".into(),
+            ref_mode: String::new(),
+            width: 1024,
+            height: 1024,
+            adult: true,
+            created_at: 0,
+        };
+        let people = |persona_age| safety::People {
+            character_age: 30,
+            persona_age,
+        };
+        // The persona is 16 now: the clean words do not hide the scene.
+        assert_eq!(
+            repaint_rules(&old, people(Some(16)), true),
+            Err(safety::Block::MinorInChat)
+        );
+        assert_eq!(
+            repaint_rules(&old, people(Some(30)), false),
+            Err(safety::Block::AdultOff)
+        );
+        assert!(repaint_rules(&old, people(Some(30)), true).unwrap().mature);
     }
 }

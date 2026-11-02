@@ -488,8 +488,12 @@ fn temp_files(paths: &AppPaths, fix: bool) -> Finding {
     f
 }
 
-fn file_size(path: &Path) -> u64 {
-    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+/// The size of a file. A link counts 0, so nothing outside the app counts.
+pub(crate) fn file_size(path: &Path) -> u64 {
+    std::fs::symlink_metadata(path)
+        .ok()
+        .filter(std::fs::Metadata::is_file)
+        .map_or(0, |m| m.len())
 }
 
 /// The bytes of the files in `dir`. Links and junctions are not followed,

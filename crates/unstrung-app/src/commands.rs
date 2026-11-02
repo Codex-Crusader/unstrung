@@ -490,9 +490,16 @@ pub async fn free_up_space(state: State<'_, AppState>, ids: Vec<String>) -> CmdR
     Ok(unstrung_core::storage::free_up(state.chats.db(), &state.paths, &ids).await?)
 }
 
+/// Async, and the delete in a blocking task: an opened backup can hold
+/// thousands of pictures, which would freeze the window.
 #[tauri::command]
-pub fn discard_backup(state: State<'_, AppState>, id: String) {
-    unstrung_core::backup::discard(&state.paths, &id);
+pub async fn discard_backup(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    let paths = state.paths.clone();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        unstrung_core::backup::discard(&paths, &id);
+    })
+    .await;
+    Ok(())
 }
 
 #[tauri::command]

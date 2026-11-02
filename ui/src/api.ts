@@ -345,6 +345,8 @@ export interface Candidate {
   id: "temp" | "deleted_chats" | "set_aside";
   bytes: number;
   items: string[];
+  /** Deleted chats of 18+ characters that go too, not named while adult content is off. */
+  hidden: number;
   checked: boolean;
 }
 export const freeUpCandidates = () => invoke<Candidate[]>("free_up_candidates");

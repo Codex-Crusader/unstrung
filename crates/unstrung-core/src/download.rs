@@ -74,7 +74,7 @@ impl Fetcher {
         cancel: &CancellationToken,
         progress: &mut (dyn FnMut(u64) + Send),
     ) -> Result<()> {
-        if file_len(target) == source.size && sha256_of(target, &mut |_| {})? == source.sha256 {
+        if file_len(target) == source.size && hash(target).await? == source.sha256 {
             return Ok(());
         }
         let part = part_name(target);
@@ -92,7 +92,7 @@ impl Fetcher {
                 source.size
             )));
         }
-        let hash = sha256_of(&part, &mut |_| {})?;
+        let hash = hash(&part).await?;
         if hash != source.sha256 {
             let _ = std::fs::remove_file(&part);
             return Err(Error::Rejected {
@@ -202,6 +202,14 @@ fn offline_or_http(e: reqwest::Error) -> Error {
     } else {
         Error::Http(e)
     }
+}
+
+/// `sha256_of` in a blocking task: a model of some GB takes seconds.
+async fn hash(path: &Path) -> Result<String> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || sha256_of(&path, &mut |_| {}))
+        .await
+        .map_err(|e| Error::Io(std::io::Error::other(e)))?
 }
 
 /// The `.part` file next to `target`. Quick repair deletes old ones.

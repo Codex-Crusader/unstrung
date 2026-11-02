@@ -397,13 +397,14 @@ function FreeUp({ onDone }: { onDone: () => void }) {
             />
             {s.candidates[c.id]}: {bytesText(c.bytes)}
           </label>
-          {c.items.length > 0 && (
+          {(c.items.length > 0 || c.hidden > 0) && (
             <details>
               <summary>{s.view}</summary>
               <ul>
                 {c.items.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
+                {c.hidden > 0 && <li>{s.hiddenChats(c.hidden)}</li>}
               </ul>
             </details>
           )}
