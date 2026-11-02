@@ -289,6 +289,13 @@ export interface RebuiltSummary {
 export const rebuildSummary = (chatId: number) => invoke<RebuiltSummary>("rebuild_summary", { chatId });
 export const saveSummary = (chatId: number, throughId: number, text: string) =>
   invoke<Memory[]>("save_summary", { chatId, throughId, text });
+export interface Exported {
+  bytes: number;
+  avatars: number;
+  pictures: number;
+}
+/** Opens a save picker. `null` when the user closes it. */
+export const exportBackup = () => invoke<Exported | null>("export_backup");
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
 export const keepMemory = (chatId: number, memoryId: number) => invoke<Kept>("keep_memory", { chatId, memoryId });

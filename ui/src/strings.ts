@@ -489,6 +489,13 @@ export const strings = {
       "Unstrung closes and opens again in safe start. There you can put back a copy of your chats or run quick repair. A reply or a picture that is running now stops.",
     restartYes: "Restart now",
     help: "Help",
+    storage: "Storage",
+    backupIntro:
+      "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again.",
+    exportAll: "Export everything",
+    exporting: "Exporting. With many pictures this takes some minutes.",
+    exported: (pictures: number, bytes: number) =>
+      `The backup is saved: ${String(pictures)} ${pictures === 1 ? "picture" : "pictures"}, ${(bytes / (1024 * 1024)).toFixed(1)} MB.`,
   },
   safe: {
     title: "Safe start",

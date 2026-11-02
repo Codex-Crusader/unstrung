@@ -66,6 +66,11 @@ pub(super) fn prune(dir: &Path, prefix: &str, keep: usize) -> Result<()> {
 }
 
 impl Db {
+    /// A clean copy of the open database, for a backup.
+    pub async fn copy_to(&self, file: &Path) -> Result<()> {
+        copy_into(&self.pool, file).await
+    }
+
     /// Today's copy, made once a day (a UTC day). `None` when it exists.
     pub async fn daily_snapshot(&self, db_path: &Path) -> Result<Option<PathBuf>> {
         let day = SystemTime::now()

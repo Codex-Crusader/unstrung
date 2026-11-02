@@ -314,6 +314,38 @@ pub async fn save_summary(
     Ok(state.chats.save_summary(chat_id, through_id, &text).await?)
 }
 
+/// "Export everything": the user picks where the zip goes. `None` when
+/// the user closes the picker.
+#[tauri::command]
+pub async fn export_backup(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> CmdResult<Option<unstrung_core::backup::Exported>> {
+    let Some(to) = rfd::AsyncFileDialog::new()
+        .set_parent(&window)
+        .set_file_name("Unstrung backup.zip")
+        .add_filter("Zip", &["zip"])
+        .save_file()
+        .await
+    else {
+        return Ok(None);
+    };
+    let done = unstrung_core::backup::export(
+        state.chats.db(),
+        &state.paths,
+        to.path(),
+        env!("CARGO_PKG_VERSION"),
+    )
+    .await?;
+    log::info!(
+        "backup exported: {} bytes, {} avatars, {} pictures",
+        done.bytes,
+        done.avatars,
+        done.pictures
+    );
+    Ok(Some(done))
+}
+
 #[tauri::command]
 pub async fn undo_refresh(state: State<'_, AppState>, chat_id: i64) -> CmdResult<ChatView> {
     Ok(state.chats.undo_refresh(chat_id).await?)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   diagnosticReport,
+  exportBackup,
   getNotify,
   getUiSettings,
   listCopies,
@@ -8,6 +9,7 @@ import {
   setNotify,
   setUiSetting,
   toUiError,
+  type Exported,
   type UiError,
 } from "../api";
 import { applyAppearance, type UiSettings } from "../appearance";
@@ -68,6 +70,44 @@ function Choices({
         </label>
       ))}
     </fieldset>
+  );
+}
+
+/** Export everything, and later Import backup. */
+function Storage() {
+  const s = strings.settings;
+  const [state, setState] = useState<"idle" | "working" | Exported>("idle");
+  const [error, setError] = useState<UiError | null>(null);
+  return (
+    <section className="settings-group" aria-label={s.storage}>
+      <h2>{s.storage}</h2>
+      <p>{s.backupIntro}</p>
+      <button
+        type="button"
+        className="button button-quiet"
+        disabled={state === "working"}
+        onClick={() => {
+          setState("working");
+          setError(null);
+          exportBackup()
+            .then((done) => {
+              setState(done ?? "idle");
+            })
+            .catch((e: unknown) => {
+              setState("idle");
+              setError(toUiError(e));
+            });
+        }}
+      >
+        {state === "working" ? s.exporting : s.exportAll}
+      </button>
+      {typeof state === "object" && (
+        <p className="field-hint" role="status">
+          {s.exported(state.pictures, state.bytes)}
+        </p>
+      )}
+      {error && <ErrorNote error={error} />}
+    </section>
   );
 }
 
@@ -183,6 +223,8 @@ export function SettingsScreen() {
           </div>
         )}
       </section>
+
+      <Storage />
 
       <section className="settings-group" aria-label={s.help}>
         <h2>{s.help}</h2>

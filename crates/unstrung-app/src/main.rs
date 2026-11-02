@@ -132,6 +132,7 @@ fn main() {
             commands::open_character,
             commands::open_chat,
             commands::new_chat,
+            commands::export_backup,
             commands::rebuild_summary,
             commands::save_summary,
             commands::next_chapter,
@@ -352,6 +353,7 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
         log::warn!("could not remove the chats deleted more than 7 days ago: {e}");
     }
     unstrung_core::avatar::clear_staging(&paths);
+    unstrung_core::backup::clear_leftovers(&paths);
     starters::ensure(&db, &paths).await?;
     let startup = models::startup(&db, &paths).await?;
     log::info!(
