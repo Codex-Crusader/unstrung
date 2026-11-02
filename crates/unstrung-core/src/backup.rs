@@ -664,6 +664,146 @@ pub async fn add_characters(live: &Db, paths: &AppPaths, id: &str) -> Result<Add
     result
 }
 
+/// The note that asks the next start to replace the data with a backup:
+/// `<import id> <time>`.
+const PENDING: &str = "pending-import.txt";
+
+fn digits(text: &str) -> bool {
+    !text.is_empty() && text.len() <= 40 && text.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// "Replace": the next start swaps the data for the opened backup
+/// (`apply_pending`). The app must restart now, so nothing holds the files.
+pub fn ask_replace(paths: &AppPaths, id: &str) -> Result<()> {
+    let (staged, _) = staging(paths, id)?;
+    if !staged.join(DATABASE).exists() {
+        return Err(Error::Invalid("this backup is no longer open".into()));
+    }
+    let note = format!("{id} {}", now_ms());
+    crate::files::write_atomic(&paths.backups().join(PENDING), note.as_bytes())
+}
+
+/// The moves of a Replace in order: the current data aside into
+/// `replaced-import-<time>`, then the staged backup in. Paths only from
+/// fixed names and the two checked numbers.
+fn replace_moves(paths: &AppPaths, id: &str, stamp: &str) -> Result<Vec<(PathBuf, PathBuf)>> {
+    if !digits(stamp) {
+        return Err(Error::Invalid("the import note is damaged".into()));
+    }
+    let (staged, staged_gallery) = staging(paths, id)?;
+    let aside = paths.backups().join(format!("replaced-import-{stamp}"));
+    let db = paths.database();
+    let journal = |base: &Path, suffix: &str| PathBuf::from(format!("{}{suffix}", base.display()));
+    let mut moves = Vec::new();
+    // The chats file with its journal files, or none of them.
+    for suffix in ["", "-wal", "-shm"] {
+        moves.push((journal(&db, suffix), journal(&aside.join(DATABASE), suffix)));
+    }
+    moves.push((paths.avatars(), aside.join("avatars")));
+    moves.push((
+        paths.gallery(),
+        paths.library().join(format!("gallery-replaced-{stamp}")),
+    ));
+    for suffix in ["", "-wal", "-shm"] {
+        moves.push((
+            journal(&staged.join(DATABASE), suffix),
+            journal(&db, suffix),
+        ));
+    }
+    moves.push((staged.join("avatars"), paths.avatars()));
+    moves.push((staged_gallery, paths.gallery()));
+    Ok(moves)
+}
+
+/// Moves back what `moves` moved, newest first. Safe to run on a
+/// half-done Replace: it moves only what is at the target and not at the source.
+fn undo(moves: &[(PathBuf, PathBuf)]) {
+    for (from, to) in moves.iter().rev() {
+        if to.exists()
+            && !from.exists()
+            && let Err(e) = std::fs::rename(to, from)
+        {
+            log::error!("could not move {} back: {e}", to.display());
+        }
+    }
+}
+
+/// Runs a Replace that the last run asked for, before the chats file
+/// opens. `Ok(false)`: none asked. On a failure, and after a crash part
+/// way, everything moves back and the error says so. The data before the
+/// Replace stays in `backups/replaced-import-<time>`.
+pub fn apply_pending(paths: &AppPaths) -> Result<bool> {
+    let note_file = paths.backups().join(PENDING);
+    let Ok(note) = std::fs::read_to_string(&note_file) else {
+        return Ok(false);
+    };
+    let give_up = |e: Error| {
+        if let Err(r) = std::fs::remove_file(&note_file) {
+            log::error!("could not remove the import note: {r}");
+        }
+        e
+    };
+    let mut parts = note.split_whitespace();
+    let (Some(id), Some(stamp)) = (parts.next(), parts.next()) else {
+        return Err(give_up(Error::Invalid("the import note is damaged".into())));
+    };
+    let moves = replace_moves(paths, id, stamp).map_err(give_up)?;
+    let aside = paths.backups().join(format!("replaced-import-{stamp}"));
+    if aside.exists() {
+        // An earlier start stopped part way (a crash or a power cut).
+        undo(&moves);
+        return Err(give_up(Error::Invalid(
+            "the backup import stopped part way. Your data is back as it was before".into(),
+        )));
+    }
+    let (staged, _) = staging(paths, id).map_err(give_up)?;
+    if !staged.join(DATABASE).exists() {
+        return Err(give_up(Error::Invalid(
+            "the backup to import is gone".into(),
+        )));
+    }
+    let moved = (|| -> Result<()> {
+        std::fs::create_dir_all(&aside)?;
+        for (i, (from, to)) in moves.iter().enumerate() {
+            if !from.exists() {
+                continue;
+            }
+            // A rename on Windows can replace what is at the target: never let it.
+            let moved = if to.exists() {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    format!("{} is in the way", to.display()),
+                ))
+            } else {
+                std::fs::rename(from, to)
+            };
+            if let Err(e) = moved {
+                undo(&moves[..i]);
+                return Err(e.into());
+            }
+        }
+        // While the note is there, the next start undoes the Replace.
+        if let Err(e) = std::fs::remove_file(&note_file) {
+            undo(&moves);
+            return Err(e.into());
+        }
+        Ok(())
+    })();
+    match moved {
+        Ok(()) => {
+            discard(paths, id);
+            log::info!(
+                "the data is replaced by the backup; the old data is in {}",
+                aside.display()
+            );
+            Ok(true)
+        }
+        Err(e) => Err(give_up(Error::Invalid(format!(
+            "the backup could not replace your data ({e}). Your data is as it was before"
+        )))),
+    }
+}
+
 /// Removes the work files of an export or import that a crash left behind.
 pub fn clear_leftovers(paths: &AppPaths) {
     let Ok(entries) = std::fs::read_dir(paths.backups()) else {
@@ -871,6 +1011,93 @@ mod tests {
         let (staged, gallery) = staging(&paths2, &info.id).unwrap();
         assert!(!staged.exists() && !gallery.exists());
         assert!(add_characters(&live, &paths2, &info.id).await.is_err());
+    }
+
+    /// A home with a backup of another home opened in it.
+    async fn home_with_backup(dir: &Path) -> (AppPaths, BackupInfo) {
+        let (other, db) = home(&dir.join("other")).await;
+        db.insert_persona(
+            &PersonaFields {
+                name: "Second".into(),
+                ..Default::default()
+            },
+            None,
+        )
+        .await
+        .unwrap();
+        let zip = dir.join("b.zip");
+        export(&db, &other, &zip, "1").await.unwrap();
+        db.close().await;
+        let paths = AppPaths::at(dir.join("home"));
+        paths.ensure().unwrap();
+        Db::open(&paths.database()).await.unwrap().close().await;
+        std::fs::write(paths.avatars().join("mine.png"), png()).unwrap();
+        let info = open(&paths, &zip).await.unwrap();
+        (paths, info)
+    }
+
+    #[tokio::test]
+    async fn replace_swaps_the_data_and_keeps_the_old_aside() {
+        let dir = tempfile::tempdir().unwrap();
+        let (paths, info) = home_with_backup(dir.path()).await;
+        assert!(!apply_pending(&paths).unwrap(), "none asked");
+        ask_replace(&paths, &info.id).unwrap();
+
+        assert!(apply_pending(&paths).unwrap());
+        let db = Db::open(&paths.database()).await.unwrap();
+        assert_eq!(db.counts().await.unwrap(), [1, 2, 1, 1]);
+        assert!(paths.avatars().join("ren.png").exists());
+        assert!(!paths.avatars().join("mine.png").exists());
+        assert!(paths.gallery().join("1").join("p.png").exists());
+        let aside = std::fs::read_dir(paths.backups())
+            .unwrap()
+            .flatten()
+            .find(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("replaced-import-")
+            })
+            .unwrap()
+            .path();
+        assert!(aside.join(DATABASE).exists() && aside.join("avatars").join("mine.png").exists());
+        assert!(!paths.backups().join(PENDING).exists());
+        assert!(!apply_pending(&paths).unwrap(), "runs once");
+    }
+
+    #[tokio::test]
+    async fn a_failed_or_half_done_replace_puts_everything_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let (paths, info) = home_with_backup(dir.path()).await;
+        let before = std::fs::read(paths.database()).unwrap();
+        ask_replace(&paths, &info.id).unwrap();
+        let note = std::fs::read_to_string(paths.backups().join(PENDING)).unwrap();
+        let stamp = note.split_whitespace().nth(1).unwrap().to_owned();
+        // A file where the old gallery must go: that move fails, after the
+        // chats file and the avatars moved aside.
+        std::fs::create_dir_all(paths.gallery()).unwrap();
+        std::fs::write(
+            paths.library().join(format!("gallery-replaced-{stamp}")),
+            b"x",
+        )
+        .unwrap();
+        let e = apply_pending(&paths).unwrap_err().to_string();
+        assert!(e.contains("could not replace"), "{e}");
+        assert_eq!(std::fs::read(paths.database()).unwrap(), before);
+        assert!(paths.avatars().join("mine.png").exists());
+        assert!(!paths.backups().join(PENDING).exists());
+
+        // A crash part way: the chats file is aside and the note is still there.
+        std::fs::remove_file(paths.library().join(format!("gallery-replaced-{stamp}"))).unwrap();
+        let info = open(&paths, &dir.path().join("b.zip")).await.unwrap();
+        ask_replace(&paths, &info.id).unwrap();
+        let note = std::fs::read_to_string(paths.backups().join(PENDING)).unwrap();
+        let stamp = note.split_whitespace().nth(1).unwrap();
+        let aside = paths.backups().join(format!("replaced-import-{stamp}"));
+        std::fs::create_dir_all(&aside).unwrap();
+        std::fs::rename(paths.database(), aside.join(DATABASE)).unwrap();
+        let e = apply_pending(&paths).unwrap_err().to_string();
+        assert!(e.contains("part way"), "{e}");
+        assert_eq!(std::fs::read(paths.database()).unwrap(), before);
     }
 
     #[tokio::test]

@@ -132,6 +132,7 @@ fn main() {
             commands::open_character,
             commands::open_chat,
             commands::new_chat,
+            commands::replace_from_backup,
             commands::open_backup,
             commands::add_from_backup,
             commands::discard_backup,
@@ -246,6 +247,12 @@ fn main() {
                 selftest::arm_timeout(app.handle().clone());
             }
             let mut theme = None;
+            // Before the chats file opens: nothing holds the files yet.
+            if let Err(e) = unstrung_core::backup::apply_pending(&info.paths) {
+                log::error!("the backup import failed: {e}");
+                info.safe = Some(SafeReason::ImportFailed);
+                info.error = e.to_string();
+            }
             if info.safe.is_none() {
                 // If the chat data does not open, safe start shows why,
                 // instead of an app that closes at once.

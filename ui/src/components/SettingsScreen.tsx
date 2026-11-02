@@ -8,6 +8,7 @@ import {
   getUiSettings,
   listCopies,
   openBackup,
+  replaceFromBackup,
   restartSafe,
   setNotify,
   setUiSetting,
@@ -84,6 +85,7 @@ function Storage() {
   const [state, setState] = useState<"idle" | "working" | Exported>("idle");
   const [importing, setImporting] = useState<"idle" | "working" | BackupInfo | Added>("idle");
   const [error, setError] = useState<UiError | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const fail = (e: unknown) => {
     setImporting("idle");
     setError(toUiError(e));
@@ -152,7 +154,17 @@ function Storage() {
               type="button"
               className="button button-quiet"
               onClick={() => {
+                setConfirmReplace(true);
+              }}
+            >
+              {s.replace}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
                 setImporting("idle");
+                setConfirmReplace(false);
                 void discardBackup(opened.id).catch(() => undefined);
               }}
             >
@@ -160,6 +172,34 @@ function Storage() {
             </button>
           </div>
           <p className="field-hint">{s.addOnlyHint}</p>
+          {confirmReplace && (
+            <div role="alertdialog" aria-label={s.replace}>
+              <p>{s.replaceAsk}</p>
+              <div className="safe-actions">
+                <button
+                  type="button"
+                  className="button danger"
+                  onClick={() => {
+                    replaceFromBackup(opened.id).catch((e: unknown) => {
+                      setConfirmReplace(false);
+                      setError(toUiError(e));
+                    });
+                  }}
+                >
+                  {s.replaceYes}
+                </button>
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => {
+                    setConfirmReplace(false);
+                  }}
+                >
+                  {strings.safe.cancel}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {typeof importing === "object" && "skipped" in importing && (

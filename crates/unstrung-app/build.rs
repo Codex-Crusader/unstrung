@@ -24,6 +24,7 @@ const COMMANDS: &[&str] = &[
     "open_character",
     "open_chat",
     "new_chat",
+    "replace_from_backup",
     "open_backup",
     "add_from_backup",
     "discard_backup",

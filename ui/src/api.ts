@@ -313,6 +313,8 @@ export interface Added {
 /** Opens a file picker, then checks and stages the backup. `null` when the user closes it. */
 export const openBackup = () => invoke<BackupInfo | null>("open_backup");
 export const addFromBackup = (id: string) => invoke<Added>("add_from_backup", { id });
+/** Restarts the app, which then swaps all data for the backup. */
+export const replaceFromBackup = (id: string) => invoke<null>("replace_from_backup", { id });
 export const discardBackup = (id: string) => invoke<null>("discard_backup", { id });
 export const undoRefresh = (chatId: number) => invoke<ChatView>("undo_refresh", { chatId });
 export const keptMemories = (characterId: number) => invoke<Kept>("kept_memories", { characterId });
@@ -503,7 +505,7 @@ export const restartEngine = () => invoke<null>("restart_engine");
 
 export const selfTestMode = () => invoke<boolean>("self_test_mode");
 
-export type SafeReason = "failed_starts" | "asked" | "data_did_not_open";
+export type SafeReason = "failed_starts" | "asked" | "data_did_not_open" | "import_failed";
 
 export interface StartView {
   safe: boolean;

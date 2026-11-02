@@ -374,6 +374,21 @@ pub async fn add_from_backup(
     Ok(unstrung_core::backup::add_characters(state.chats.db(), &state.paths, &id).await?)
 }
 
+/// "Replace": the app restarts, and the new start swaps the data.
+#[tauri::command]
+pub async fn replace_from_backup(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> CmdResult<()> {
+    // A running reply or picture would write to the old data.
+    state.chats.idle()?;
+    unstrung_core::backup::ask_replace(&state.paths, &id)?;
+    log::info!("restart to replace the data with a backup");
+    crate::instance::relaunch(&app, false)?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn discard_backup(state: State<'_, AppState>, id: String) {
     unstrung_core::backup::discard(&state.paths, &id);

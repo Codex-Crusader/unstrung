@@ -46,7 +46,14 @@ export function SafeStart({ start }: { start: StartView }) {
         </p>
         <h1>{s.title}</h1>
         <p>{(start.reason && s.reasons.get(start.reason)) ?? s.reasons.get("asked")}</p>
-        {start.error && <ErrorNote error={{ message: s.dataError, detail: start.error }} />}
+        {start.error && (
+          <ErrorNote
+            error={{
+              message: start.reason === "import_failed" ? s.importError : s.dataError,
+              detail: start.error,
+            }}
+          />
+        )}
         <p className="muted">{s.keep}</p>
         <div className="safe-actions">
           <button

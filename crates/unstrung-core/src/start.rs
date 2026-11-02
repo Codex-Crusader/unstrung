@@ -20,6 +20,8 @@ pub enum SafeReason {
     Asked,
     /// The chat data did not open.
     DataDidNotOpen,
+    /// "Import backup > Replace" failed, and the data before it is back.
+    ImportFailed,
 }
 
 /// Locks the app folder for this process, so two Unstrung processes never

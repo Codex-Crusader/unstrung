@@ -501,6 +501,10 @@ export const strings = {
     backupHolds: (b: { created_ms: number; characters: number; personas: number; chats: number; pictures: number }) =>
       `This backup is from ${new Date(b.created_ms).toLocaleString()}. It holds ${String(b.characters)} characters, ${String(b.personas)} personas, ${String(b.chats)} chats and ${String(b.pictures)} pictures.`,
     addOnly: "Add characters only",
+    replace: "Replace everything",
+    replaceAsk:
+      "Unstrung closes and opens again with the data of the backup: its chats, characters, personas, settings and pictures. Your current data is not deleted: it moves to the backups folder in the app folder. A reply or a picture that is running now stops.",
+    replaceYes: "Replace and restart",
     addOnlyHint:
       "Adds the characters and personas of the backup, with their pictures. Your chats and characters stay as they are. Characters you already have are not added twice.",
     added: (a: { characters: number; personas: number; skipped: number }) =>
@@ -512,8 +516,13 @@ export const strings = {
       ["failed_starts", "Unstrung did not open the last 2 times, so it opened in safe start. The chat engine is off."],
       ["asked", "You asked for safe start. The chat engine is off."],
       ["data_did_not_open", "Your chat data did not open, so Unstrung opened in safe start. The chat engine is off."],
+      [
+        "import_failed",
+        "The backup could not replace your data. Your data is as it was before. Unstrung opened in safe start, and the chat engine is off.",
+      ],
     ]),
     dataError: "The chat data did not open.",
+    importError: "The backup import did not finish.",
     keep: "Safe start does not change your chats, characters, personas or pictures.",
     startNormally: "Start normally",
     copyReport: "Copy diagnostic report",
