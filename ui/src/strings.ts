@@ -508,6 +508,13 @@ export const strings = {
       return `${free} free on the disk with ${list}.`;
     },
     lowSpace: "The disk is almost full. Downloads and pictures can fail.",
+    folderOf: (purpose: string) => (purpose === "library" ? "Pictures folder" : "Models folder"),
+    change: "Change",
+    moveAsk: (purpose: string, folder: string, size: string) =>
+      `Move the ${purpose === "library" ? "pictures" : "models"} to ${folder}? Unstrung copies ${size}, checks the copy, then deletes the old files. Chats and pictures wait until the move ends.`,
+    moveYes: "Move",
+    moving: (done: string, total: string) => `Copying ${done} of ${total}.`,
+    stopMove: "Stop",
     freeUp: "Free up space",
     candidates: {
       temp: "Temporary files and old logs",

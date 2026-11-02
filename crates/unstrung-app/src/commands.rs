@@ -401,6 +401,61 @@ pub async fn storage_usage(state: State<'_, AppState>) -> CmdResult<unstrung_cor
         .map_err(|e| unstrung_core::error::Error::Io(std::io::Error::other(e)).into())
 }
 
+/// Settings > Storage > Change location. Holds the job slot and the picture
+/// download slot, so nothing writes to the folders. A models move stops
+/// the chat engine and starts it again after. `on_progress` gets
+/// [bytes copied, bytes to copy]. Stop (`stop_reply`) ends the copy, and
+/// then nothing changes.
+#[tauri::command]
+pub async fn move_folder(
+    state: State<'_, AppState>,
+    purpose: unstrung_core::location::Purpose,
+    path: String,
+    on_progress: Channel<[u64; 2]>,
+) -> CmdResult<()> {
+    use unstrung_core::relocate;
+    let (token, _guard) = state.chats.begin_job()?;
+    let _pictures = state.pictures.hold()?;
+    if state.models.downloading() {
+        return Err(Error::Invalid("Wait until the model download ends.".into()).into());
+    }
+    let joined = |e: tauri::Error| Error::Io(std::io::Error::other(e));
+    let paths = state.paths.clone();
+    let plan = tauri::async_runtime::spawn_blocking(move || {
+        relocate::plan(&paths, purpose, std::path::Path::new(&path))
+    })
+    .await
+    .map_err(joined)??;
+    let models = purpose == unstrung_core::location::Purpose::Models;
+    if models {
+        state.engine.stop().await;
+    }
+    let paths = state.paths.clone();
+    let total = plan.bytes;
+    emit(&on_progress, [0, total]);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut last = 0;
+        relocate::run(
+            &paths,
+            &plan,
+            &mut |done| {
+                if done - last > total / 200 || done == total {
+                    last = done;
+                    emit(&on_progress, [done, total]);
+                }
+            },
+            &token,
+        )
+    })
+    .await
+    .map_err(joined);
+    if models {
+        state.engine.restart().await;
+    }
+    result??;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn free_up_candidates(
     state: State<'_, AppState>,

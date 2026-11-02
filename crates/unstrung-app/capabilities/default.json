@@ -31,6 +31,7 @@
     "allow-open-character",
     "allow-open-chat",
     "allow-new-chat",
+    "allow-move-folder",
     "allow-free-up-candidates",
     "allow-free-up-space",
     "allow-storage-usage",

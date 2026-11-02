@@ -31,6 +31,9 @@ pub struct Disk {
 pub struct Usage {
     pub parts: Vec<Part>,
     pub disks: Vec<Disk>,
+    /// The folders that Change location moves.
+    pub library: PathBuf,
+    pub models: PathBuf,
 }
 
 fn file_size(path: &Path) -> u64 {
@@ -120,7 +123,7 @@ pub fn usage(paths: &AppPaths) -> Usage {
     let mut disks: Vec<(PathBuf, Disk)> = Vec::new();
     for (folder, path) in [
         ("app", paths.root().to_path_buf()),
-        ("library", library),
+        ("library", library.clone()),
         ("models", paths.models()),
     ] {
         let Some(info) = crate::hardware::disk_of(&path) else {
@@ -141,6 +144,8 @@ pub fn usage(paths: &AppPaths) -> Usage {
     Usage {
         parts,
         disks: disks.into_iter().map(|(_, d)| d).collect(),
+        library,
+        models: paths.models(),
     }
 }
 

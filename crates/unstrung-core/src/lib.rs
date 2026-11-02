@@ -25,6 +25,7 @@ pub mod paths;
 pub mod pictures;
 pub mod presets;
 pub mod prompt;
+pub mod relocate;
 pub mod repair;
 pub mod sidecar;
 pub mod start;

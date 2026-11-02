@@ -242,6 +242,11 @@ impl PictureService {
         Ok(Slot(&self.running, token))
     }
 
+    /// Keeps downloads and removals out while the models folder moves.
+    pub fn hold(&self) -> Result<impl Sized + '_> {
+        self.take_slot()
+    }
+
     pub fn stop_download(&self) {
         if let Ok(running) = self.running.lock()
             && let Some(token) = running.as_ref()

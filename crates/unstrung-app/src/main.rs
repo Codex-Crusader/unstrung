@@ -132,6 +132,7 @@ fn main() {
             commands::open_character,
             commands::open_chat,
             commands::new_chat,
+            commands::move_folder,
             commands::free_up_candidates,
             commands::free_up_space,
             commands::storage_usage,
@@ -352,6 +353,8 @@ fn prefers_light_theme() -> bool {
 }
 
 async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
+    // Before anything reads the pictures or the models.
+    unstrung_core::relocate::recover(&paths);
     // Db::open checks the file for damage before it changes anything.
     let db = Db::open(&paths.database()).await?;
     // A missed copy must not stop the app: the next start tries again.

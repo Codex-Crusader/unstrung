@@ -2812,3 +2812,13 @@ dialog.viewer::backdrop {
   padding-left: 18px;
   overflow-wrap: anywhere;
 }
+
+.folder-path {
+  overflow-wrap: anywhere;
+  color: var(--text-soft);
+}
+
+.folder-row progress {
+  width: 100%;
+  max-width: 480px;
+}

@@ -327,6 +327,16 @@ export type UsageKind =
 export interface Usage {
   parts: { kind: UsageKind; bytes: number }[];
   disks: { folders: ("app" | "library" | "models")[]; free: number; low: boolean }[];
+  library: string;
+  models: string;
+}
+/** Moves the pictures or the models. `onProgress` gets bytes copied and bytes to copy. Stop: `stopReply`. */
+export function moveFolder(purpose: FolderPurpose, path: string, onProgress: (done: number, total: number) => void) {
+  const ch = new Channel<[number, number]>();
+  ch.onmessage = ([done, total]) => {
+    onProgress(done, total);
+  };
+  return invoke<null>("move_folder", { purpose, path, onProgress: ch });
 }
 export interface Candidate {
   id: "temp" | "deleted_chats" | "set_aside";

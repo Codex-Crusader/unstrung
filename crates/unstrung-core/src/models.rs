@@ -476,6 +476,11 @@ impl ModelService {
         client.create_from_gguf(model, &file_name, &sha256).await
     }
 
+    /// A download or a file import is running.
+    pub fn downloading(&self) -> bool {
+        self.running.lock().map_or(true, |r| r.is_some())
+    }
+
     /// Stops the running download. The engine keeps the finished parts.
     pub fn stop_download(&self) {
         if let Ok(running) = self.running.lock()

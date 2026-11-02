@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   addFromBackup,
+  checkFolder,
   diagnosticReport,
   discardBackup,
   exportBackup,
@@ -9,16 +10,21 @@ import {
   getNotify,
   getUiSettings,
   listCopies,
+  moveFolder,
   openBackup,
+  pickFolder,
   replaceFromBackup,
   restartSafe,
   setNotify,
   setUiSetting,
+  stopReply,
   storageUsage,
   toUiError,
   type Added,
   type BackupInfo,
   type Candidate,
+  type FolderCheck,
+  type FolderPurpose,
   type Exported,
   type UiError,
   type Usage,
@@ -90,8 +96,111 @@ export function bytesText(bytes: number): string {
   return `${String(Math.round(bytes / 1024))} KB`;
 }
 
+/** One folder that "Change" moves: pick, check, confirm, copy with progress. */
+function FolderRow({
+  purpose,
+  folder,
+  bytes,
+  onDone,
+}: {
+  purpose: FolderPurpose;
+  folder: string;
+  bytes: number;
+  onDone: () => void;
+}) {
+  const s = strings.settings;
+  const [check, setCheck] = useState<FolderCheck | null>(null);
+  const [picked, setPicked] = useState("");
+  const [copied, setCopied] = useState<[number, number] | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
+  const issues = (check?.issues ?? []).map((i) => strings.welcome.issues.get(i) ?? i);
+  return (
+    <div className="folder-row">
+      <p>
+        {s.folderOf(purpose)}: <span className="folder-path">{folder}</span>{" "}
+        {!check && !copied && (
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              setError(null);
+              pickFolder(folder)
+                .then(async (path) => {
+                  if (!path) return;
+                  setPicked(path);
+                  setCheck(await checkFolder(path, purpose, bytes));
+                })
+                .catch((e: unknown) => {
+                  setError(toUiError(e));
+                });
+            }}
+          >
+            {s.change}
+          </button>
+        )}
+      </p>
+      {check && (
+        <div role="alertdialog" aria-label={s.folderOf(purpose)}>
+          {issues.map((text) => (
+            <p key={text} className="field-hint warn">
+              {text}
+            </p>
+          ))}
+          {!check.blocked && <p>{s.moveAsk(purpose, check.folder, bytesText(bytes))}</p>}
+          <div className="safe-actions">
+            {!check.blocked && (
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setCheck(null);
+                  setCopied([0, bytes]);
+                  moveFolder(purpose, picked, (done, total) => {
+                    setCopied([done, total]);
+                  })
+                    .then(() => {
+                      setCopied(null);
+                      onDone();
+                    })
+                    .catch((e: unknown) => {
+                      setCopied(null);
+                      setError(toUiError(e));
+                    });
+                }}
+              >
+                {s.moveYes}
+              </button>
+            )}
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
+                setCheck(null);
+              }}
+            >
+              {strings.safe.cancel}
+            </button>
+          </div>
+        </div>
+      )}
+      {copied && (
+        <div role="status">
+          <progress value={copied[0]} max={Math.max(copied[1], 1)} />
+          <p className="field-hint">
+            {s.moving(bytesText(copied[0]), bytesText(copied[1]))}{" "}
+            <button type="button" className="button button-quiet" onClick={() => void stopReply()}>
+              {s.stopMove}
+            </button>
+          </p>
+        </div>
+      )}
+      {error && <ErrorNote error={error} />}
+    </div>
+  );
+}
+
 /** A bar of disk use by part, the same as a list in words, and the free space. */
-function UsageView() {
+function UsageView({ onChange }: { onChange: () => void }) {
   const s = strings.settings;
   const [usage, setUsage] = useState<Usage | "failed" | null>(null);
   useEffect(() => {
@@ -125,6 +234,20 @@ function UsageView() {
           {d.low && ` ${s.lowSpace}`}
         </p>
       ))}
+      <FolderRow
+        purpose="library"
+        folder={usage.library}
+        bytes={usage.parts.find((p) => p.kind === "gallery")?.bytes ?? 0}
+        onDone={onChange}
+      />
+      <FolderRow
+        purpose="models"
+        folder={usage.models}
+        bytes={usage.parts
+          .filter((p) => p.kind === "chat_models" || p.kind === "picture_models")
+          .reduce((n, p) => n + p.bytes, 0)}
+        onDone={onChange}
+      />
     </div>
   );
 }
@@ -279,7 +402,12 @@ function Storage() {
   return (
     <section className="settings-group" aria-label={s.storage}>
       <h2>{s.storage}</h2>
-      <UsageView key={measured} />
+      <UsageView
+        key={measured}
+        onChange={() => {
+          setMeasured((n) => n + 1);
+        }}
+      />
       <FreeUp
         onDone={() => {
           setMeasured((n) => n + 1);
