@@ -95,48 +95,51 @@ function Storage() {
     <section className="settings-group" aria-label={s.storage}>
       <h2>{s.storage}</h2>
       <p>{s.backupIntro}</p>
-      <button
-        type="button"
-        className="button button-quiet"
-        disabled={state === "working"}
-        onClick={() => {
-          setState("working");
-          setError(null);
-          exportBackup()
-            .then((done) => {
-              setState(done ?? "idle");
-            })
-            .catch((e: unknown) => {
-              setState("idle");
-              setError(toUiError(e));
-            });
-        }}
-      >
-        {state === "working" ? s.exporting : s.exportAll}
-      </button>
+      <div className="safe-actions">
+        <button
+          type="button"
+          className="button button-quiet"
+          disabled={state === "working"}
+          onClick={() => {
+            setState("working");
+            setError(null);
+            exportBackup()
+              .then((done) => {
+                setState(done ?? "idle");
+              })
+              .catch((e: unknown) => {
+                setState("idle");
+                setError(toUiError(e));
+              });
+          }}
+        >
+          {state === "working" ? s.exporting : s.exportAll}
+        </button>
+        {opened === null && (
+          <button
+            type="button"
+            className="button button-quiet"
+            disabled={importing === "working"}
+            onClick={() => {
+              setImporting("working");
+              setError(null);
+              openBackup()
+                .then((info) => {
+                  setImporting(info ?? "idle");
+                })
+                .catch(fail);
+            }}
+          >
+            {importing === "working" ? s.importing : s.importBackup}
+          </button>
+        )}
+      </div>
       {typeof state === "object" && (
         <p className="field-hint" role="status">
           {s.exported(state.pictures, state.bytes)}
         </p>
       )}
-      {opened === null ? (
-        <button
-          type="button"
-          className="button button-quiet"
-          disabled={importing === "working"}
-          onClick={() => {
-            setImporting("working");
-            setError(null);
-            openBackup()
-              .then((info) => {
-                setImporting(info ?? "idle");
-              })
-              .catch(fail);
-          }}
-        >
-          {importing === "working" ? s.importing : s.importBackup}
-        </button>
-      ) : (
+      {opened !== null && (
         <div role="group" aria-label={s.importBackup}>
           <p>{s.backupHolds(opened)}</p>
           <div className="safe-actions">
