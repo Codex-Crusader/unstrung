@@ -130,6 +130,12 @@ fn clean_and_duplicates() {
     );
     assert_eq!(clean("None.", 25), None);
     assert_eq!(clean("None yet.", 25), None);
+    let a = parse_pass(
+        "Goal: Find the ship.\nSummary: They have sex while her 15-year-old sister sleeps.",
+        &[],
+        &[],
+    );
+    assert!(a.summary.is_none() && a.goal.is_some(), "{a:?}");
     let a = parse_pass("Goal: none yet.\nSummary: Kai came in.", &[], &[]);
     assert_eq!((a.goal, a.summary.as_deref()), (None, Some("Kai came in.")));
     assert_eq!(

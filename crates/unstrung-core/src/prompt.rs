@@ -374,12 +374,21 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     };
     let style = input.style;
     let tuning = input.tuning;
-    // A minor mentioned in the messages this reply sees makes it general,
-    // whatever the gate says. A false alarm only costs one general reply.
+    // A minor mentioned in the messages or the memory notes this reply sees
+    // makes it general, whatever the gate says. A note that mentions a minor
+    // keeps the chat general until the user hides it in the Memory panel.
     let minor_mentioned = input
         .history
         .iter()
-        .any(|m| crate::pictures::safety::mentions_minor(&m.content));
+        .any(|m| crate::pictures::safety::mentions_minor(&m.content))
+        || input.recall.is_some_and(|r| {
+            r.goal
+                .iter()
+                .chain(&r.summary)
+                .chain(&r.facts)
+                .chain(&r.kept)
+                .any(|t| crate::pictures::safety::mentions_minor(t))
+        });
     let mature = input.mature && !minor_mentioned;
     let (tone_text, tone_temperature) = crate::presets::tone(input.tone, input.tone_custom);
     let tone_text = if mature {

@@ -242,8 +242,15 @@ pub async fn candidates(db: &Db, paths: &AppPaths) -> Result<Vec<Candidate>> {
 /// Removes the candidates named in `ids` that are still offered, and
 /// returns the bytes they held. An unknown or gone id does nothing.
 pub async fn free_up(db: &Db, paths: &AppPaths, ids: &[String]) -> Result<u64> {
-    let mut freed = 0;
-    for c in candidates(db, paths).await? {
+    // Measured again after, so a delete that failed does not count.
+    let chosen = |list: &[Candidate]| -> u64 {
+        list.iter()
+            .filter(|c| ids.iter().any(|id| id == c.id))
+            .map(|c| c.bytes)
+            .sum()
+    };
+    let before = candidates(db, paths).await?;
+    for c in &before {
         if !ids.iter().any(|id| id == c.id) {
             continue;
         }
@@ -271,9 +278,9 @@ pub async fn free_up(db: &Db, paths: &AppPaths, ids: &[String]) -> Result<u64> {
                 }
             }
         }
-        freed += c.bytes;
     }
-    Ok(freed)
+    let after = candidates(db, paths).await?;
+    Ok(chosen(&before).saturating_sub(chosen(&after)))
 }
 
 #[cfg(test)]
@@ -321,6 +328,34 @@ mod tests {
                 .iter()
                 .all(|c| c.id != "set_aside")
         );
+    }
+
+    /// Windows only: a file open with no sharing cannot be deleted, as when
+    /// another program has it open.
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn a_failed_delete_does_not_count_as_freed() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        paths.ensure().unwrap();
+        let db = Db::open(&paths.database()).await.unwrap();
+        let aside = paths.backups().join("replaced-123");
+        std::fs::create_dir_all(&aside).unwrap();
+        let file = aside.join("app.db");
+        std::fs::write(&file, [0u8; 10]).unwrap();
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&file)
+            .unwrap();
+        let freed = free_up(&db, &paths, &["set_aside".into()]).await.unwrap();
+        drop(held);
+        assert!(
+            file.exists(),
+            "the delete went through, so the test proves nothing"
+        );
+        assert_eq!(freed, 0);
     }
 
     #[tokio::test]

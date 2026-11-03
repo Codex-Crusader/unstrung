@@ -733,6 +733,22 @@ fn a_mature_chat_drops_the_light_flirty_limit() {
 }
 
 #[test]
+fn a_minor_in_the_memory_notes_makes_the_reply_general() {
+    let c = ren();
+    let p = kai();
+    let history = [msg("user", "Hello.")];
+    let recall = crate::memory::Recall {
+        facts: vec!["Kai has a 15-year-old niece.".into()],
+        ..Default::default()
+    };
+    let mut i = input(&c, Some(&p), &history);
+    i.mature = true;
+    i.recall = Some(&recall);
+    let text = build(&i).messages[0].content.clone();
+    assert!(text.contains(GENERAL_SENTENCE) && !text.contains("both adults"));
+}
+
+#[test]
 fn a_minor_in_the_messages_makes_the_reply_general() {
     let c = ren();
     let p = kai();

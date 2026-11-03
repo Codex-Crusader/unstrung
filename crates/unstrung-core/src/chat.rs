@@ -63,6 +63,33 @@ fn refuse_crossing(raw: &str) -> Result<()> {
     })
 }
 
+/// The reply text as it streams, for the hard limit: the stream stops before
+/// a piece that crosses the line shows, and `refuse_crossing` then withholds
+/// the reply. `base` is the text a continued reply goes on from.
+struct LineWatch {
+    seen: String,
+    crossed: bool,
+}
+
+impl LineWatch {
+    fn new(base: &str) -> Self {
+        Self {
+            seen: base.to_owned(),
+            crossed: false,
+        }
+    }
+
+    /// Adds `piece`. False when it must not show: the text crossed the line,
+    /// with this piece or before it.
+    fn allows(&mut self, piece: &str) -> bool {
+        if !self.crossed {
+            self.seen.push_str(piece);
+            self.crossed = crate::pictures::safety::reply_crosses_line(&self.seen);
+        }
+        !self.crossed
+    }
+}
+
 fn empty_reply(raw: &str) -> Error {
     if raw.trim().is_empty() {
         Error::Engine("the reply was empty".into())
@@ -854,14 +881,23 @@ impl ChatService {
                 old_user_names: &[],
                 mature,
             });
-            let outcome = client
+            let stop = cancel.child_token();
+            let mut line = LineWatch::new("");
+            let mut outcome = client
                 .chat(
                     &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                     REPLY_TIMEOUT,
-                    cancel,
-                    |t| progress(Progress::Text(t)),
+                    &stop,
+                    |t| {
+                        if line.allows(t) {
+                            progress(Progress::Text(t));
+                        } else {
+                            stop.cancel();
+                        }
+                    },
                 )
                 .await?;
+            outcome.stopped = cancel.is_cancelled();
             let content = guard::clean(
                 &outcome.text,
                 &character.name,
@@ -972,12 +1008,20 @@ impl ChatService {
             old_user_names: &old_names,
             mature,
         });
+        let stop = cancel.child_token();
+        let mut line = LineWatch::new(&last.content);
         let outcome = client
             .chat(
                 &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                 REPLY_TIMEOUT,
-                &cancel,
-                |t| progress(Progress::Text(t)),
+                &stop,
+                |t| {
+                    if line.allows(t) {
+                        progress(Progress::Text(t));
+                    } else {
+                        stop.cancel();
+                    }
+                },
             )
             .await?;
         let joined = join_continuation(&last.content, &outcome.text);
@@ -1041,12 +1085,20 @@ impl ChatService {
             old_user_names: &[],
             mature,
         });
+        let stop = cancel.child_token();
+        let mut line = LineWatch::new("");
         let outcome = client
             .chat(
                 &chat_params(&model, &prompt.messages, &prompt.options, tuning.think),
                 REPLY_TIMEOUT,
-                &cancel,
-                |t| progress(Progress::Text(t)),
+                &stop,
+                |t| {
+                    if line.allows(t) {
+                        progress(Progress::Text(t));
+                    } else {
+                        stop.cancel();
+                    }
+                },
             )
             .await?;
         refuse_crossing(&outcome.text)?;
@@ -1944,20 +1996,15 @@ async fn stream_reply(
 ) -> Result<(crate::ollama::ChatOutcome, bool)> {
     let stop = cancel.child_token();
     let mut watch = guard::ReplyWatch::new(user_name, recent);
-    // The hard limit stops the stream before the text shows. The caller's
-    // `refuse_crossing` then withholds the reply.
-    let mut seen = String::new();
-    let mut crossed = false;
+    let mut line = LineWatch::new("");
     let mut outcome = client
         .chat(params, REPLY_TIMEOUT, &stop, |t| {
-            if crossed {
+            if line.crossed {
                 return;
             }
             let shown = watch.push(t);
             if !shown.is_empty() {
-                seen.push_str(&shown);
-                if crate::pictures::safety::reply_crosses_line(&seen) {
-                    crossed = true;
+                if !line.allows(&shown) {
                     stop.cancel();
                     return;
                 }
@@ -1969,8 +2016,7 @@ async fn stream_reply(
         })
         .await?;
     let rest = watch.finish();
-    seen.push_str(&rest);
-    if !rest.is_empty() && !crate::pictures::safety::reply_crosses_line(&seen) {
+    if !rest.is_empty() && line.allows(&rest) {
         progress(Progress::Text(&rest));
     }
     outcome.stopped = cancel.is_cancelled();
@@ -2436,6 +2482,16 @@ mod crossing_tests {
         .await
         .unwrap();
         (shown, outcome)
+    }
+
+    #[test]
+    fn a_continued_reply_counts_the_text_before_it() {
+        let mut line = LineWatch::new("*They have sex.*");
+        assert!(line.allows(" Outside, it rains."));
+        assert!(!line.allows(" Her 15-year-old sister wakes up."));
+        // Once crossed, nothing more shows.
+        assert!(!line.allows(" Then they sleep."));
+        assert!(LineWatch::new("").allows("*They have sex.*"));
     }
 
     #[tokio::test]

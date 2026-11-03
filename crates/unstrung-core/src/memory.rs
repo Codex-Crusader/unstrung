@@ -256,18 +256,25 @@ pub fn parse_pass(answer: &str, user_lines: &[&str], names: &[&str]) -> PassAnsw
             summary.push_str(l);
         }
     }
+    // The hard limit holds for notes too, because the Memory panel shows
+    // them and every later prompt has them. Such a note is dropped, and the
+    // old summary carries on.
+    let fine = |t: &String| !crate::pictures::safety::reply_crosses_line(t);
     let user_words = content_words(&user_lines.join(" "));
     let facts = facts
         .iter()
         .filter(|f| !f.trim_end_matches(['.', ' ']).ends_with('?'))
         .filter_map(|f| clean(f, FACT_WORDS))
         .filter(|f| supported(f, &user_words, names))
+        .filter(fine)
         .take(FACTS_PER_PASS)
         .collect();
     PassAnswer {
         // A question is not a goal: the model asked instead of answering.
-        goal: clean(&goal, GOAL_WORDS).filter(|g| !g.ends_with('?')),
-        summary: clean_sentences(&summary, SUMMARY_WORDS),
+        goal: clean(&goal, GOAL_WORDS)
+            .filter(|g| !g.ends_with('?'))
+            .filter(fine),
+        summary: clean_sentences(&summary, SUMMARY_WORDS).filter(fine),
         facts,
     }
 }
