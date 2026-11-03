@@ -295,6 +295,26 @@ pub fn mentions_minor(text: &str) -> bool {
     words.any(MINOR) || words.has_minor_age()
 }
 
+/// Words of the picture lists that are not sexual, or not a minor, in story
+/// text: "explicit instructions", "a strip of grass", "nothing on TV", and
+/// "baby", a pet name between adults.
+const NOT_IN_REPLIES: [&str; 5] = ["explicit", "strip", "stripping", "nothing on", "baby"];
+
+/// The hard limit for chat text: a reply with explicit words and words or an
+/// age that point to a minor. Suggestive words do not count here, so a
+/// goodnight kiss for a child is fine. A false alarm costs one reply.
+pub fn reply_crosses_line(text: &str) -> bool {
+    let keep = |list: &[&'static str]| -> Vec<&'static str> {
+        list.iter()
+            .copied()
+            .filter(|w| !NOT_IN_REPLIES.contains(w))
+            .collect()
+    };
+    let words = Words::new(text);
+    (words.any(&keep(EXPLICIT)) || words.any_start(EXPLICIT_STARTS))
+        && (words.any(&keep(MINOR)) || words.has_minor_age())
+}
+
 /// The negative terms for these rules.
 pub fn negative_terms(rules: Rules) -> Vec<&'static str> {
     let mut terms = Vec::new();
@@ -410,6 +430,27 @@ mod tests {
         persona_age: None,
         minor_mentioned: false,
     };
+
+    #[test]
+    fn a_reply_crosses_the_line_only_with_sex_and_a_minor() {
+        for text in [
+            "They have sex. Her 15-year-old sister is asleep next door.",
+            "*He undressed the schoolgirl.*",
+            "She is naked and only a teenager.",
+        ] {
+            assert!(reply_crosses_line(text), "{text}");
+        }
+        for text in [
+            "*She pulls him onto the bed and they have sex.*",
+            "She kissed the kid goodnight.",
+            "Come here, baby. I want to have sex with you.",
+            "He gave the kids explicit instructions.",
+            "The kids played on a strip of grass.",
+            "There is nothing on TV for children tonight.",
+        ] {
+            assert!(!reply_crosses_line(text), "{text}");
+        }
+    }
 
     #[test]
     fn a_minor_in_the_story_makes_the_picture_general() {

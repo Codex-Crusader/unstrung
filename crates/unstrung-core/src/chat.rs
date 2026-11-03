@@ -45,6 +45,24 @@ pub const REPEAT_HINT: &str = "Repeating itself? Regenerate.";
 
 /// The error for a reply with no text left. When the model wrote text and the
 /// guard removed all of it, the text was lines for the user.
+/// Shown when `refuse_crossing` withholds a reply.
+const CROSSED_MESSAGE: &str =
+    "This reply was not shown. Unstrung never shows sexual content that involves anyone under 18.";
+
+/// Withholds a reply that crosses the hard limit, whatever the adult
+/// setting. It is not saved, so the model does not see it in the next
+/// prompt. `raw` is the model's own text, before the guard cut anything.
+fn refuse_crossing(raw: &str) -> Result<()> {
+    if !crate::pictures::safety::reply_crosses_line(raw) {
+        return Ok(());
+    }
+    log::warn!("a reply was withheld: explicit words next to a minor");
+    Err(Error::Rejected {
+        message: CROSSED_MESSAGE.into(),
+        why: "explicit words next to a minor".into(),
+    })
+}
+
 fn empty_reply(raw: &str) -> Error {
     if raw.trim().is_empty() {
         Error::Engine("the reply was empty".into())
@@ -851,6 +869,7 @@ impl ChatService {
                 outcome.cut_at_cap,
                 false,
             );
+            refuse_crossing(&outcome.text)?;
             let problem = if outcome.stopped {
                 None
             } else if content.is_empty() {
@@ -962,6 +981,7 @@ impl ChatService {
             )
             .await?;
         let joined = join_continuation(&last.content, &outcome.text);
+        refuse_crossing(&joined)?;
         let content = guard::clean(
             &joined,
             &character.name,
@@ -1029,6 +1049,7 @@ impl ChatService {
                 |t| progress(Progress::Text(t)),
             )
             .await?;
+        refuse_crossing(&outcome.text)?;
         Ok(guard::clean(
             &outcome.text,
             &character.name,
@@ -1844,6 +1865,7 @@ impl ChatService {
                 outcome.cut_at_cap,
                 false,
             );
+            refuse_crossing(&outcome.text)?;
             let problem = if outcome.stopped {
                 None
             } else if repeated {
@@ -1922,10 +1944,23 @@ async fn stream_reply(
 ) -> Result<(crate::ollama::ChatOutcome, bool)> {
     let stop = cancel.child_token();
     let mut watch = guard::ReplyWatch::new(user_name, recent);
+    // The hard limit stops the stream before the text shows. The caller's
+    // `refuse_crossing` then withholds the reply.
+    let mut seen = String::new();
+    let mut crossed = false;
     let mut outcome = client
         .chat(params, REPLY_TIMEOUT, &stop, |t| {
+            if crossed {
+                return;
+            }
             let shown = watch.push(t);
             if !shown.is_empty() {
+                seen.push_str(&shown);
+                if crate::pictures::safety::reply_crosses_line(&seen) {
+                    crossed = true;
+                    stop.cancel();
+                    return;
+                }
                 progress(Progress::Text(&shown));
             }
             if watch.stop() {
@@ -1934,7 +1969,8 @@ async fn stream_reply(
         })
         .await?;
     let rest = watch.finish();
-    if !rest.is_empty() {
+    seen.push_str(&rest);
+    if !rest.is_empty() && !crate::pictures::safety::reply_crosses_line(&seen) {
         progress(Progress::Text(&rest));
     }
     outcome.stopped = cancel.is_cancelled();
@@ -2333,5 +2369,93 @@ mod tests {
         assert_eq!(split_ooc("/oocx").unwrap(), ("user", "/oocx".into()));
         assert!(split_ooc("/ooc").is_err());
         assert!(split_ooc("(())").is_err());
+    }
+}
+
+#[cfg(test)]
+mod crossing_tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    /// A fake engine that streams `pieces` as one chat reply. Returns its port.
+    async fn engine(pieces: &'static [&'static str]) -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut req = vec![0u8; 65536];
+            let _ = socket.read(&mut req).await;
+            let mut body = String::new();
+            for piece in pieces {
+                let line = serde_json::json!({
+                    "message": { "role": "assistant", "content": piece },
+                    "done": false,
+                });
+                body.push_str(&format!("{line}\n"));
+            }
+            body.push_str(
+                r#"{"message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","eval_count":7}"#,
+            );
+            body.push('\n');
+            let head = "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nConnection: close\r\n\r\n";
+            let _ = socket.write_all(head.as_bytes()).await;
+            let _ = socket.write_all(body.as_bytes()).await;
+        });
+        port
+    }
+
+    async fn stream(pieces: &'static [&'static str]) -> (String, crate::ollama::ChatOutcome) {
+        let client = crate::ollama::Client::new(engine(pieces).await).unwrap();
+        let options = crate::ollama::Options {
+            temperature: 0.8,
+            min_p: 0.05,
+            top_p: 1.0,
+            top_k: 0,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.0,
+            repeat_last_n: 64,
+            num_ctx: 4096,
+            num_predict: 200,
+            stop: Vec::new(),
+        };
+        let messages: Vec<ChatMessage> = Vec::new();
+        let mut shown = String::new();
+        let (outcome, _) = stream_reply(
+            &client,
+            &chat_params("m", &messages, &options, None),
+            &CancellationToken::new(),
+            "Sam",
+            &[],
+            &mut |p| {
+                if let Progress::Text(t) = p {
+                    shown.push_str(t);
+                }
+            },
+        )
+        .await
+        .unwrap();
+        (shown, outcome)
+    }
+
+    #[tokio::test]
+    async fn a_reply_with_sex_and_a_minor_never_shows_and_is_withheld() {
+        let (shown, outcome) = stream(&[
+            "*They kiss.* ",
+            "They have sex. ",
+            "Her 15-year-old sister sleeps next door. ",
+            "More text.",
+        ])
+        .await;
+        assert!(!shown.contains("15-year-old"), "{shown}");
+        assert!(
+            !shown.contains("More text"),
+            "the stream did not stop: {shown}"
+        );
+        assert!(refuse_crossing(&outcome.text).is_err());
+
+        let (shown, outcome) = stream(&["*They kiss.* ", "They have sex."]).await;
+        assert!(shown.contains("They have sex."), "{shown}");
+        assert!(refuse_crossing(&outcome.text).is_ok());
     }
 }
