@@ -14,6 +14,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "ui" / "src" / "licenses.json"
@@ -42,17 +43,20 @@ ENGINES = [
 def rust_licenses():
     """cargo-about's licenses for the app crate. Offline, so the output does
     not depend on the network: run `cargo fetch` first."""
-    done = subprocess.run(
-        [
-            "cargo", "about", "generate", "--format", "json", "--offline",
-            "--manifest-path", str(ROOT / "crates" / "unstrung-app" / "Cargo.toml"),
-        ],
-        cwd=ROOT, capture_output=True,
-    )
-    if done.returncode != 0:
-        sys.exit("cargo about failed:" + chr(10) + done.stderr.decode("utf-8", "replace"))
-    out = done.stdout
-    about = json.loads(out.decode("utf-8"))
+    # A file, not stdout: cargo-about refuses a pipe when PowerShell started it.
+    with tempfile.TemporaryDirectory() as tmp:
+        file = pathlib.Path(tmp) / "about.json"
+        done = subprocess.run(
+            [
+                "cargo", "about", "generate", "--format", "json", "--offline",
+                "--manifest-path", str(ROOT / "crates" / "unstrung-app" / "Cargo.toml"),
+                "--output-file", str(file),
+            ],
+            cwd=ROOT, capture_output=True,
+        )
+        if done.returncode != 0:
+            sys.exit("cargo about failed:" + chr(10) + done.stderr.decode("utf-8", "replace"))
+        about = json.loads(file.read_text(encoding="utf-8"))
     for lic in about["licenses"]:
         used = sorted({f'{u["crate"]["name"]} {u["crate"]["version"]}' for u in lic["used_by"]})
         # Our own crates are under the app's license, shown first.
