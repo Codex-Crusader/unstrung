@@ -568,6 +568,18 @@ export const strings = {
     added: (a: { characters: number; personas: number; skipped: number }) =>
       `Added ${String(a.characters)} characters and ${String(a.personas)} personas.${a.skipped > 0 ? ` ${String(a.skipped)} were here already.` : ""}`,
   },
+  licenses: {
+    title: "Open source licenses",
+    loading: "Loading the licenses.",
+    failed: "The licenses could not be loaded. The full texts are in the source code of Unstrung.",
+    app: "Unstrung",
+    engines: "Engines",
+    enginesHint:
+      "Unstrung downloads these from their projects at first run. Each package has its own license files.",
+    libraries: "Libraries in the app",
+    librariesHint: (n: number) =>
+      `Unstrung is built with these libraries. Open a line for its full license text (${String(n)} texts).`,
+  },
   safe: {
     title: "Safe start",
     reasons: new Map<string, string>([

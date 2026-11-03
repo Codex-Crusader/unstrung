@@ -1,0 +1,17 @@
+# cargo-about: the license texts for Settings > Help > Open source licenses.
+# The same list as deny.toml, which enforces it. MPL-2.0 is there only for
+# the five crates that deny.toml names.
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+]
+targets = ["x86_64-pc-windows-msvc"]
+# Only what ships: build tools and tests are not in the app.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true

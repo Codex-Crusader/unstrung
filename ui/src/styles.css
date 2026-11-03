@@ -2842,3 +2842,19 @@ dialog.viewer::backdrop {
 .persona-age input {
   width: 6em;
 }
+
+/* Settings > Help > Open source licenses. */
+.licenses {
+  margin-top: 12px;
+}
+
+.licenses pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.licenses details summary {
+  overflow-wrap: anywhere;
+}
