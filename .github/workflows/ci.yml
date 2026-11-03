@@ -43,8 +43,11 @@ jobs:
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-about@0.9.2
+      # cargo-about runs offline, so it needs the crates of every target.
       - name: The license page is up to date
-        run: python -I tools/licenses.py --check
+        run: |
+          cargo fetch --locked
+          python -I tools/licenses.py --check
 
   fuzz:
     name: Fuzz the card parser (60 seconds)
