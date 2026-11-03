@@ -146,6 +146,8 @@ pub struct PictureScene {
     pub chat_model: String,
     /// The message that the picture belongs to.
     pub message_id: Option<i64>,
+    /// The messages read for the scene, or the wish, mention someone under 18.
+    pub minor_mentioned: bool,
 }
 
 /// Clears the "reply in progress" slot when the reply or picture ends in any way.
@@ -1642,6 +1644,10 @@ impl ChatService {
             })
             .collect();
         let last = recent.last().map_or("", |m| m.content.as_str());
+        let minor_mentioned = pictures::safety::mentions_minor(wish)
+            || recent
+                .iter()
+                .any(|m| pictures::safety::mentions_minor(&m.content));
         let tuning = self.engine.tuning_for(&model);
         let client = self.engine.client()?;
         let schema = pictures::scene::schema();
@@ -1702,6 +1708,7 @@ impl ChatService {
             persona,
             chat_model: model,
             message_id: recent.last().map(|m| m.id),
+            minor_mentioned,
         })
     }
 

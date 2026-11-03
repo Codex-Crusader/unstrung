@@ -433,9 +433,11 @@ impl PictureService {
         self.start_painting(old.chat_id, old.message_id)?;
         let result = async {
             let (character, persona, chat_model) = self.chats.picture_people(old.chat_id).await?;
+            // The saved prompt is the scene: the chat since then is not drawn.
             let people = safety::People {
                 character_age: character.age,
                 persona_age: persona.as_ref().and_then(|p| p.age),
+                minor_mentioned: false,
             };
             let adult_on = adult_rules(
                 model,
@@ -571,6 +573,7 @@ impl PictureService {
         let people = safety::People {
             character_age: input.character.age,
             persona_age: input.persona.as_ref().and_then(|p| p.age),
+            minor_mentioned: input.minor_mentioned,
         };
         // Read for this picture.
         let adult_on = adult_rules(
@@ -870,6 +873,9 @@ pub fn blocked_message(block: safety::Block) -> &'static str {
         safety::Block::MinorInChat => {
             "This picture was not made. Unstrung never makes sexual or revealing pictures when someone in the chat is under 18 or has no age. If your persona is an adult, add your age in Personas."
         }
+        safety::Block::MinorMentioned => {
+            "This picture was not made. The story just mentioned someone under 18, so Unstrung makes no sexual or revealing picture of this scene."
+        }
         safety::Block::AdultOff => "This picture was not made, because adult pictures are off.",
     }
 }
@@ -982,6 +988,7 @@ mod adult_tests {
         let adults = safety::People {
             character_age: 30,
             persona_age: Some(30),
+            minor_mentioned: false,
         };
         let klein = catalog::model("flux2-klein-4b").unwrap();
         assert!(!adult_rules(klein, true));
@@ -1013,6 +1020,7 @@ mod adult_tests {
         let people = |persona_age| safety::People {
             character_age: 30,
             persona_age,
+            minor_mentioned: false,
         };
         // The persona is 16 now: the clean words do not hide the scene.
         assert_eq!(

@@ -703,8 +703,33 @@ fn the_mature_rule_keeps_the_minor_rule() {
     );
     for text in [&general, &mature] {
         assert!(text.contains("Never write sexual content that involves anyone under 18."));
-        assert!(text.contains("If a scene goes there, Ren Kagami steers it away, in character."));
     }
+    assert!(general.contains("If a scene goes there, Ren Kagami steers it away, in character."));
+    assert!(mature.contains(
+        "If a scene moves toward sex with anyone under 18, Ren Kagami steers it away, in character."
+    ));
+}
+
+#[test]
+fn a_mature_chat_drops_the_light_flirty_limit() {
+    let c = ren();
+    let p = kai();
+    let history = [msg("user", "Hello.")];
+    let mut i = input(&c, Some(&p), &history);
+    i.tone = "flirty";
+    let all = |i: &PromptInput<'_>| {
+        build(i)
+            .messages
+            .iter()
+            .map(|m| m.content.clone())
+            .collect::<String>()
+    };
+    let general = all(&i);
+    i.mature = true;
+    let mature = all(&i);
+    // The preset text and FLIRTY_LIGHT must stay in step.
+    assert!(general.contains("Flirty.") && general.contains("Keep it light and tasteful."));
+    assert!(mature.contains("Flirty.") && !mature.contains("light and tasteful"));
 }
 
 #[test]

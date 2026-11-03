@@ -11,7 +11,7 @@ use crate::ollama::{ChatMessage, Options};
 use crate::presets::{Initiative, Length, StyleSettings};
 
 /// Saved with each reply. Raise it when the prompt text or order changes.
-pub const PROMPT_VERSION: i64 = 13;
+pub const PROMPT_VERSION: i64 = 14;
 
 /// The name of the user in a chat with no persona.
 pub const NO_PERSONA_NAME: &str = "User";
@@ -42,10 +42,17 @@ You write one side of a roleplay chat.
 If a scene goes there, {{char}} steers it away, in character.";
 
 /// Rule 6 in a chat where `content::mature_chat` allows it. The sentence
-/// about minors and the steer-away line stay the same.
+/// about minors stays the same.
 const GENERAL_SENTENCE: &str = "Keep content non-explicit.";
 /// Only about the two people the gate checked, never "everyone".
-const MATURE_SENTENCE: &str = "{{char}} and {{user}} are both adults, so mature and sexual content between them is allowed when the story goes there.";
+const MATURE_SENTENCE: &str = "{{char}} and {{user}} are both adults, so mature and sexual content between them is allowed, and it can be explicit when the story goes there.";
+/// In a general chat "there" is any sexual scene. A mature chat names the
+/// limit, because models read "there" as sex at all and stopped short.
+const STEER_GENERAL: &str = "If a scene goes there, {{char}} steers it away, in character.";
+const STEER_MATURE: &str =
+    "If a scene moves toward sex with anyone under 18, {{char}} steers it away, in character.";
+/// The flirty tone keeps a general chat light. A mature chat may go further.
+const FLIRTY_LIGHT: &str = " Keep it light and tasteful.";
 
 /// The first line of the end reminder. The guard removes it if a reply copies it.
 pub const REMINDER_HEAD: &str = "[Reply guide for {{char}}. Not part of the story.]";
@@ -367,7 +374,19 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
     };
     let style = input.style;
     let tuning = input.tuning;
+    // A minor mentioned in the messages this reply sees makes it general,
+    // whatever the gate says. A false alarm only costs one general reply.
+    let minor_mentioned = input
+        .history
+        .iter()
+        .any(|m| crate::pictures::safety::mentions_minor(&m.content));
+    let mature = input.mature && !minor_mentioned;
     let (tone_text, tone_temperature) = crate::presets::tone(input.tone, input.tone_custom);
+    let tone_text = if mature {
+        tone_text.replace(FLIRTY_LIGHT, "")
+    } else {
+        tone_text
+    };
     let temperature = tuning.temperature_for(tone_temperature);
 
     let shares = tuning.context.min(CONTEXT_TOKENS);
@@ -417,14 +436,10 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
             ],
         ),
     };
-    // A minor mentioned in the messages this reply sees makes it general,
-    // whatever the gate says. A false alarm only costs one general reply.
-    let minor_mentioned = input
-        .history
-        .iter()
-        .any(|m| crate::pictures::safety::mentions_minor(&m.content));
-    let rules = if input.mature && !minor_mentioned {
-        SYSTEM_RULES.replace(GENERAL_SENTENCE, MATURE_SENTENCE)
+    let rules = if mature {
+        SYSTEM_RULES
+            .replace(GENERAL_SENTENCE, MATURE_SENTENCE)
+            .replace(STEER_GENERAL, STEER_MATURE)
     } else {
         SYSTEM_RULES.to_owned()
     };

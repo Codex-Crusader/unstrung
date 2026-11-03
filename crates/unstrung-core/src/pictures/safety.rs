@@ -18,12 +18,19 @@ pub struct People {
     pub character_age: i64,
     /// `None`: the persona has no age, or the chat has no persona.
     pub persona_age: Option<i64>,
+    /// The messages that the scene writer read, or the wish, mention
+    /// someone under 18 (`mentions_minor`). Like a reply, such a picture is
+    /// general.
+    pub minor_mentioned: bool,
 }
 
 impl People {
-    /// True when someone in the chat is under 18 or has no age.
+    /// True when someone in the chat is under 18 or has no age, or the
+    /// story just mentioned someone under 18.
     fn minor_possible(self) -> bool {
-        self.character_age < ADULT_AGE || self.persona_age.is_none_or(|a| a < ADULT_AGE)
+        self.minor_mentioned
+            || self.character_age < ADULT_AGE
+            || self.persona_age.is_none_or(|a| a < ADULT_AGE)
     }
 }
 
@@ -35,6 +42,8 @@ pub enum Block {
     MinorWords,
     /// A sexual scene in a chat with a person under 18 or without an age.
     MinorInChat,
+    /// A sexual scene right after the story mentioned someone under 18.
+    MinorMentioned,
     /// A sexual scene with the adult setting off.
     AdultOff,
 }
@@ -238,6 +247,9 @@ pub fn check(
     if (explicit || suggestive) && minor_words {
         return Err(Block::MinorWords);
     }
+    if people.minor_mentioned && (explicit || suggestive) {
+        return Err(Block::MinorMentioned);
+    }
     let minor_possible = people.minor_possible();
     if minor_possible && (explicit || suggestive) {
         return Err(Block::MinorInChat);
@@ -386,15 +398,36 @@ mod tests {
     const ADULTS: People = People {
         character_age: 25,
         persona_age: Some(30),
+        minor_mentioned: false,
     };
     const MINOR_CHARACTER: People = People {
         character_age: 16,
         persona_age: Some(30),
+        minor_mentioned: false,
     };
     const NO_PERSONA_AGE: People = People {
         character_age: 25,
         persona_age: None,
+        minor_mentioned: false,
     };
+
+    #[test]
+    fn a_minor_in_the_story_makes_the_picture_general() {
+        let mentioned = People {
+            minor_mentioned: true,
+            ..ADULTS
+        };
+        assert_eq!(
+            check("a quiet bedroom", mentioned, true, true),
+            Err(Block::MinorMentioned)
+        );
+        assert_eq!(
+            check("lingerie, on the bed", mentioned, true, false),
+            Err(Block::MinorMentioned)
+        );
+        let rules = check("two people at the bar", mentioned, true, false).unwrap();
+        assert!(rules.no_nudity && !rules.adults_only && !rules.mature);
+    }
 
     /// (prompt, people, adult setting, scene flag, result)
     type Case = (&'static str, People, bool, bool, Result<Rules, Block>);
@@ -407,6 +440,7 @@ mod tests {
         let minor_persona = People {
             character_age: 25,
             persona_age: Some(16),
+            minor_mentioned: false,
         };
         for prompt in ["nude on the bed", "a seductive look, lingerie"] {
             assert_eq!(
