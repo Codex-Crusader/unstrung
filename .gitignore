@@ -4,3 +4,4 @@
 /crates/unstrung-app/gen/
 node_modules/
 dist/
+/quality/results/
