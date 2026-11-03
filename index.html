@@ -219,6 +219,70 @@
   footer.end { border-top: 1px solid var(--line); padding-block: 26px 40px; display: flex; flex-wrap: wrap; gap: 8px 28px; justify-content: space-between; font-size: 14px; color: var(--soft); }
   footer.end a { color: var(--soft); }
 
+  /* Phones: one column, tighter rhythm, a swipe strip for screens, and the
+     network table as a list. */
+  .strip, .swipe, .pc-note { display: none; }
+  .not-pc .pc-note { display: block; }
+  .pc-note { flex-basis: 100%; font-size: 14px; color: var(--soft); max-width: 30em; }
+  .pc-note button {
+    margin-left: 6px; font: 600 14px/1 var(--body); color: var(--accent-ink); background: transparent;
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer;
+  }
+  .not-pc .download-meta { display: none; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .bar { padding-block: 14px; }
+    .open { padding-block: 8px 48px; gap: 36px; }
+    .open .lede, .act > .lede { font-size: 17px; }
+    .open .lede { margin-top: 18px; }
+    .get { margin-top: 22px; }
+    .btn { width: 100%; justify-content: center; }
+    .stage { padding-top: 46px; }
+    .string { height: 50px; }
+    .chat header { padding: 12px 14px; }
+    .chat header span { display: none; }
+    .msgs { min-height: 0; padding: 14px; gap: 10px; }
+    .msg { font-size: 14.5px; max-width: 92%; }
+    .composer { padding: 0 14px 12px; }
+    .chat footer { padding: 8px 14px; }
+    .act { padding-block: 56px; }
+    .act > h2 { font-size: 34px; }
+    .act-body { margin-top: 28px; }
+    .can, .safe { gap: 20px; }
+    .can h3, .safe h3 { font-size: 17px; margin-bottom: 2px; }
+    .can p, .safe p { font-size: 15px; }
+    .screens { margin-top: 44px; }
+    .tabs, .shot { display: none; }
+    .strip {
+      display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+      margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px;
+    }
+    .strip::-webkit-scrollbar { display: none; }
+    .strip figure { flex: 0 0 88%; margin: 0; scroll-snap-align: start; }
+    .strip a { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .strip img { width: 100%; height: auto; background: var(--panel); }
+    .strip figcaption { margin-top: 8px; font-size: 13px; color: var(--soft); }
+    .strip figcaption b { font: 700 15px var(--display); color: var(--fg); margin-right: 4px; }
+    .swipe { display: block; margin-top: 10px; font-size: 13px; color: var(--soft); }
+    .plate dd { font-size: 16px; }
+    .plate div { padding: 14px; }
+    .zero { margin-block: 28px 20px; font-size: 16px; }
+    .zero span { font-size: 96px; }
+    .ledger { overflow: visible; border: 0; border-top: 1px solid var(--deep-line); border-radius: 0; }
+    .ledger table { min-width: 0; }
+    .ledger thead { display: none; }
+    .ledger tbody, .ledger tr, .ledger td { display: block; }
+    .ledger tr { padding-block: 14px; border-bottom: 1px solid var(--deep-line); }
+    .ledger td { padding: 0; border: 0; }
+    .ledger td:first-child { font: 600 11px/1.4 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--deep-soft); margin-bottom: 3px; }
+    .ledger td.host, .ledger td.size { display: inline; font-size: 13px; color: var(--deep-soft); }
+    .ledger td.host::after { content: " · "; font-family: var(--body); }
+    .night tr.never td { color: var(--deep-accent); }
+    summary { font-size: 16px; padding-block: 15px; }
+    .close { padding-block: 56px; }
+    footer.end { flex-direction: column; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .string path, .caret { animation: none; }
     .btn { transition: none; }
@@ -308,6 +372,15 @@
           <p class="shot-text">Pick who you are, the tone, the reply style and the model above the chat. The arrows under a reply show its other versions.</p>
         </figcaption>
       </figure>
+      <div class="strip" aria-label="Screens, swipe for more">
+        <figure><a href="img/chat.webp"><img src="img/chat.webp" width="1375" height="950" loading="lazy" alt="A chat with Ren Kagami, a private detective."></a><figcaption><b>The chat</b> 1 of 6</figcaption></figure>
+        <figure><a href="img/memory.webp"><img src="img/memory.webp" width="1375" height="950" loading="lazy" alt="The Memory panel next to a chat."></a><figcaption><b>Memory</b> 2 of 6</figcaption></figure>
+        <figure><a href="img/editor.webp"><img src="img/editor.webp" width="1375" height="950" loading="lazy" alt="The character editor for Ren Kagami."></a><figcaption><b>Character editor</b> 3 of 6</figcaption></figure>
+        <figure><a href="img/personas.webp"><img src="img/personas.webp" width="1375" height="950" loading="lazy" alt="The Personas screen with Kai and Nora."></a><figcaption><b>Personas</b> 4 of 6</figcaption></figure>
+        <figure><a href="img/models.webp"><img src="img/models.webp" width="1375" height="950" loading="lazy" alt="The Models screen."></a><figcaption><b>Models</b> 5 of 6</figcaption></figure>
+        <figure><a href="img/settings.webp"><img src="img/settings.webp" width="1375" height="950" loading="lazy" alt="The Settings screen."></a><figcaption><b>Settings</b> 6 of 6</figcaption></figure>
+      </div>
+      <p class="swipe">Swipe for more screens. Tap one for full size.</p>
     </div>
   </section>
 </div>
@@ -414,6 +487,27 @@
       setTimeout(step, 55 + Math.random() * 50);
     }, 900);
   })();
+
+  // Unstrung runs only on Windows PCs. Elsewhere, say so and offer the link.
+  if (!/Windows NT/.test(navigator.userAgent)) {
+    document.documentElement.classList.add("not-pc");
+    document.querySelectorAll(".get").forEach(function (get) {
+      var note = document.createElement("p");
+      note.className = "pc-note";
+      note.textContent = "Unstrung runs on Windows PCs. Open this page on your computer to get it.";
+      var copy = document.createElement("button");
+      copy.type = "button";
+      copy.textContent = "Copy link";
+      copy.addEventListener("click", function () {
+        var url = "https://codex-crusader.github.io/unstrung/";
+        Promise.resolve(navigator.clipboard && navigator.clipboard.writeText(url))
+          .then(function () { copy.textContent = navigator.clipboard ? "Copied" : url; })
+          .catch(function () { copy.textContent = url; });
+      });
+      note.append(copy);
+      get.append(note);
+    });
+  }
 
   // Screens: one viewer, six screens.
   var shots = [
