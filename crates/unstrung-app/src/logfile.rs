@@ -12,7 +12,10 @@ struct FileLogger(Mutex<File>);
 
 impl log::Log for FileLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
+        // The updater logs a failed check as an error, which it is not while
+        // no release exists. updates.rs logs each outcome itself.
         metadata.level() <= log::Level::Info
+            && !metadata.target().starts_with("tauri_plugin_updater")
     }
 
     fn log(&self, record: &log::Record) {

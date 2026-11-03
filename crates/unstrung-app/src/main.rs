@@ -15,6 +15,7 @@ mod selftest;
 mod settings;
 mod setup;
 mod state;
+mod updates;
 
 use safe::StartInfo;
 use state::AppState;
@@ -119,6 +120,7 @@ fn main() {
     }
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("avatar", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -238,6 +240,10 @@ fn main() {
             setup::choose_setup,
             notify::set_notify,
             notify::get_notify,
+            updates::check_update,
+            updates::install_update,
+            updates::get_update_check,
+            updates::set_update_check,
         ])
         .setup(move |app| {
             // Held until the process ends.
@@ -272,6 +278,9 @@ fn main() {
                         start_engine(app.handle(), &state.engine, &state.models);
                         send_memory_changes(app.handle(), &state.chats);
                         app.manage(state);
+                        if !self_test {
+                            updates::check_after_start(app.handle());
+                        }
                         setup::forward_progress(app.handle());
                         pictures::forward_progress(app.handle());
                     }

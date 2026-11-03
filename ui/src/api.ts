@@ -660,6 +660,30 @@ export const finishFirstRun = () => invoke<null>("finish_first_run");
 export const getNotify = () => invoke<boolean>("get_notify");
 export const setNotify = (on: boolean) => invoke<null>("set_notify", { on });
 
+/** A newer version of Unstrung on GitHub Releases. */
+export interface UpdateInfo {
+  version: string;
+  notes: string;
+}
+export const checkUpdate = () => invoke<UpdateInfo | null>("check_update");
+/** Downloads and installs. On success the app closes and the new version opens. */
+export const installUpdate = () => invoke<null>("install_update");
+export const getUpdateCheck = () => invoke<boolean>("get_update_check");
+export const setUpdateCheck = (on: boolean) => invoke<null>("set_update_check", { on });
+
+export function onUpdateAvailable(handler: (update: UpdateInfo) => void): Promise<UnlistenFn> {
+  return listen<UpdateInfo>("update-available", (event) => {
+    handler(event.payload);
+  });
+}
+
+/** Bytes downloaded, and the size when the server says it. */
+export function onUpdateProgress(handler: (progress: [number, number | null]) => void): Promise<UnlistenFn> {
+  return listen<[number, number | null]>("update-progress", (event) => {
+    handler(event.payload);
+  });
+}
+
 export function onEngineSetup(handler: (progress: EngineProgress | null) => void): Promise<UnlistenFn> {
   return listen<EngineProgress | null>("engine-setup", (event) => {
     handler(event.payload);

@@ -36,6 +36,12 @@ pub const FIRST_RUN_KEY: &str = "first_run";
 pub const FIRST_RUN_PENDING: &str = "pending";
 
 impl Db {
+    /// A copy of the chats before an app update installs. It goes with the
+    /// copies from before a migration, so safe start can put it back.
+    pub async fn update_snapshot(&self, db_path: &Path) -> Result<PathBuf> {
+        backup(&self.pool, db_path, newest_schema()).await
+    }
+
     pub async fn first_run_pending(&self) -> Result<bool> {
         Ok(self.meta(FIRST_RUN_KEY).await?.as_deref() == Some(FIRST_RUN_PENDING))
     }

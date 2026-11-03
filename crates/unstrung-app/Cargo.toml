@@ -16,6 +16,7 @@ log = { version = "0.4", features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2.12", features = ["isolation"] }
+tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["sync", "time", "fs", "net"] }
 unstrung-core.workspace = true
 

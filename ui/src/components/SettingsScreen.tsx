@@ -35,6 +35,7 @@ import { applyAppearance, type UiSettings } from "../appearance";
 import { strings } from "../strings";
 import { ErrorNote } from "./ErrorNote";
 import { LicensesView } from "./LicensesView";
+import { UpdateSettings } from "./Updates";
 
 /** The Windows notification when a download ends in the background. */
 function NotifyToggle() {
@@ -764,6 +765,7 @@ export function SettingsScreen() {
         {copied === true && <p className="field-hint">{strings.safe.copied}</p>}
         {copied === false && <p className="field-hint warn">{strings.safe.copyFailed}</p>}
         <p className="field-hint">{strings.safe.reportHint}</p>
+        <UpdateSettings />
         <LicensesView />
       </section>
       {error && <ErrorNote error={error} />}

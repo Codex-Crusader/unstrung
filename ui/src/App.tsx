@@ -28,6 +28,7 @@ import { Welcome } from "./components/Welcome";
 import { PicturesScreen } from "./components/PicturesScreen";
 import { ChatsScreen } from "./components/ChatsScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { UpdateBar } from "./components/Updates";
 import { applyAppearance } from "./appearance";
 import figure from "./assets/figure.png";
 
@@ -303,6 +304,7 @@ function MainApp() {
           {screen.name === "engine" && <Welcome mode="engine" onDone={home} />}
         </main>
       </div>
+      <UpdateBar />
       <StatusBar
         status={status}
         onOpenModels={() => {

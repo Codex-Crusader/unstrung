@@ -568,6 +568,19 @@ export const strings = {
     added: (a: { characters: number; personas: number; skipped: number }) =>
       `Added ${String(a.characters)} characters and ${String(a.personas)} personas.${a.skipped > 0 ? ` ${String(a.skipped)} were here already.` : ""}`,
   },
+  updates: {
+    ready: (version: string) => `Unstrung ${version} is ready to install.`,
+    install: (version: string) => `Update to ${version}`,
+    downloading: (got: string, total: string | null) =>
+      total === null ? `Downloading the update: ${got}` : `Downloading the update: ${got} of ${total}`,
+    later: "Later",
+    checkLabel: "Check for updates when Unstrung starts",
+    checkHint:
+      "The check asks GitHub for the newest version number. It sends none of your chats or characters. Unstrung downloads an update only when you click Update, and it makes a copy of your chats first.",
+    checkNow: "Check for updates",
+    checking: "Checking",
+    upToDate: "Unstrung is up to date.",
+  },
   licenses: {
     title: "Open source licenses",
     loading: "Loading the licenses.",

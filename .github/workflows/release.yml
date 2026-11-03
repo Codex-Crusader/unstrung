@@ -1,0 +1,74 @@
+name: Release
+
+# Push a tag such as v0.2.0 to build the installer and the update files into
+# a draft release. The app's updater sees a release only after you publish
+# the draft, so you can test the installer first.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: "true"
+
+jobs:
+  windows:
+    name: Build and sign the update (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The tag matches the app version
+        shell: pwsh
+        run: |
+          $version = (Get-Content crates/unstrung-app/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("${{ github.ref_name }}" -ne "v$version") {
+            throw "The tag ${{ github.ref_name }} does not match the app version $version in tauri.conf.json."
+          }
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: Install the UI packages
+        working-directory: ui
+        run: npm ci --ignore-scripts
+      - name: Install the Tauri CLI
+        run: cargo install tauri-cli --version 2.12.4 --locked
+      # The private key signs the update files. The app checks them with the
+      # public key in tauri.conf.json.
+      - name: Build the installer
+        working-directory: crates/unstrung-app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: cargo tauri build
+      - name: Write latest.json for the updater
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $installer = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $signature = Get-Content "$($installer.FullName).sig" -Raw
+          $name = $installer.Name -replace " ", "."
+          $latest = [ordered]@{
+            version   = $version
+            notes     = "See the release page."
+            pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature.Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$name"
+              }
+            }
+          }
+          $latest | ConvertTo-Json -Depth 4 | Set-Content target/release/bundle/nsis/latest.json -Encoding utf8NoBOM
+      - name: Upload to a draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem target/release/bundle/nsis/*-setup.exe, target/release/bundle/nsis/*-setup.exe.sig, target/release/bundle/nsis/latest.json
+          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes "Unsigned build: Windows SmartScreen shows a warning until the app has a code signing certificate." $files.FullName

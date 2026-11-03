@@ -18,6 +18,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.ico", "icons/icon.png"],
     "windows": {
@@ -26,6 +27,14 @@
         "template": "installer/installer.nsi",
         "installerHooks": "installer/hooks.nsh"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA1NTQ4OENEREE5MzQ2QzQKUldURVJwUGF6WWhVQlN6NTd5RFdnZTZ0bU1xOXI3ZGJObkt4NlpvYkxTamd6SmhmaW4veXE2d20K",
+      "endpoints": ["https://github.com/Codex-Crusader/unstrung/releases/latest/download/latest.json"],
+      "requireSignedVersion": true,
+      "windows": { "installMode": "passive" }
     }
   }
 }

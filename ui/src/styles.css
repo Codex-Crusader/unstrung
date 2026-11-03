@@ -2858,3 +2858,22 @@ dialog.viewer::backdrop {
 .licenses details summary {
   overflow-wrap: anywhere;
 }
+
+/* The update offer above the status bar, and in Settings > Help. */
+.update-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 6px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--panel-line);
+}
+
+.update-settings {
+  margin-top: 12px;
+}
+
+.update-notes {
+  white-space: pre-wrap;
+}
