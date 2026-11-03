@@ -57,7 +57,9 @@ jobs:
         with:
           tool: cargo-fuzz
       # The seeds are in fuzz/corpus/card. New inputs that the run finds stay on the runner.
-      - run: cargo fuzz run card -- -max_total_time=60 -max_len=65536
+      # The prebuilt cargo-fuzz is a musl build, and it builds for its own
+      # target unless told otherwise. The sanitizer needs the glibc target.
+      - run: cargo fuzz run --target x86_64-unknown-linux-gnu card -- -max_total_time=60 -max_len=65536
 
   cargo-deny:
     name: cargo deny (licenses, bans, advisories, sources)
