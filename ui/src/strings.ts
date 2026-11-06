@@ -11,6 +11,17 @@ export const strings = {
     settings: "Settings",
     main: "Main menu",
   },
+  loading: {
+    label: "Loading",
+  },
+  crash: {
+    title: "A string snapped",
+    body: "Something went wrong while this screen was drawing. Your chats and characters are saved. Reload the window to go on.",
+    reload: "Reload the window",
+    copy: "Copy details",
+    copied: "Copied",
+    help: "If it happens again, copy the details and add them to a bug report on GitHub.",
+  },
   status: {
     starting: "Waking up your characters...",
     loading: (model: string) => `Loading ${model}...`,

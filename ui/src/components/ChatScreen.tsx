@@ -52,6 +52,7 @@ import { MessageItem, type MessageActions } from "./MessageItem";
 import { MessageText } from "./MessageText";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
+import { Loading } from "./Loading";
 import { PictureViewer, withCharacter } from "./PictureViewer";
 
 type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; text: string };
@@ -341,7 +342,7 @@ export function ChatScreen({
   if (!view) {
     return (
       <section className="chat chat-empty">
-        {error && <ErrorNote error={error} lead={strings.chat.loadFailed} />}
+        {error ? <ErrorNote error={error} lead={strings.chat.loadFailed} /> : <Loading />}
       </section>
     );
   }

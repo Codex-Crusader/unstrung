@@ -13,6 +13,7 @@ import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
+import { Loading } from "./Loading";
 
 /** The chats screen: the latest chats with every character, newest first. */
 export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, chatId: number) => void }) {
@@ -80,6 +81,7 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
         )}
       </div>
       {error && <ErrorNote error={error} />}
+      {chats === null && !error && <Loading />}
       {chats && chats.length === 0 && (
         <div className="empty-pictures">
           <Icon name="chats" className="setup-icon" />

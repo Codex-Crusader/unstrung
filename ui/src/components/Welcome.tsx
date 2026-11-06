@@ -37,6 +37,7 @@ import {
 import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
+import { Splash } from "./Loading";
 import { Avatar } from "./Avatar";
 import figure from "../assets/figure.png";
 
@@ -91,7 +92,7 @@ export function Welcome({ mode, onDone }: { mode: "full" | "engine"; onDone: () 
       </div>
     );
   }
-  if (!setup || !page || !step) return null;
+  if (!setup || !page || !step) return <Splash />;
   const go = (next: Step) => {
     setStep(next);
   };

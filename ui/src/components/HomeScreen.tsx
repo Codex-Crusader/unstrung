@@ -12,6 +12,7 @@ import { strings } from "../strings";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
+import { Loading } from "./Loading";
 
 export function HomeScreen({
   onOpen,
@@ -129,6 +130,7 @@ export function HomeScreen({
           </li>
         ))}
       </ul>
+      {characters === null && !error && <Loading />}
       {characters?.length === 0 && <p className="muted">{strings.home.empty}</p>}
       {wanted && characters?.length !== 0 && shown?.length === 0 && (
         <p className="muted">{strings.home.noMatch(query.trim())}</p>

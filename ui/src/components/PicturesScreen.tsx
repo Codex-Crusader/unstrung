@@ -17,6 +17,7 @@ import {
 import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
+import { Loading } from "./Loading";
 import { FadeImage, PictureViewer } from "./PictureViewer";
 import { picturesReady } from "./PictureModels";
 
@@ -158,6 +159,7 @@ export function PicturesScreen({
     <section className="page pictures">
       <h1>{s.title}</h1>
       {error && <ErrorNote error={error} />}
+      {page === null && !error && <Loading />}
 
       {page && !ready && <SetupCard page={page} download={download} act={act} />}
 

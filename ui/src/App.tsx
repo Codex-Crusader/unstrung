@@ -31,6 +31,7 @@ import { SettingsScreen } from "./components/SettingsScreen";
 import { UpdateBar } from "./components/Updates";
 import { applyAppearance } from "./appearance";
 import figure from "./assets/figure.png";
+import { Splash } from "./components/Loading";
 
 export type Screen =
   | { name: "home" }
@@ -76,7 +77,7 @@ export function App() {
         setStart({ safe: false, reason: null, error: "" });
       });
   }, []);
-  if (!start) return null;
+  if (!start) return <Splash />;
   return start.safe ? <SafeStart start={start} /> : <FirstRunGate />;
 }
 
@@ -104,7 +105,7 @@ function FirstRunGate() {
         setFirstRun(false);
       });
   }, []);
-  if (firstRun === null) return null;
+  if (firstRun === null) return <Splash />;
   if (firstRun)
     return (
       <Welcome
