@@ -30,8 +30,8 @@ import { ChatsScreen } from "./components/ChatsScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { UpdateBar } from "./components/Updates";
 import { applyAppearance } from "./appearance";
-import figure from "./assets/figure.png";
 import { Splash } from "./components/Loading";
+import { Brand } from "./components/Brand";
 
 export type Screen =
   | { name: "home" }
@@ -165,10 +165,7 @@ function MainApp() {
     <div className="app">
       <div className="app-body">
         <nav className="sidebar" aria-label={strings.nav.main}>
-          <span className="brand">
-            <img className="brand-figure" src={figure} alt="" />
-            {strings.appName}
-          </span>
+          <Brand />
           <button
             type="button"
             className={screen.name === "home" ? "nav-item nav-current" : "nav-item"}

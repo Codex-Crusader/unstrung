@@ -3011,3 +3011,31 @@ dialog.viewer::backdrop {
     animation: none;
   }
 }
+
+/* The Morse easter egg: the logo is pressed often, so no text selection or
+   dragging; while the sound plays, the figure dangles. */
+.brand {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.brand-figure-loose {
+  transform-origin: 50% 0;
+  animation: brand-dangle 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes brand-dangle {
+  from {
+    transform: rotate(-14deg);
+  }
+  to {
+    transform: rotate(14deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-figure-loose {
+    animation: none;
+  }
+}
