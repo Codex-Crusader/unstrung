@@ -39,4 +39,7 @@ pub enum Error {
     /// The database failed its damage check.
     #[error("damaged data: {0}")]
     Damaged(String),
+    /// The data key does not unwrap, or it is missing next to encrypted data.
+    #[error("the data key does not open: {0}")]
+    KeyLost(String),
 }

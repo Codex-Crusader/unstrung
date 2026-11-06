@@ -33,5 +33,6 @@ pub mod start;
 pub mod starters;
 pub mod storage;
 pub mod uninstall;
+pub mod vault;
 
 pub use error::{Error, Result};
