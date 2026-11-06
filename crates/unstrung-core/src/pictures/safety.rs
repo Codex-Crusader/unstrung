@@ -298,7 +298,13 @@ pub fn mentions_minor(text: &str) -> bool {
 /// user can find it in the text.
 pub fn minor_word(text: &str) -> Option<String> {
     let words = Words::new(text);
-    if let Some(word) = MINOR.iter().find(|w| words.any(&[w])) {
+    // "baby" is a pet name between adults in story text. Picture prompts
+    // still count it (`check`).
+    if let Some(word) = MINOR
+        .iter()
+        .filter(|w| **w != "baby")
+        .find(|w| words.any(&[w]))
+    {
         return Some((*word).to_owned());
     }
     words.has_minor_age().then(|| "an age under 18".to_owned())
@@ -514,6 +520,7 @@ mod tests {
             assert!(!mentions_minor(text), "{text}");
         }
         assert_eq!(minor_word("A sweet loli maid.").as_deref(), Some("loli"));
+        assert_eq!(minor_word("Come here, baby.").as_deref(), None);
         assert_eq!(minor_word("She is 15.").as_deref(), None);
         assert_eq!(
             minor_word("She is 15 years old.").as_deref(),
