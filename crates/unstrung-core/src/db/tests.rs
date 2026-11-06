@@ -611,3 +611,64 @@ async fn the_chats_file_and_its_copies_are_encrypted_but_a_backup_copy_is_not() 
         Some("a line of a chat")
     );
 }
+
+const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+
+/// Run once to make the files that `files_from_an_earlier_build_still_open`
+/// reads. Never again: the point is that they come from an older build.
+#[tokio::test]
+#[ignore = "writes the format fixtures"]
+async fn make_format_fixtures() {
+    let dir = Path::new(FIXTURES);
+    std::fs::create_dir_all(dir).unwrap();
+    let key = crate::vault::DataKey::test();
+    let file = dir.join("encrypted.db");
+    let _ = std::fs::remove_file(&file);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(&file)
+                .pragma("key", key_pragma(&key))
+                .create_if_missing(true),
+        )
+        .await
+        .unwrap();
+    sqlx::query("CREATE TABLE t(x TEXT)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO t VALUES ('unstrung')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    pool.close().await;
+    std::fs::write(
+        dir.join("sealed.bin"),
+        key.seal(b"unstrung picture").unwrap(),
+    )
+    .unwrap();
+}
+
+/// SQLCipher or the picture format must not change under existing users:
+/// files made by an earlier build open with the same key.
+#[tokio::test]
+async fn files_from_an_earlier_build_still_open() {
+    let key = crate::vault::DataKey::test();
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("encrypted.db");
+    std::fs::copy(Path::new(FIXTURES).join("encrypted.db"), &file).unwrap();
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(file_options(&file, &key).read_only(true))
+        .await
+        .unwrap();
+    let x: String = sqlx::query_scalar("SELECT x FROM t")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(x, "unstrung");
+    pool.close().await;
+    let sealed = std::fs::read(Path::new(FIXTURES).join("sealed.bin")).unwrap();
+    assert_eq!(key.open(&sealed).unwrap(), b"unstrung picture");
+}

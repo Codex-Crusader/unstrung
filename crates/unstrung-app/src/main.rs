@@ -293,6 +293,7 @@ fn main() {
                 }
             }
             app.manage(info);
+            clear_old_picture_cache(app);
             open_window(app, background, theme.as_deref())?;
             Ok(())
         })
@@ -315,6 +316,30 @@ fn main() {
             log::info!("Unstrung closed");
         }
     });
+}
+
+/// Version 0.1.0 let WebView2 keep pictures in its disk cache, plain. The
+/// pictures are encrypted now and never cached, so the old cache goes, once,
+/// before the window opens. Local storage (the window's own settings) stays.
+fn clear_old_picture_cache(app: &tauri::App) {
+    let Ok(dir) = app.path().app_local_data_dir() else {
+        return;
+    };
+    let done = dir.join("picture-cache-cleared");
+    if done.exists() {
+        return;
+    }
+    let cache = dir.join("EBWebView").join("Default").join("Cache");
+    match std::fs::remove_dir_all(&cache) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            log::warn!("could not clear the old picture cache: {e}");
+            return;
+        }
+        _ => {}
+    }
+    if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&done, b"")) {
+        log::warn!("could not note the cleared picture cache: {e}");
+    }
 }
 
 /// `theme` is the saved theme setting, so the window opens in its color.
