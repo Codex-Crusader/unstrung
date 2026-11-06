@@ -65,10 +65,19 @@ jobs:
             }
           }
           $latest | ConvertTo-Json -Depth 4 | Set-Content target/release/bundle/nsis/latest.json -Encoding utf8NoBOM
+      # A checksum file for people who download the installer by hand. The
+      # format is the one that `sha256sum -c` reads.
+      - name: Write SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $name = $installer.Name -replace " ", "."
+          "$hash  $name" | Set-Content target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8NoBOM
       - name: Upload to a draft release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $files = Get-ChildItem target/release/bundle/nsis/*-setup.exe, target/release/bundle/nsis/*-setup.exe.sig, target/release/bundle/nsis/latest.json
-          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes "Unsigned build: Windows SmartScreen shows a warning until the app has a code signing certificate." $files.FullName
+          $files = Get-ChildItem target/release/bundle/nsis/*-setup.exe, target/release/bundle/nsis/*-setup.exe.sig, target/release/bundle/nsis/latest.json, target/release/bundle/nsis/SHA256SUMS.txt
+          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes "Unsigned build: Windows SmartScreen shows a warning until the app has a code signing certificate. To check your download, compare its SHA-256 with SHA256SUMS.txt (see SECURITY.md)." $files.FullName
