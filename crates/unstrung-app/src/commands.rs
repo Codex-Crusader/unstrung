@@ -425,11 +425,13 @@ pub async fn storage_usage(state: State<'_, AppState>) -> CmdResult<unstrung_cor
 #[tauri::command]
 pub async fn move_folder(
     state: State<'_, AppState>,
+    grants: State<'_, crate::setup::FolderGrants>,
     purpose: unstrung_core::location::Purpose,
     path: String,
     on_progress: Channel<[u64; 2]>,
 ) -> CmdResult<Vec<std::path::PathBuf>> {
     use unstrung_core::relocate;
+    grants.check(std::path::Path::new(&path))?;
     let (token, _guard) = state.chats.begin_job()?;
     let _pictures = state.pictures.hold()?;
     if state.models.downloading() || state.setup.busy() {

@@ -4,13 +4,14 @@
 use crate::commands::{CmdResult, UiError};
 use crate::state::AppState;
 use serde::Serialize;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
 use tauri::{AppHandle, Emitter, Manager, State};
 use unstrung_core::Error;
 use unstrung_core::db::FIRST_RUN_KEY;
 use unstrung_core::engine_setup::{self, Engine, Progress};
 use unstrung_core::location::{self, FolderCheck, Location, Purpose};
+use unstrung_core::paths::AppPaths;
 
 pub const ENGINE_SETUP_EVENT: &str = "engine-setup";
 pub const ENGINE_SETUP_ERROR_EVENT: &str = "engine-setup-error";
@@ -63,35 +64,115 @@ fn shown(path: PathBuf) -> String {
     path.to_string_lossy().into_owned()
 }
 
+/// The folders that the page may name: the app's own folders, and the ones
+/// that the user picked in the Windows folder picker in this run. Any other
+/// path is refused before the app touches it. So a page that is not ours
+/// cannot point the app at a network share, which would move pictures there
+/// or make Windows send the user's sign-in hash to that server.
+pub struct FolderGrants {
+    paths: AppPaths,
+    picked: Mutex<Vec<String>>,
+    /// The self-test moves the library to a folder that nobody picked.
+    any: bool,
+}
+
+/// The same folder written with another case or a final backslash.
+fn folder_key(path: &Path) -> String {
+    path.to_string_lossy()
+        .trim_end_matches(['\\', '/'])
+        .to_lowercase()
+}
+
+impl FolderGrants {
+    pub fn new(paths: AppPaths, self_test: bool) -> Self {
+        Self {
+            paths,
+            picked: Mutex::new(Vec::new()),
+            any: self_test,
+        }
+    }
+
+    fn grant(&self, path: &Path) {
+        self.picked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(folder_key(path));
+    }
+
+    fn granted(&self, path: &Path) -> bool {
+        let key = folder_key(path);
+        let root = self.paths.root();
+        let defaults = Location::default();
+        let own = [
+            root.to_path_buf(),
+            self.paths.library(),
+            self.paths.models(),
+            defaults.library(root),
+            defaults.models(root),
+        ];
+        self.any
+            || own.iter().any(|f| folder_key(f) == key)
+            || self
+                .picked
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .contains(&key)
+    }
+
+    /// `Ok` for a folder that the page may name.
+    pub fn check(&self, path: &Path) -> unstrung_core::Result<()> {
+        if self.granted(path) {
+            Ok(())
+        } else {
+            log::warn!("refused a folder that was not picked in the folder picker");
+            Err(Error::Invalid(
+                "Pick the folder with the Choose folder button.".into(),
+            ))
+        }
+    }
+}
+
 /// The Windows folder picker. `None` when the user closes it. The window is
 /// its parent, so the picker stays in front and blocks a second one.
 #[tauri::command]
-pub async fn pick_folder(window: tauri::WebviewWindow, start: Option<String>) -> Option<String> {
+pub async fn pick_folder(
+    window: tauri::WebviewWindow,
+    grants: State<'_, FolderGrants>,
+    start: Option<String>,
+) -> CmdResult<Option<String>> {
     #[cfg(windows)]
     {
         let mut dialog = rfd::AsyncFileDialog::new().set_parent(&window);
-        if let Some(start) = start.filter(|s| !s.is_empty()) {
+        // Opening the picker in a folder reads it, so only known folders.
+        if let Some(start) = start.filter(|s| grants.granted(Path::new(s))) {
             dialog = dialog.set_directory(start);
         }
-        dialog
-            .pick_folder()
-            .await
-            .map(|f| shown(f.path().to_path_buf()))
+        let picked = dialog.pick_folder().await.map(|f| f.path().to_path_buf());
+        if let Some(folder) = &picked {
+            grants.grant(folder);
+        }
+        Ok(picked.map(shown))
     }
     #[cfg(not(windows))]
     {
-        let _ = (window, start);
-        None
+        let _ = (window, grants, start);
+        Ok(None)
     }
 }
 
 #[tauri::command]
-pub async fn check_folder(path: String, purpose: Purpose, download_bytes: u64) -> FolderCheck {
-    tokio::task::spawn_blocking(move || {
+pub async fn check_folder(
+    grants: State<'_, FolderGrants>,
+    path: String,
+    purpose: Purpose,
+    download_bytes: u64,
+) -> CmdResult<FolderCheck> {
+    grants.check(Path::new(&path))?;
+    Ok(tokio::task::spawn_blocking(move || {
         location::check(&PathBuf::from(path), purpose, download_bytes)
     })
     .await
-    .unwrap_or_else(|_| location::check(&PathBuf::new(), purpose, download_bytes))
+    .unwrap_or_else(|_| location::check(&PathBuf::new(), purpose, download_bytes)))
 }
 
 /// Saves the folders from the storage step. `None` keeps the default.
@@ -99,6 +180,7 @@ pub async fn check_folder(path: String, purpose: Purpose, download_bytes: u64) -
 #[tauri::command]
 pub async fn set_location(
     state: State<'_, AppState>,
+    grants: State<'_, FolderGrants>,
     library: Option<String>,
     models: Option<String>,
     download_bytes: u64,
@@ -112,6 +194,7 @@ pub async fn set_location(
         let Some(path) = path.filter(|p| !p.is_empty()) else {
             return Ok(None);
         };
+        grants.check(Path::new(&path))?;
         let check = location::check(&PathBuf::from(path), purpose, bytes);
         if check.blocked {
             return Err(
@@ -216,4 +299,28 @@ pub fn forward_progress(app: &AppHandle) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FolderGrants;
+    use std::path::Path;
+    use unstrung_core::paths::AppPaths;
+
+    #[test]
+    fn only_own_or_picked_folders_pass() {
+        let root = std::env::temp_dir().join("unstrung-grants-test");
+        let grants = FolderGrants::new(AppPaths::at(root.clone()), false);
+        assert!(grants.check(&root).is_ok());
+        assert!(grants.check(&root.join("models")).is_ok());
+        let share = Path::new(r"\203.0.113.9\share");
+        let picked = Path::new(r"D:\Games\Unstrung");
+        assert!(grants.check(share).is_err());
+        assert!(grants.check(picked).is_err());
+        grants.grant(picked);
+        assert!(grants.check(Path::new(r"d:\games\unstrung\")).is_ok());
+        assert!(grants.check(share).is_err());
+        let any = FolderGrants::new(AppPaths::at(root), true);
+        assert!(any.check(share).is_ok());
+    }
 }
