@@ -4,7 +4,6 @@
 //! 512 x 512 crop in the avatars folder.
 
 use crate::error::{Error, Result};
-use crate::files::write_atomic;
 use crate::paths::AppPaths;
 use image::{DynamicImage, ImageFormat, ImageReader, Limits, imageops::FilterType};
 use serde::{Deserialize, Serialize};
@@ -99,7 +98,7 @@ pub fn stage(paths: &AppPaths, bytes: &[u8]) -> Result<Staged> {
     let picture = DynamicImage::ImageRgba8(picture.to_rgba8());
     let token = new_token();
     std::fs::create_dir_all(paths.root().join(STAGING))?;
-    write_atomic(
+    paths.key()?.write(
         &paths.stored(&staged_path(&token)?)?,
         &encode_png(&picture)?,
     )?;
@@ -125,9 +124,13 @@ pub fn staged_path(token: &str) -> Result<String> {
 /// returns its stored path. The staged copy is removed.
 pub fn finish(paths: &AppPaths, token: &str, crop: Crop, name: &str) -> Result<String> {
     let staged = paths.stored(&staged_path(token)?)?;
-    let bytes = std::fs::read(&staged).map_err(|_| {
-        Error::Invalid("the picture upload expired; choose the picture again".into())
-    })?;
+    if !staged.is_file() {
+        return Err(Error::Invalid(
+            "the picture upload expired; choose the picture again".into(),
+        ));
+    }
+    let key = paths.key()?;
+    let bytes = key.read(&staged)?;
     let picture = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
         .map_err(|e| Error::Invalid(format!("the staged picture could not be read ({e})")))?;
     let fits = crop.size >= MIN_CROP
@@ -146,7 +149,7 @@ pub fn finish(paths: &AppPaths, token: &str, crop: Crop, name: &str) -> Result<S
         .crop_imm(crop.x, crop.y, crop.size, crop.size)
         .resize_exact(AVATAR_SIDE, AVATAR_SIDE, FilterType::Lanczos3);
     let stored = format!("avatars/{name}-{}.png", new_token());
-    write_atomic(&paths.stored(&stored)?, &encode_png(&square)?)?;
+    key.write(&paths.stored(&stored)?, &encode_png(&square)?)?;
     let _ = std::fs::remove_file(staged);
     Ok(stored)
 }
@@ -161,13 +164,14 @@ pub fn remove(paths: &AppPaths, stored: &str) {
     }
 }
 
-/// Removes staged pictures left from an earlier run.
+/// Removes staged pictures and plain work copies left from an earlier run.
 pub fn clear_staging(paths: &AppPaths) {
-    let dir = paths.root().join(STAGING);
-    if dir.is_dir()
-        && let Err(e) = std::fs::remove_dir_all(&dir)
-    {
-        log::warn!("could not clear the staging folder: {e}");
+    for dir in [paths.root().join(STAGING), paths.work()] {
+        if dir.is_dir()
+            && let Err(e) = std::fs::remove_dir_all(&dir)
+        {
+            log::warn!("could not clear {}: {e}", dir.display());
+        }
     }
 }
 
@@ -187,8 +191,13 @@ pub fn for_vision(paths: &AppPaths, stored: &str) -> Result<String> {
     if !(stored.starts_with("avatars/") || stored.starts_with(&format!("{STAGING}/"))) {
         return Err(Error::Invalid("this is not a profile picture".into()));
     }
-    let bytes = std::fs::read(paths.stored(stored)?)
-        .map_err(|_| Error::Invalid("the picture is gone; choose the picture again".into()))?;
+    let file = paths.stored(stored)?;
+    if !file.is_file() {
+        return Err(Error::Invalid(
+            "the picture is gone; choose the picture again".into(),
+        ));
+    }
+    let bytes = paths.key()?.read(&file)?;
     let picture = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
         .map_err(|e| Error::Invalid(format!("the picture could not be read ({e})")))?;
     let picture = if picture.width().max(picture.height()) > AVATAR_SIDE {
@@ -242,7 +251,10 @@ mod tests {
         };
         let stored = finish(&paths, &staged.token, crop, "character-1").unwrap();
         assert!(stored.starts_with("avatars/character-1-"));
-        let saved = image::open(paths.stored(&stored).unwrap()).unwrap();
+        let file = paths.stored(&stored).unwrap();
+        assert!(image::open(&file).is_err(), "encrypted on disk");
+        let bytes = paths.key().unwrap().read(&file).unwrap();
+        let saved = image::load_from_memory(&bytes).unwrap();
         assert_eq!((saved.width(), saved.height()), (512, 512));
         assert!(
             finish(&paths, &staged.token, crop, "x").is_err(),

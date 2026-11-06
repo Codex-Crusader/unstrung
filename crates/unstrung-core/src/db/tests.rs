@@ -34,7 +34,9 @@ fn texts(path: &[Message]) -> Vec<&str> {
 async fn message_tree_survives_a_reopen() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("app.db");
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     assert!(db.quick_check().await.unwrap());
     let id = db
         .insert_character(&ren(), Some("test"), "{}")
@@ -49,7 +51,9 @@ async fn message_tree_survives_a_reopen() {
     user(&db, chat, Some(hello.id), "Talk.").await;
     db.close().await;
 
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let path = db.path_to_head(chat).await.unwrap();
     assert_eq!(texts(&path), ["Sit. Talk.", "Hello", "Talk."]);
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
@@ -65,7 +69,9 @@ async fn message_tree_survives_a_reopen() {
 #[tokio::test]
 async fn delete_restore_and_copy() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let id = db.insert_character(&ren(), None, "{}").await.unwrap();
     let character = db.character(id).await.unwrap();
     let chat = db.create_chat(&character, None, "", true).await.unwrap();
@@ -105,7 +111,9 @@ async fn delete_restore_and_copy() {
 #[tokio::test]
 async fn personas_and_world_info() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let kai = db
         .insert_persona(
             &PersonaFields {
@@ -139,15 +147,21 @@ async fn personas_and_world_info() {
 async fn first_run_stays_pending_until_done() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("app.db");
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     assert!(db.first_run_pending().await.unwrap());
     db.close().await;
     // Closing the app during the welcome flow keeps it pending.
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     assert!(db.first_run_pending().await.unwrap());
     db.set_meta(FIRST_RUN_KEY, "done").await.unwrap();
     db.close().await;
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     assert!(!db.first_run_pending().await.unwrap());
 }
 
@@ -155,7 +169,9 @@ async fn first_run_stays_pending_until_done() {
 async fn a_database_from_before_the_welcome_flow_skips_it() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("app.db");
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     // An older build had no first-run flag.
     sqlx::query("DELETE FROM meta WHERE key = ?")
         .bind(FIRST_RUN_KEY)
@@ -163,7 +179,9 @@ async fn a_database_from_before_the_welcome_flow_skips_it() {
         .await
         .unwrap();
     db.close().await;
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     assert_eq!(
         db.meta(FIRST_RUN_KEY).await.unwrap().as_deref(),
         Some("existing")
@@ -174,7 +192,9 @@ async fn a_database_from_before_the_welcome_flow_skips_it() {
 #[tokio::test]
 async fn recent_chats_are_talked_in_newest_first_and_not_adult() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let ren_id = db.insert_character(&ren(), None, "{}").await.unwrap();
     let detective = db.character(ren_id).await.unwrap();
     let adult_fields = CharacterFields {
@@ -258,24 +278,34 @@ fn copies(dir: &Path) -> Vec<String> {
 async fn an_update_copies_the_database_first() {
     let dir = tempfile::tempdir().unwrap();
     let file = old_database(dir.path(), 3).await;
-    Db::open(&file).await.unwrap().close().await;
+    Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap()
+        .close()
+        .await;
     let made = copies(dir.path());
     assert_eq!(made.len(), 1, "{made:?}");
     assert!(made[0].starts_with("before-schema-3-"), "{made:?}");
     let copy = dir.path().join("backups").join(&made[0]);
     assert_eq!(
-        Db::integrity_check_file(&copy).await.unwrap(),
+        Db::integrity_check_file(&copy, &crate::vault::DataKey::test())
+            .await
+            .unwrap(),
         Some(Vec::new())
     );
     // Opening again changes nothing, so it makes no second copy.
-    Db::open(&file).await.unwrap().close().await;
+    Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap()
+        .close()
+        .await;
     assert_eq!(copies(dir.path()).len(), 1);
 }
 
 #[tokio::test]
 async fn a_new_database_makes_no_copy() {
     let dir = tempfile::tempdir().unwrap();
-    Db::open(&dir.path().join("app.db"))
+    Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
         .await
         .unwrap()
         .close()
@@ -287,7 +317,9 @@ async fn a_new_database_makes_no_copy() {
 async fn only_the_newest_copies_stay() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("app.db");
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let mut made = Vec::new();
     for _ in 0..KEEP_BACKUPS + 2 {
         made.push(backup(&db.pool, &file, 4).await.unwrap());
@@ -306,7 +338,9 @@ async fn only_the_newest_copies_stay() {
 #[tokio::test]
 async fn pictures_are_saved_listed_and_deleted() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let id = db.insert_character(&ren(), None, "{}").await.unwrap();
     let character = db.character(id).await.unwrap();
     let chat = db.create_chat(&character, None, "", true).await.unwrap();
@@ -355,7 +389,9 @@ async fn pictures_are_saved_listed_and_deleted() {
 async fn one_copy_a_day_and_the_last_seven_stay() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("app.db");
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     assert!(db.snapshot_on_day(&file, 1).await.unwrap().is_some());
     // The same day: no second copy.
     assert!(db.snapshot_on_day(&file, 1).await.unwrap().is_none());
@@ -377,7 +413,9 @@ async fn one_copy_a_day_and_the_last_seven_stay() {
 async fn a_copy_comes_back_and_the_replaced_file_is_kept() {
     let dir = tempfile::tempdir().unwrap();
     let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     db.set_meta("story", "old").await.unwrap();
     db.snapshot_on_day(&paths.database(), 1).await.unwrap();
     db.set_meta("story", "new").await.unwrap();
@@ -389,7 +427,9 @@ async fn a_copy_comes_back_and_the_replaced_file_is_kept() {
         assert!(snapshots::restore(&paths, bad).await.is_err(), "{bad}");
     }
     snapshots::restore(&paths, &name).await.unwrap();
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     assert_eq!(db.meta("story").await.unwrap().as_deref(), Some("old"));
     db.close().await;
     // The replaced file waits in backups, and is not offered as a copy.
@@ -408,7 +448,9 @@ async fn a_copy_comes_back_and_the_replaced_file_is_kept() {
         .await
         .unwrap_err();
     assert!(matches!(err, Error::Damaged(_)), "{err:?}");
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     assert_eq!(db.meta("story").await.unwrap().as_deref(), Some("old"));
     db.close().await;
 }
@@ -417,7 +459,9 @@ async fn a_copy_comes_back_and_the_replaced_file_is_kept() {
 /// overwritten.
 async fn damaged_database(dir: &Path) -> PathBuf {
     let file = dir.join("app.db");
-    let db = Db::open(&file).await.unwrap();
+    let db = Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     for i in 0..2000 {
         db.set_meta(&format!("key {i}"), &"x".repeat(40))
             .await
@@ -439,11 +483,15 @@ async fn a_damaged_file_goes_to_safe_start_only_with_a_copy() {
     // No copy: the chats stay usable.
     let dir = tempfile::tempdir().unwrap();
     let file = damaged_database(dir.path()).await;
-    Db::open(&file).await.unwrap().close().await;
+    Db::open(&file, &crate::vault::DataKey::test())
+        .await
+        .unwrap()
+        .close()
+        .await;
     // With a copy: safe start offers it.
     std::fs::create_dir_all(dir.path().join("backups")).unwrap();
     std::fs::write(dir.path().join("backups").join("daily-1-5.db"), b"copy").unwrap();
-    let err = Db::open(&file)
+    let err = Db::open(&file, &crate::vault::DataKey::test())
         .await
         .err()
         .expect("a damaged file must not open");
@@ -453,7 +501,9 @@ async fn a_damaged_file_goes_to_safe_start_only_with_a_copy() {
 #[tokio::test]
 async fn kept_memories_are_one_per_text_and_go_with_the_character() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
     let id = db.insert_character(&ren(), None, "{}").await.unwrap();
     let kept = db.kept(id).await.unwrap();
     assert_eq!(kept.mode, "ask", "the default asks at a new chat");
@@ -493,4 +543,71 @@ async fn kept_memories_are_one_per_text_and_go_with_the_character() {
         .await
         .unwrap();
     assert_eq!(left, 0, "the memories go with the character");
+}
+
+/// Opens `file` without a key, as another program would.
+async fn readable_without_key(file: &Path) -> bool {
+    let Ok(pool) = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(SqliteConnectOptions::new().filename(file).read_only(true))
+        .await
+    else {
+        return false;
+    };
+    let read = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM sqlite_master")
+        .fetch_one(&pool)
+        .await
+        .is_ok();
+    pool.close().await;
+    read
+}
+
+#[tokio::test]
+async fn the_chats_file_and_its_copies_are_encrypted_but_a_backup_copy_is_not() {
+    let dir = tempfile::tempdir().unwrap();
+    let key = crate::vault::DataKey::test();
+    // A plain file from before encryption, at an older schema.
+    let file = old_database(dir.path(), 3).await;
+    assert!(crate::vault::is_plain_database(&file));
+    let db = Db::open(&file, &key).await.unwrap();
+    db.set_meta("secret", "a line of a chat").await.unwrap();
+    let daily = db.snapshot_on_day(&file, 9).await.unwrap().unwrap();
+    let plain = dir.path().join("plain.db");
+    db.plain_copy_to(&plain).await.unwrap();
+    db.close().await;
+
+    let raw = std::fs::read(&file).unwrap();
+    assert!(!raw.windows(16).any(|w| w == b"a line of a chat"));
+    assert!(!crate::vault::is_plain_database(&file));
+    assert!(!readable_without_key(&file).await);
+    for copy in std::fs::read_dir(dir.path().join("backups")).unwrap() {
+        let copy = copy.unwrap().path();
+        assert!(!readable_without_key(&copy).await, "{}", copy.display());
+    }
+    assert!(!readable_without_key(&daily).await);
+    assert_eq!(
+        Db::integrity_check_file(&daily, &key).await.unwrap(),
+        Some(Vec::new())
+    );
+    assert!(
+        readable_without_key(&plain).await,
+        "a backup zip opens anywhere"
+    );
+    let other = crate::vault::DataKey::random().unwrap();
+    assert!(
+        Db::open(&file, &other).await.is_err(),
+        "another key does not open it"
+    );
+    let old = dir.path().join("backups").join("daily-1-1.db");
+    std::fs::copy(&plain, &old).unwrap();
+    assert_eq!(
+        encrypt_old_copies(&dir.path().join("backups"), &key).await,
+        1
+    );
+    assert!(!readable_without_key(&old).await);
+    let db = Db::open(&file, &key).await.unwrap();
+    assert_eq!(
+        db.meta("secret").await.unwrap().as_deref(),
+        Some("a line of a chat")
+    );
 }

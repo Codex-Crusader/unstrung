@@ -414,7 +414,15 @@ fn engine(paths: &AppPaths, fix: bool) -> Finding {
 
 /// Only reports. Restoring a snapshot is a separate step that the user picks.
 async fn data(paths: &AppPaths) -> Finding {
-    match Db::integrity_check_file(&paths.database()).await {
+    let key = match paths.key() {
+        Ok(key) => key,
+        Err(e) => {
+            let mut f = Finding::new(Area::Data, State::NeedsAction);
+            f.detail = e.to_string();
+            return f;
+        }
+    };
+    match Db::integrity_check_file(&paths.database(), &key).await {
         Ok(None) => Finding::new(Area::Data, State::Ok),
         Ok(Some(problems)) if problems.is_empty() => Finding::new(Area::Data, State::Ok),
         Ok(Some(problems)) => {
@@ -536,7 +544,11 @@ mod tests {
     #[tokio::test]
     async fn a_clean_folder_passes() {
         let (_dir, paths) = paths();
-        Db::open(&paths.database()).await.unwrap().close().await;
+        Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap()
+            .close()
+            .await;
         let found = check(&paths, false).await;
         assert!(found.iter().all(|f| f.state == State::Ok), "{found:?}");
     }

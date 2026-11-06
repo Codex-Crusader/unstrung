@@ -6,7 +6,7 @@
 use crate::error::{Error, Result};
 use crate::location::Location;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Overrides the app folder. Tests and the self-test use it, so they never touch real data.
 pub const HOME_ENV: &str = "UNSTRUNG_HOME";
@@ -20,6 +20,9 @@ pub struct AppPaths {
     /// From `location.json`. Shared by every copy, so a change in the
     /// storage step reaches the engine on its next start.
     location: Arc<RwLock<Location>>,
+    /// The data key, loaded on first use. Shared by every copy; the lock
+    /// also keeps two threads from making two keys.
+    key: Arc<Mutex<Option<crate::vault::DataKey>>>,
 }
 
 impl AppPaths {
@@ -36,7 +39,28 @@ impl AppPaths {
 
     pub fn at(root: PathBuf) -> Self {
         let location = Arc::new(RwLock::new(Location::load(&root)));
-        Self { root, location }
+        Self {
+            root,
+            location,
+            key: Arc::default(),
+        }
+    }
+
+    /// The data key of this app folder (see `vault`).
+    pub fn key(&self) -> Result<crate::vault::DataKey> {
+        let mut key = self.key.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(key) = key.as_ref() {
+            return Ok(key.clone());
+        }
+        let loaded = crate::vault::load_or_create(self)?;
+        *key = Some(loaded.clone());
+        Ok(loaded)
+    }
+
+    /// Plain copies that the picture engine reads or writes. They live only
+    /// for one picture, and the folder is cleared at start.
+    pub fn work(&self) -> PathBuf {
+        self.root.join("work")
     }
 
     pub fn location(&self) -> Location {

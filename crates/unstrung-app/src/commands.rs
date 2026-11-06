@@ -97,6 +97,10 @@ impl From<Error> for UiError {
             Error::Damaged(_) => {
                 "Your chats file is damaged. Open Unstrung in safe start and run Repair.".to_owned()
             }
+            Error::KeyLost(_) => {
+                "The key that protects your chats and pictures did not open. Your data is still there. Sign in to Windows as the user who made it, then start Unstrung again."
+                    .to_owned()
+            }
             Error::Db(_) | Error::Migrate(_) | Error::Io(_) => {
                 "Unstrung could not read or save your data. Try again. If it fails again, restart Unstrung."
                     .to_owned()

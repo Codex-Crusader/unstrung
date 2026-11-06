@@ -40,6 +40,8 @@ pub enum Error {
     #[error("damaged data: {0}")]
     Damaged(String),
     /// The data key does not unwrap, or it is missing next to encrypted data.
-    #[error("the data key does not open: {0}")]
+    #[error(
+        "the key that protects your chats and pictures did not open ({0}). Your data is still there. Sign in to Windows as the user who made it"
+    )]
     KeyLost(String),
 }

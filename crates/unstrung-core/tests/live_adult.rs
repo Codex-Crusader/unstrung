@@ -197,7 +197,9 @@ async fn adult_chat_goes_where_the_setting_allows() {
     let engine = Engine::new(paths.clone());
     engine.start().await;
     assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     let service = Arc::new(ChatService::new(db.clone(), engine.clone()));
     let models =
         std::env::var("UNSTRUNG_ADULT_MODELS").unwrap_or_else(|_| "gemma4:e4b-it-qat".into());
@@ -264,7 +266,9 @@ async fn an_adult_scene_picture_uses_adult_rules() {
         })
         .unwrap();
     paths.ensure().unwrap();
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     let startup = models::startup(&db, &paths).await.unwrap();
     let engine = Engine::with_model(paths.clone(), &startup.model, startup.advanced.clone());
     let models = ModelService::new(engine.clone(), db.clone(), &startup);

@@ -244,7 +244,7 @@ async fn main() -> Result<(), Fail> {
     let home = tempfile::tempdir()?;
     let paths = AppPaths::at(home.path().to_path_buf());
     paths.ensure()?;
-    let db = unstrung_core::db::Db::open(&paths.database()).await?;
+    let db = unstrung_core::db::Db::open(&paths.database(), &paths.key()?).await?;
     starters::ensure(&db, &paths).await?;
     // A card like one that a user writes. Missing keys keep their defaults.
     for card in &o.cards {

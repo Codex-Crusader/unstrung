@@ -2149,7 +2149,9 @@ mod tests {
     async fn a_rebuilt_summary_saves_only_while_it_is_up_to_date() {
         let dir = tempfile::tempdir().unwrap();
         let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let fields = crate::db::CharacterFields {
             name: "Ren".into(),
             greeting: "Sit.".into(),
@@ -2210,7 +2212,9 @@ mod tests {
     async fn a_next_chapter_carries_the_notes_and_the_settings() {
         let dir = tempfile::tempdir().unwrap();
         let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let fields = crate::db::CharacterFields {
             name: "Ren".into(),
             greeting: "Sit.".into(),
@@ -2287,7 +2291,9 @@ mod tests {
     async fn memory_panel_calls() {
         let dir = tempfile::tempdir().unwrap();
         let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let fields = crate::db::CharacterFields {
             name: "Ren".into(),
             greeting: "Sit.".into(),

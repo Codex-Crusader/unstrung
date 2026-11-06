@@ -747,8 +747,21 @@ impl PictureService {
         let size = if on_gpu { 1024 } else { 512 };
         let folder = self.paths.gallery().join(chat_id.to_string());
         std::fs::create_dir_all(&folder)?;
-        let file = format!("{}-{seed}.png", crate::db::now_ms());
-        let output = folder.join(&file);
+        let stamp = format!("{}-{seed}", crate::db::now_ms());
+        let file = format!("{stamp}.png");
+        // The engine reads and writes plain files only. They live in the
+        // work folder for this one picture.
+        let work = self.paths.work();
+        std::fs::create_dir_all(&work)?;
+        let key = self.paths.key()?;
+        let output = work.join(&file);
+        let mut plain = WorkFiles(vec![output.clone()]);
+        for (i, r) in refs.files.iter().enumerate() {
+            let copy = work.join(format!("{stamp}-ref{i}.png"));
+            plain.0.push(copy.clone());
+            crate::files::write_atomic(&copy, &key.read(r)?)?;
+        }
+        let references = plain.0[1..].to_vec();
 
         let job = runner::Job {
             model,
@@ -758,7 +771,7 @@ impl PictureService {
             height: size,
             seed,
             output: &output,
-            references: &refs.files,
+            references: &references,
         };
         let mut cmd = std::process::Command::new(exe);
         cmd.args(runner::args(&job));
@@ -790,6 +803,9 @@ impl PictureService {
         .await
         .map_err(|e| Error::Engine(format!("the picture stopped: {e}")))?;
         ran?;
+        let saved_file = folder.join(&file);
+        key.write(&saved_file, &std::fs::read(&output)?)?;
+        drop(plain);
         log::info!(
             "picture made in {} s with {} ({}x{})",
             started.elapsed().as_secs(),
@@ -816,7 +832,7 @@ impl PictureService {
             .await;
         // A file without its row is never shown and never deleted, so it goes now.
         let id = saved.inspect_err(|_| {
-            let _ = std::fs::remove_file(&output);
+            let _ = std::fs::remove_file(&saved_file);
         })?;
         self.chats.db().image(id).await
     }
@@ -909,6 +925,18 @@ async fn free_gpu(client: &crate::ollama::Client, model: &str) -> bool {
         }
     }
     true
+}
+
+/// Plain files in the work folder, removed when this drops, also on an
+/// error or a cancel.
+struct WorkFiles(Vec<std::path::PathBuf>);
+
+impl Drop for WorkFiles {
+    fn drop(&mut self) {
+        for f in &self.0 {
+            let _ = std::fs::remove_file(f);
+        }
+    }
 }
 
 /// The profile pictures of one picture job, and how the `images` row records

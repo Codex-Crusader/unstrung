@@ -44,7 +44,13 @@ Use Settings, Apps, Installed apps. The uninstaller asks if it must also delete 
 
 ## Build from source
 
-You need Rust (stable), Node.js 22 or newer, and the Visual Studio C++ build tools.
+You need Rust (stable), Node.js 22 or newer, the Visual Studio C++ build tools, and [Strawberry Perl](https://strawberryperl.com/). The chats file is encrypted with SQLCipher, and the build compiles OpenSSL from source, which needs a full Perl.
+
+If another Perl comes first on your PATH (for example the one in Git Bash), set `PERL` to Strawberry Perl before you build:
+
+```
+set PERL=C:\Strawberry\perl\bin\perl.exe
+```
 
 1. Build the UI. The app embeds it, so you must build it before the Rust code.
 

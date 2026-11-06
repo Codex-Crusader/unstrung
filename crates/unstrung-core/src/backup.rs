@@ -98,8 +98,28 @@ fn pictures(dir: &Path, prefix: &str, out: &mut Vec<(PathBuf, String)>) -> Resul
     Ok(())
 }
 
-/// Adds one file. `false` when the file went away meanwhile (a picture
-/// deleted during the export).
+/// Adds one picture, decrypted: a backup is how data moves to a new PC, so
+/// it must open without this PC's key. `false` when the file went away
+/// meanwhile (a picture deleted during the export).
+fn add_picture(
+    zip: &mut ZipWriter<BufWriter<File>>,
+    key: &crate::vault::DataKey,
+    file: &Path,
+    name: &str,
+) -> Result<bool> {
+    let bytes = match std::fs::read(file) {
+        Ok(b) => key.open(&b)?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e.into()),
+    };
+    // Pictures are compressed already.
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+    zip.start_file(name, options).map_err(zip_error)?;
+    zip.write_all(&bytes)?;
+    Ok(true)
+}
+
+/// Adds one file.
 fn add(
     zip: &mut ZipWriter<BufWriter<File>>,
     file: &Path,
@@ -134,6 +154,7 @@ fn write_zip(paths: &AppPaths, db_copy: &Path, to: &Path, manifest: &Manifest) -
             need: need - disk.available,
         });
     }
+    let key = paths.key()?;
     let part = PathBuf::from(format!("{}.part", to.display()));
     let written = (|| -> Result<Exported> {
         let mut zip = ZipWriter::new(BufWriter::new(File::create(&part)?));
@@ -143,8 +164,7 @@ fn write_zip(paths: &AppPaths, db_copy: &Path, to: &Path, manifest: &Manifest) -
         add(&mut zip, db_copy, DATABASE, CompressionMethod::Deflated)?;
         let (mut avatars, mut pictures) = (0, 0);
         for (i, (file, name)) in files.iter().enumerate() {
-            // Pictures are compressed already.
-            if add(&mut zip, file, name, CompressionMethod::Stored)? {
+            if add_picture(&mut zip, &key, file, name)? {
                 *(if i < avatar_count {
                     &mut avatars
                 } else {
@@ -192,7 +212,7 @@ pub async fn export(db: &Db, paths: &AppPaths, to: &Path, app_version: &str) -> 
     let copy = paths
         .backups()
         .join(format!("{}{}.db", LEFTOVER_PREFIXES[0], now_ms()));
-    db.copy_to(&copy).await?;
+    db.plain_copy_to(&copy).await?;
     let (p, c, t) = (paths.clone(), copy.clone(), to.to_path_buf());
     let result = tokio::task::spawn_blocking(move || write_zip(&p, &c, &t, &manifest))
         .await
@@ -357,6 +377,7 @@ fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
     has_room(&paths.backups(), total)?;
     has_room(&paths.library(), pictures)?;
     let (dir, gallery) = staging(paths, id)?;
+    let key = paths.key()?;
     let unpacked = (|| -> Result<Manifest> {
         std::fs::create_dir_all(dir.join("avatars"))?;
         std::fs::create_dir_all(&gallery)?;
@@ -381,7 +402,7 @@ fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
                 Part::Avatar => {
                     let clean = crate::avatar::clean_copy(&bytes)
                         .map_err(|e| not_a_backup(&format!("{name}: {e}")))?;
-                    std::fs::write(join_safe(&dir, name)?, clean)?;
+                    key.write(&join_safe(&dir, name)?, &clean)?;
                 }
                 _ => {
                     let kind = image::guess_format(&bytes).ok();
@@ -400,7 +421,7 @@ fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
                     if let Some(parent) = to.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
-                    std::fs::write(to, &bytes)?;
+                    key.write(&to, &bytes)?;
                 }
             }
         }
@@ -497,18 +518,19 @@ async fn check_rows(db: &Db) -> Result<[i64; 4]> {
 async fn check_staged(paths: &AppPaths, id: &str, manifest: Manifest) -> Result<BackupInfo> {
     let (dir, _) = staging(paths, id)?;
     let file = dir.join(DATABASE);
-    match Db::integrity_check_file(&file).await {
+    match Db::integrity_check_file(&file, &paths.key()?).await {
         Ok(Some(problems)) if problems.is_empty() => {}
         _ => return Err(not_a_backup("the chats file in it is damaged")),
     }
-    let schema = Db::schema_of_file(&file)
+    let key = paths.key()?;
+    let schema = Db::schema_of_file(&file, &key)
         .await
         .map_err(|_| not_a_backup("it holds no Unstrung chats file"))?;
     if schema > crate::db::newest_schema() {
         return Err(newer_version());
     }
     // Brings an older backup up to this version, in the staging folder.
-    let db = Db::open(&file).await?;
+    let db = Db::open(&file, &key).await?;
     // The 18+ confirmation is for this install, not something a file brings.
     let counts = match crate::content::set_adult(&db, false).await {
         Ok(()) => check_rows(&db).await,
@@ -556,7 +578,7 @@ pub struct Added {
     pub skipped: usize,
 }
 
-/// Copies a staged avatar (a clean PNG already) into the avatars folder
+/// Copies a staged avatar (a clean PNG already, encrypted) into the avatars folder
 /// under a new name. `None` when the backup has no such file.
 fn copy_avatar(
     paths: &AppPaths,
@@ -647,7 +669,7 @@ pub async fn add_characters(live: &Db, paths: &AppPaths, id: &str) -> Result<Add
     if !file.exists() {
         return Err(Error::Invalid("this backup is no longer open".into()));
     }
-    let staged = Db::open(&file).await?;
+    let staged = Db::open(&file, &paths.key()?).await?;
     let mut added = (Vec::new(), Vec::new());
     let result = add_rows(&staged, live, paths, &dir, &mut added).await;
     staged.close().await;
@@ -863,7 +885,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().join("home"));
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         std::fs::write(paths.avatars().join("a.png"), b"avatar").unwrap();
         std::fs::create_dir_all(paths.gallery().join("1")).unwrap();
         std::fs::write(paths.gallery().join("1").join("p.PNG"), b"picture").unwrap();
@@ -915,7 +939,9 @@ mod tests {
     async fn home(dir: &Path) -> (AppPaths, Db) {
         let paths = AppPaths::at(dir.join("home"));
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let fields = CharacterFields {
             name: "Ren".into(),
             personality: "Calm.".into(),
@@ -969,12 +995,12 @@ mod tests {
         let counts = [info.characters, info.personas, info.chats, info.pictures];
         assert_eq!(counts, [1, 1, 1, 1]);
         let (staged, gallery) = staging(&paths, &info.id).unwrap();
+        let key = paths.key().unwrap();
         let avatar = std::fs::read(staged.join("avatars").join("ren.png")).unwrap();
+        assert!(crate::vault::is_sealed(&avatar), "encrypted on disk");
+        let avatar = key.open(&avatar).unwrap();
         assert!(image::load_from_memory(&avatar).is_ok(), "a clean PNG copy");
-        assert_eq!(
-            std::fs::read(gallery.join("1").join("p.png")).unwrap(),
-            png()
-        );
+        assert_eq!(key.read(&gallery.join("1").join("p.png")).unwrap(), png());
         // The current data did not change, and the staged files go at the next start.
         assert_eq!(db.counts().await.unwrap(), [1, 1, 1, 1]);
         clear_leftovers(&paths);
@@ -1010,7 +1036,9 @@ mod tests {
         let other = tempfile::tempdir().unwrap();
         let paths2 = AppPaths::at(other.path().join("home"));
         paths2.ensure().unwrap();
-        let live = Db::open(&paths2.database()).await.unwrap();
+        let live = Db::open(&paths2.database(), &paths2.key().unwrap())
+            .await
+            .unwrap();
         let info = open(&paths2, &zip).await.unwrap();
         let added = add_characters(&live, &paths2, &info.id).await.unwrap();
         assert_eq!((added.characters, added.personas), (1, 1));
@@ -1045,7 +1073,11 @@ mod tests {
         db.close().await;
         let paths = AppPaths::at(dir.join("home"));
         paths.ensure().unwrap();
-        Db::open(&paths.database()).await.unwrap().close().await;
+        Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap()
+            .close()
+            .await;
         std::fs::write(paths.avatars().join("mine.png"), png()).unwrap();
         let info = open(&paths, &zip).await.unwrap();
         (paths, info)
@@ -1059,7 +1091,9 @@ mod tests {
         ask_replace(&paths, &info.id).unwrap();
 
         assert!(apply_pending(&paths).unwrap());
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         assert_eq!(db.counts().await.unwrap(), [1, 2, 1, 1]);
         assert!(paths.avatars().join("ren.png").exists());
         assert!(!paths.avatars().join("mine.png").exists());
@@ -1121,7 +1155,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().join("home"));
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         crate::starters::ensure(&db, &paths).await.unwrap();
         // A backup never brings the adult setting: the user confirms 18+ here.
         crate::content::set_adult(&db, true).await.unwrap();
@@ -1130,7 +1166,9 @@ mod tests {
         let info = open(&paths, &zip).await.unwrap();
         assert!(info.characters > 0 && info.personas > 0);
         let (staged, _) = staging(&paths, &info.id).unwrap();
-        let copy = Db::open(&staged.join(DATABASE)).await.unwrap();
+        let copy = Db::open(&staged.join(DATABASE), &paths.key().unwrap())
+            .await
+            .unwrap();
         assert!(!crate::content::adult_on(&copy).await.unwrap());
         copy.close().await;
         assert!(
@@ -1168,7 +1206,9 @@ mod tests {
             std::fs::create_dir_all(to.parent().unwrap()).unwrap();
             std::fs::copy(f, to).unwrap();
         }
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let zip = dir.path().join("b.zip");
         export(&db, &paths, &zip, "1").await.unwrap();
         let info = open(&paths, &zip).await.unwrap();

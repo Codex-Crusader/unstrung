@@ -30,6 +30,7 @@ Unstrung runs all chat on your computer. The design follows these rules:
 - The chat engine (Ollama) listens only on `127.0.0.1`, on a random free port, with its own models folder. Other devices on the network cannot reach it. Settings from your own Ollama do not reach it. The engine stops when the app stops, also after a crash.
 - Downloads go only to the hosts in the app's catalog, over HTTPS. Each downloaded file must match a SHA-256 hash from the catalog, or the app deletes it.
 - Sexual content that involves anyone under 18 is never allowed, whatever the settings. Adult content needs an 18+ character and a persona with an adult age, from the database, not from the model. A chat stays general when the card, the persona, the messages or the memory notes mention someone under 18, also when the age is written as a word. The app refuses such text in your own messages, stops a reply that crosses the line, and checks every picture prompt.
+- Your chats and pictures are encrypted on disk. The chats file uses SQLCipher (AES-256). The pictures use AES-256-GCM. One random key encrypts both, and it is in `data.key` in the app folder. Windows (DPAPI, the Data Protection API) protects that file for your Windows user only, so another Windows user, another PC, or a copy of the disk cannot open your data. The daily copies of the chats file are encrypted too.
 - The database uses parameterized queries only.
 - The project crates forbid `unsafe` code.
 
@@ -48,7 +49,11 @@ Your chats, characters, personas, pictures and usage data never go over the netw
 ## What Unstrung does not protect
 
 - A person or program with administrator access to your PC, or with your Windows password, can read your data. No app can stop that.
-- Data is not encrypted on disk in version 1. Your Windows account protects it. To protect it if someone takes your PC or its disk, turn on BitLocker or Device encryption in Windows.
+- Any program that runs as your Windows user can ask Windows to open the data key. Encryption protects your data from other users and from a stolen disk, not from malware on your own account.
+- A backup zip that you export is not encrypted, so that it opens on a new PC. Keep it in a safe place. A picture that you save outside the app is a plain PNG file.
+- The picture engine works with plain files. It gets a plain copy of the pictures it needs in the `work` folder, and the app deletes the copy after each picture. After a crash, the next start deletes it.
+- If an administrator resets your Windows password, Windows can lose the key that opens `data.key`, and your chats do not open. Unstrung never makes a new key over your data. To get your data back, sign in as the user who made it with the old password, or import a backup zip. Export a backup now and then.
+- Deleted data can stay on the disk until other files use the space. Version 0.1.0 saved data plain, so traces of it can stay after the update. For full protection, turn on BitLocker or Device encryption in Windows.
 - Other programs that run as your Windows user can find the local engine port and send requests to it. Such programs can also read your data files, so the port does not give them more access.
 
 ## How the project checks its dependencies

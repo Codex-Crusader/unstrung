@@ -4,7 +4,6 @@
 
 use crate::db::{CharacterFields, Db, PersonaFields};
 use crate::error::Result;
-use crate::files::write_atomic;
 use crate::paths::AppPaths;
 
 /// Raise this to add new starters to existing databases.
@@ -215,7 +214,7 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
         };
         let id = db.insert_character(&fields, Some(c.key), "{}").await?;
         let avatar = format!("avatars/starter-{}.png", c.key);
-        write_atomic(&paths.stored(&avatar)?, c.avatar)?;
+        paths.key()?.write(&paths.stored(&avatar)?, c.avatar)?;
         db.set_character_avatar(id, Some(&avatar)).await?;
     }
     for p in PERSONAS {
@@ -231,7 +230,7 @@ pub async fn restore(db: &Db, paths: &AppPaths) -> Result<()> {
         };
         let id = db.insert_persona(&fields, Some(p.key)).await?;
         let avatar = format!("avatars/starter-{}.png", p.key);
-        write_atomic(&paths.stored(&avatar)?, p.avatar)?;
+        paths.key()?.write(&paths.stored(&avatar)?, p.avatar)?;
         db.set_persona_avatar(id, Some(&avatar)).await?;
     }
     Ok(())
@@ -306,7 +305,9 @@ mod tests {
             .bind(OLD_CHARACTERS[0].1).execute(&pool).await.unwrap();
         pool.close().await;
 
-        let db = Db::open(&file).await.unwrap();
+        let db = Db::open(&file, &crate::vault::DataKey::test())
+            .await
+            .unwrap();
         for c in CHARACTERS {
             let id = db.character_by_starter(c.key).await.unwrap().unwrap();
             let row = db.character(id).await.unwrap();
@@ -359,7 +360,9 @@ mod tests {
         sqlx::query("INSERT INTO characters (name, starter_key, appearance_tags, age, created_at) VALUES ('Ren', 'ren_kagami', 'messy black hair, red scarf', 30, 0)")
             .execute(&pool).await.unwrap();
         pool.close().await;
-        let db = Db::open(&file).await.unwrap();
+        let db = Db::open(&file, &crate::vault::DataKey::test())
+            .await
+            .unwrap();
         let id = db
             .character_by_starter("ren_kagami")
             .await
@@ -376,7 +379,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         ensure(&db, &paths).await.unwrap();
         assert_eq!(db.characters().await.unwrap().len(), 5);
         assert_eq!(db.personas().await.unwrap().len(), 2);

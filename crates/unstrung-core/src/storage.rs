@@ -292,7 +292,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         for name in ["replaced-123", "replaced-import-456"] {
             std::fs::create_dir_all(paths.backups().join(name)).unwrap();
             std::fs::write(paths.backups().join(name).join("app.db"), [0u8; 10]).unwrap();
@@ -339,7 +341,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let aside = paths.backups().join("replaced-123");
         std::fs::create_dir_all(&aside).unwrap();
         let file = aside.join("app.db");
@@ -363,7 +367,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let fields = crate::db::CharacterFields {
             name: "Vex".into(),
             age: 30,

@@ -20,6 +20,10 @@ jobs:
   app:
     name: Build, lint and test (Windows)
     runs-on: windows-latest
+    env:
+      # SQLCipher builds OpenSSL from source. Its Configure script needs a
+      # full Perl: the runner's Strawberry Perl, not the one in Git.
+      PERL: C:\Strawberry\perl\bin\perl.exe
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust

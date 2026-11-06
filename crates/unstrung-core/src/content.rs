@@ -164,7 +164,9 @@ mod tests {
     #[tokio::test]
     async fn the_gate_reads_the_setting_from_the_database() {
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("app.db")).await.unwrap();
+        let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+            .await
+            .unwrap();
         let (c, p) = people(true, 30, Some(25));
         assert!(
             !mature_chat(&db, &c, Some(&p)).await.unwrap(),

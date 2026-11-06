@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 /// format version.
 const MAGIC: &[u8; 8] = b"UNSTRNG\x01";
 const NONCE_LEN: usize = 12;
+const DAMAGED_FILE: &str = "this picture is damaged, or it was saved with another key";
 /// The first bytes of a plain SQLite file.
 const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
@@ -51,13 +52,21 @@ impl DataKey {
         out
     }
 
-    /// The SQLCipher key as 64 hex digits, for `PRAGMA key = "x'...'"`.
-    /// A raw key skips the slow password step on every open.
-    pub fn database_hex(&self) -> String {
-        self.derive(b"unstrung database")
+    /// The SQLCipher key as a raw key, `x'<64 hex digits>'`. A raw key
+    /// skips the slow password step on every open.
+    pub fn database_key(&self) -> String {
+        let hex: String = self
+            .derive(b"unstrung database")
             .iter()
             .map(|b| format!("{b:02x}"))
-            .collect()
+            .collect();
+        format!("x'{hex}'")
+    }
+
+    /// One fixed key, so a test can open the same file twice.
+    #[cfg(test)]
+    pub(crate) fn test() -> Self {
+        Self { master: [7; 32] }
     }
 
     fn cipher(&self) -> Aes256Gcm {
@@ -94,7 +103,7 @@ impl DataKey {
         }
         let rest = &data[MAGIC.len()..];
         if rest.len() < NONCE_LEN {
-            return Err(Error::Damaged("an encrypted file is cut short".into()));
+            return Err(Error::Invalid(DAMAGED_FILE.into()));
         }
         let (nonce, sealed) = rest.split_at(NONCE_LEN);
         self.cipher()
@@ -105,7 +114,7 @@ impl DataKey {
                     aad: MAGIC,
                 },
             )
-            .map_err(|_| Error::Damaged("an encrypted file does not open with this key".into()))
+            .map_err(|_| Error::Invalid(DAMAGED_FILE.into()))
     }
 
     /// Reads and decrypts a file.
@@ -134,6 +143,82 @@ pub fn is_plain_database(path: &Path) -> bool {
         .is_ok_and(|()| &header == SQLITE_HEADER)
 }
 
+/// The files in `dirs` and one level below: the avatars, and the gallery
+/// with a folder per chat.
+fn picture_files(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let entries = |d: &Path| {
+        std::fs::read_dir(d)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .collect::<Vec<_>>()
+    };
+    dirs.iter()
+        .flat_map(|d| entries(d))
+        .flat_map(|p| if p.is_dir() { entries(&p) } else { vec![p] })
+        .filter(|p| p.is_file())
+        .collect()
+}
+
+/// The folders that hold pictures: the live ones, and the aside copies of
+/// a backup Replace (`backups/replaced-import-*/avatars`,
+/// `<library>/gallery-replaced-*`).
+fn picture_dirs(paths: &AppPaths) -> Vec<PathBuf> {
+    let aside = |dir: PathBuf, prefix: &str| {
+        std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with(prefix))
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect::<Vec<_>>()
+    };
+    let mut dirs = vec![paths.avatars(), paths.gallery()];
+    dirs.extend(
+        aside(paths.backups(), "replaced-import-")
+            .into_iter()
+            .map(|d| d.join("avatars")),
+    );
+    dirs.extend(aside(paths.library(), "gallery-replaced-"));
+    dirs
+}
+
+fn file_is_sealed(path: &Path) -> bool {
+    use std::io::Read;
+    let mut head = [0u8; MAGIC.len()];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut head))
+        .is_ok_and(|()| &head == MAGIC)
+}
+
+fn first_sealed_file(dirs: &[PathBuf]) -> Option<PathBuf> {
+    picture_files(dirs).into_iter().find(|p| file_is_sealed(p))
+}
+
+/// Encrypts the pictures saved before encryption. Safe to stop and run
+/// again: each file is replaced atomically, and a sealed file is skipped.
+/// Returns how many files it encrypted.
+pub fn seal_old_pictures(paths: &AppPaths) -> Result<usize> {
+    let key = paths.key()?;
+    let mut sealed = 0;
+    for file in picture_files(&picture_dirs(paths)) {
+        if file_is_sealed(&file) {
+            continue;
+        }
+        // shortcut: a picture deleted during this pass comes back as an
+        // orphan file without a row; harmless, and only once per install.
+        match std::fs::read(&file) {
+            Ok(bytes) => key.write(&file, &bytes)?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e.into()),
+        }
+        sealed += 1;
+    }
+    Ok(sealed)
+}
+
 fn key_file(paths: &AppPaths) -> PathBuf {
     paths.root().join("data.key")
 }
@@ -155,6 +240,12 @@ pub fn load_or_create(paths: &AppPaths) -> Result<DataKey> {
         return Err(Error::KeyLost(
             "the chats file is encrypted, but data.key is missing".into(),
         ));
+    }
+    if let Some(file) = first_sealed_file(&[paths.avatars(), paths.gallery()]) {
+        return Err(Error::KeyLost(format!(
+            "{} is encrypted, but data.key is missing",
+            file.display()
+        )));
     }
     let key = DataKey::random()?;
     crate::files::write_atomic(&file, &wrap(&key.master)?)?;
@@ -204,11 +295,33 @@ mod tests {
         assert_eq!(key.open(b"\x89PNG old").unwrap(), b"\x89PNG old");
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn old_pictures_are_sealed_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        std::fs::create_dir_all(paths.gallery().join("7")).unwrap();
+        std::fs::create_dir_all(paths.avatars()).unwrap();
+        std::fs::write(paths.gallery().join("7").join("a.png"), b"PNG a").unwrap();
+        std::fs::write(paths.avatars().join("b.png"), b"PNG b").unwrap();
+        let aside = paths.backups().join("replaced-import-9").join("avatars");
+        std::fs::create_dir_all(&aside).unwrap();
+        std::fs::write(aside.join("c.png"), b"PNG c").unwrap();
+        assert_eq!(seal_old_pictures(&paths).unwrap(), 3);
+        assert_eq!(seal_old_pictures(&paths).unwrap(), 0);
+        let raw = std::fs::read(paths.avatars().join("b.png")).unwrap();
+        assert!(is_sealed(&raw));
+        assert_eq!(paths.key().unwrap().open(&raw).unwrap(), b"PNG b");
+    }
+
     #[test]
     fn database_and_file_keys_differ() {
         let key = DataKey::random().unwrap();
-        assert_eq!(key.database_hex().len(), 64);
-        assert_ne!(key.database_hex().as_bytes(), key.derive(b"unstrung files"));
+        assert_eq!(key.database_key().len(), 67);
+        assert_ne!(
+            key.derive(b"unstrung database"),
+            key.derive(b"unstrung files")
+        );
     }
 
     #[cfg(windows)]
@@ -222,6 +335,14 @@ mod tests {
         std::fs::write(key_file(&paths), b"garbage").unwrap();
         assert!(matches!(load_or_create(&paths), Err(Error::KeyLost(_))));
         std::fs::remove_file(key_file(&paths)).unwrap();
+        std::fs::create_dir_all(paths.gallery().join("4")).unwrap();
+        std::fs::write(
+            paths.gallery().join("4").join("p.png"),
+            first.seal(b"p").unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(load_or_create(&paths), Err(Error::KeyLost(_))));
+        std::fs::remove_dir_all(paths.gallery()).unwrap();
         std::fs::write(paths.database(), b"not a plain sqlite file....").unwrap();
         assert!(matches!(load_or_create(&paths), Err(Error::KeyLost(_))));
         assert!(!key_file(&paths).exists(), "no new key over encrypted data");

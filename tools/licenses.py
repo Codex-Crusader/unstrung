@@ -65,6 +65,32 @@ def rust_licenses():
             yield lic["name"], lic["text"].strip(), used
 
 
+# C code that a crate compiles into the app. cargo-about lists the crate's
+# own license only, so these texts come from the sources in the crate.
+BUNDLED_C = [
+    ("libsqlite3-sys", "sqlcipher/LICENSE", "BSD-3-Clause", "SQLCipher (in libsqlite3-sys {v})"),
+    ("openssl-src", "openssl/LICENSE.txt", "Apache-2.0", "OpenSSL (built by openssl-src {v})"),
+]
+
+
+def bundled_c_licenses():
+    done = subprocess.run(
+        [
+            "cargo", "metadata", "--format-version", "1", "--offline",
+            "--manifest-path", str(ROOT / "crates" / "unstrung-app" / "Cargo.toml"),
+        ],
+        cwd=ROOT, capture_output=True, check=True,
+    )
+    packages = json.loads(done.stdout)["packages"]
+    for crate, file, name, label in BUNDLED_C:
+        found = [p for p in packages if p["name"] == crate]
+        if len(found) != 1:
+            sys.exit(f"expected one {crate} in the build, found {len(found)}")
+        folder = pathlib.Path(found[0]["manifest_path"]).parent
+        text = (folder / file).read_text(encoding="utf-8").strip()
+        yield name, text, [label.format(v=found[0]["version"])]
+
+
 def npm_licenses():
     """The packages in the UI bundle: production dependencies only."""
     listed = subprocess.run(
@@ -90,7 +116,7 @@ def npm_licenses():
 def build():
     # Same text, one entry: many crates share a license file.
     merged = {}
-    for name, text, used in [*rust_licenses(), *npm_licenses()]:
+    for name, text, used in [*rust_licenses(), *bundled_c_licenses(), *npm_licenses()]:
         entry = merged.setdefault(text, {"name": name, "text": text, "used_by": []})
         entry["used_by"] = sorted(set(entry["used_by"]) | set(used))
     licenses = sorted(merged.values(), key=lambda e: (e["name"], e["used_by"][0]))

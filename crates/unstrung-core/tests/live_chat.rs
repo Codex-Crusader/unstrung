@@ -34,7 +34,9 @@ async fn chat_engine_done_tests() {
     let status = engine.status();
     assert!(matches!(status, EngineStatus::Ready { .. }), "{status:?}");
 
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     starters::ensure(&db, &paths).await.unwrap();
     let ren = db
         .character_by_starter("ren_kagami")
@@ -191,7 +193,9 @@ async fn chat_engine_done_tests() {
         .map(|(r, c)| (r.to_owned(), c.to_owned()))
         .collect();
     db.close().await;
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     let path: Vec<Message> = db.path_to_head(chat_id).await.unwrap();
     let got: Vec<(String, String)> = path.into_iter().map(|m| (m.role, m.content)).collect();
     assert_eq!(got, expected);
@@ -261,7 +265,9 @@ async fn a_gguf_file_imports_as_a_model() {
 
     let engine = Engine::new(paths.clone());
     engine.start().await;
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     let startup = unstrung_core::models::startup(&db, &paths).await.unwrap();
     let models = unstrung_core::models::ModelService::new(engine.clone(), db, &startup);
     let mut progress = models.subscribe();
@@ -316,7 +322,9 @@ async fn the_scene_writer_gives_clothes_only_when_the_story_changes_them() {
     let engine = Engine::new(paths.clone());
     engine.start().await;
     assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     starters::ensure(&db, &paths).await.unwrap();
     let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
     let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
@@ -410,7 +418,9 @@ async fn looks_come_from_a_card_from_another_app() {
     let engine = Engine::new(paths.clone());
     engine.start().await;
     assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     let service = ChatService::new(db, engine.clone());
 
     // A Tavern V2 card, as another app exports it: the looks are in the description.
@@ -499,7 +509,9 @@ async fn references_keep_one_face_in_a_chat() {
         })
         .unwrap();
     paths.ensure().unwrap();
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     starters::ensure(&db, &paths).await.unwrap();
     let startup = models::startup(&db, &paths).await.unwrap();
     let engine = Engine::with_model(paths.clone(), &startup.model, startup.advanced.clone());
@@ -711,7 +723,9 @@ async fn the_scene_writer_draws_only_who_is_there() {
     let engine = Engine::new(paths.clone());
     engine.start().await;
     assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     starters::ensure(&db, &paths).await.unwrap();
     let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
     let kai = db.persona_by_starter("kai").await.unwrap().unwrap();
@@ -830,7 +844,9 @@ async fn a_long_chat_still_knows_facts_from_message_10() {
     let engine = Engine::new(paths.clone());
     engine.start().await;
     assert!(matches!(engine.status(), EngineStatus::Ready { .. }));
-    let db = Db::open(&paths.database()).await.unwrap();
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
     starters::ensure(&db, &paths).await.unwrap();
     let mara = db.character_by_starter("mara_voss").await.unwrap().unwrap();
     let kai = db.persona_by_starter("kai").await.unwrap().unwrap();

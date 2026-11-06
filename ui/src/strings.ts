@@ -551,7 +551,7 @@ export const strings = {
     freeYes: "Remove now",
     freed: (size: string) => `Done. ${size} is free again.`,
     backupIntro:
-      "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again.",
+      "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again. The zip is not encrypted, so that it opens on a new PC. Keep it in a safe place.",
     exportAll: "Export everything",
     exporting: "Exporting. With many pictures this takes some minutes.",
     exported: (pictures: number, bytes: number) =>

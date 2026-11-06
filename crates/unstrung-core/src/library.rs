@@ -419,7 +419,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
 
         let picture = image::DynamicImage::new_rgba8(200, 100);
         let mut png = Vec::new();
@@ -481,7 +483,9 @@ mod tests {
     async fn deleted_chats_stay_seven_days_then_go_with_their_pictures() {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let id = db.insert_character(&fields(), None, "{}").await.unwrap();
         let character = db.character(id).await.unwrap();
         let day = 24 * 60 * 60 * 1000;
@@ -566,7 +570,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let paths = AppPaths::at(dir.path().to_path_buf());
         paths.ensure().unwrap();
-        let db = Db::open(&paths.database()).await.unwrap();
+        let db = Db::open(&paths.database(), &paths.key().unwrap())
+            .await
+            .unwrap();
         let entry = WorldEntry {
             keywords: "river".into(),
             content: "No bottom.".into(),

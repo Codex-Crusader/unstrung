@@ -18,6 +18,7 @@ pub use messages::{Message, NewMessage};
 pub use personas::{Persona, PersonaFields};
 
 use crate::error::{Error, Result};
+use crate::vault::DataKey;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
 };
@@ -52,6 +53,120 @@ pub fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
         .unwrap_or_default()
+}
+
+/// The `key` pragma value for SQLCipher.
+fn key_pragma(key: &DataKey) -> String {
+    format!("\"{}\"", key.database_key())
+}
+
+/// Options for a database file: with the key, or without it for a plain
+/// file from before encryption (read-only checks of old copies).
+fn file_options(path: &Path, key: &DataKey) -> SqliteConnectOptions {
+    let options = SqliteConnectOptions::new()
+        .filename(path)
+        .busy_timeout(Duration::from_secs(5));
+    if crate::vault::is_plain_database(path) {
+        options
+    } else {
+        // sqlx sends `key` before every other pragma, as SQLCipher needs.
+        options.pragma("key", key_pragma(key))
+    }
+}
+
+/// Encrypts a plain chats file in place: an encrypted copy next to it,
+/// checked, then moved over it. The plain file stays until the copy is
+/// good, so a stop at any point loses nothing.
+async fn encrypt_plain(path: &Path, key: &DataKey) -> Result<()> {
+    let new = PathBuf::from(format!("{}.encrypting", path.display()));
+    let _ = std::fs::remove_file(&new);
+    let plain = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(path)
+                // ATTACH opens with these flags: it must create the copy.
+                .create_if_missing(true)
+                .busy_timeout(Duration::from_secs(5)),
+        )
+        .await?;
+    let copied = async {
+        if !quick_check(&plain).await? {
+            return Err(Error::Damaged(
+                "the chats file is damaged, so it was not encrypted. Safe start can put back a copy"
+                    .into(),
+            ));
+        }
+        // Everything into the main file, so no journal is needed after this.
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(&plain)
+            .await?;
+        sqlx::query("ATTACH DATABASE ?1 AS encrypted KEY ?2")
+            .bind(new.to_string_lossy().into_owned())
+            .bind(key.database_key())
+            .execute(&plain)
+            .await?;
+        sqlx::query("SELECT sqlcipher_export('encrypted')")
+            .execute(&plain)
+            .await?;
+        sqlx::query("DETACH DATABASE encrypted")
+            .execute(&plain)
+            .await?;
+        Ok(())
+    }
+    .await;
+    plain.close().await;
+    let checked = match copied {
+        Ok(()) => Db::integrity_check_file(&new, key).await,
+        Err(e) => Err(e),
+    };
+    match checked {
+        Ok(Some(problems)) if problems.is_empty() && !crate::vault::is_plain_database(&new) => {}
+        Ok(_) => {
+            let _ = std::fs::remove_file(&new);
+            return Err(Error::Damaged(
+                "the encrypted copy of the chats file did not pass its check".into(),
+            ));
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&new);
+            return Err(e);
+        }
+    }
+    for suffix in ["-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+    }
+    std::fs::rename(&new, path)?;
+    log::info!("encrypted {}", path.display());
+    Ok(())
+}
+
+/// Encrypts the plain copies of the chats file in `backups` and its aside
+/// folders, made before encryption. A damaged copy stays as it is. Returns
+/// how many it encrypted.
+pub async fn encrypt_old_copies(backups: &Path, key: &DataKey) -> usize {
+    let entries = |d: &Path| {
+        std::fs::read_dir(d)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .collect::<Vec<_>>()
+    };
+    let files: Vec<PathBuf> = entries(backups)
+        .into_iter()
+        .flat_map(|p| if p.is_dir() { entries(&p) } else { vec![p] })
+        .filter(|p| p.extension().is_some_and(|e| e == "db"))
+        .filter(|p| crate::vault::is_plain_database(p))
+        .collect();
+    let mut done = 0;
+    for file in files {
+        match encrypt_plain(&file, key).await {
+            Ok(()) => done += 1,
+            Err(e) => log::warn!("could not encrypt {}: {e}", file.display()),
+        }
+    }
+    done
 }
 
 async fn quick_check(pool: &SqlitePool) -> Result<bool> {
@@ -91,9 +206,15 @@ impl Db {
     }
 
     /// Opens (or creates) the database and runs the migrations.
-    pub async fn open(path: &Path) -> Result<Self> {
+    /// Opens the chats file with `key`. A plain file from before encryption
+    /// (an old install, an old copy, a backup zip) is encrypted first.
+    pub async fn open(path: &Path, key: &DataKey) -> Result<Self> {
+        if crate::vault::is_plain_database(path) {
+            encrypt_plain(path, key).await?;
+        }
         let options = SqliteConnectOptions::new()
             .filename(path)
+            .pragma("key", key_pragma(key))
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
             .synchronous(SqliteSynchronous::Normal)
@@ -164,14 +285,11 @@ impl Db {
     /// A full `integrity_check` of a database file that is not open, on a
     /// read-only connection with no migrations, so a check never changes the
     /// file. `None` means there is no database yet. An empty list means it passed.
-    pub async fn integrity_check_file(path: &Path) -> Result<Option<Vec<String>>> {
+    pub async fn integrity_check_file(path: &Path, key: &DataKey) -> Result<Option<Vec<String>>> {
         if !path.exists() {
             return Ok(None);
         }
-        let options = SqliteConnectOptions::new()
-            .filename(path)
-            .read_only(true)
-            .busy_timeout(Duration::from_secs(5));
+        let options = file_options(path, key).read_only(true);
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect_with(options)
@@ -190,11 +308,8 @@ impl Db {
 
     /// The highest migration of a database file that is not open, read
     /// without changes. An error when it is not an Unstrung database.
-    pub async fn schema_of_file(path: &Path) -> Result<i64> {
-        let options = SqliteConnectOptions::new()
-            .filename(path)
-            .read_only(true)
-            .busy_timeout(Duration::from_secs(5));
+    pub async fn schema_of_file(path: &Path, key: &DataKey) -> Result<i64> {
+        let options = file_options(path, key).read_only(true);
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect_with(options)

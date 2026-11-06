@@ -66,9 +66,23 @@ pub(super) fn prune(dir: &Path, prefix: &str, keep: usize) -> Result<()> {
 }
 
 impl Db {
-    /// A clean copy of the open database, for a backup.
-    pub async fn copy_to(&self, file: &Path) -> Result<()> {
-        copy_into(&self.pool, file).await
+    /// A clean, plain (not encrypted) copy of the open database, for a
+    /// backup zip: it must open on a new PC, without this PC's key.
+    pub async fn plain_copy_to(&self, file: &Path) -> Result<()> {
+        let _ = std::fs::remove_file(file);
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("ATTACH DATABASE ?1 AS plain KEY ''")
+            .bind(file.to_string_lossy().into_owned())
+            .execute(&mut *conn)
+            .await?;
+        let exported = sqlx::query("SELECT sqlcipher_export('plain')")
+            .execute(&mut *conn)
+            .await;
+        sqlx::query("DETACH DATABASE plain")
+            .execute(&mut *conn)
+            .await?;
+        exported?;
+        Ok(())
     }
 
     /// Today's copy, made once a day (a UTC day). `None` when it exists.
@@ -134,7 +148,7 @@ pub async fn restore(paths: &AppPaths, name: &str) -> Result<()> {
         .find(|c| c.name == name)
         .ok_or_else(|| Error::Invalid("this copy is gone".into()))?;
     let from = paths.backups().join(&copy.name);
-    match Db::integrity_check_file(&from).await {
+    match Db::integrity_check_file(&from, &paths.key()?).await {
         Ok(Some(problems)) if problems.is_empty() => {}
         _ => {
             return Err(Error::Damaged(

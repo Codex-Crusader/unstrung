@@ -393,8 +393,11 @@ fn prefers_light_theme() -> bool {
 async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     // Before anything reads the pictures or the models.
     unstrung_core::relocate::recover(&paths);
+    // The data key first: without it no chat or picture opens, and a key
+    // that does not unwrap must stop the start before anything is written.
+    let key = paths.key()?;
     // Db::open checks the file for damage before it changes anything.
-    let db = Db::open(&paths.database()).await?;
+    let db = Db::open(&paths.database(), &key).await?;
     // A missed copy must not stop the app: the next start tries again.
     match db.daily_snapshot(&paths.database()).await {
         Ok(Some(file)) => log::info!("daily copy of the chats: {}", file.display()),
@@ -408,6 +411,25 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     }
     unstrung_core::avatar::clear_staging(&paths);
     unstrung_core::backup::clear_leftovers(&paths);
+    // Data from before encryption: converted once, in the background.
+    let old = paths.clone();
+    let copies_key = key.clone();
+    tauri::async_runtime::spawn(async move {
+        let n = unstrung_core::db::encrypt_old_copies(&old.backups(), &copies_key).await;
+        if n > 0 {
+            log::info!("encrypted {n} copies of the chats file made before encryption");
+        }
+        let pictures = tauri::async_runtime::spawn_blocking(move || {
+            unstrung_core::vault::seal_old_pictures(&old)
+        })
+        .await;
+        match pictures {
+            Ok(Ok(0)) => {}
+            Ok(Ok(n)) => log::info!("encrypted {n} pictures saved before encryption"),
+            Ok(Err(e)) => log::warn!("could not encrypt the older pictures: {e}"),
+            Err(e) => log::warn!("could not encrypt the older pictures: {e}"),
+        }
+    });
     starters::ensure(&db, &paths).await?;
     let startup = models::startup(&db, &paths).await?;
     log::info!(
@@ -517,14 +539,14 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
         else {
             return not_found();
         };
-        return match tokio::fs::read(file).await {
-            Ok(bytes) => Response::builder()
+        return match plain(&state.paths, file).await {
+            Some(bytes) => Response::builder()
                 .header("Content-Type", "image/png")
                 .header("X-Content-Type-Options", "nosniff")
-                .header("Cache-Control", "max-age=31536000, immutable")
+                .header("Cache-Control", "no-store")
                 .body(bytes)
                 .unwrap_or_default(),
-            Err(_) => not_found(),
+            None => not_found(),
         };
     }
     let stored = match (kind, id) {
@@ -551,15 +573,28 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
     let Ok(file) = state.paths.stored(&stored) else {
         return not_found();
     };
-    match tokio::fs::read(file).await {
-        Ok(bytes) => Response::builder()
+    match plain(&state.paths, file).await {
+        Some(bytes) => Response::builder()
             .header("Content-Type", mime)
             .header("X-Content-Type-Options", "nosniff")
-            .header("Cache-Control", "no-cache")
+            .header("Cache-Control", "no-store")
             .body(bytes)
             .unwrap_or_default(),
-        Err(_) => not_found(),
+        None => not_found(),
     }
+}
+
+/// The decrypted bytes of a picture file. `no-store` on the responses keeps
+/// them out of the WebView2 disk cache, so no plain copy lands on disk.
+async fn plain(
+    paths: &unstrung_core::paths::AppPaths,
+    file: std::path::PathBuf,
+) -> Option<Vec<u8>> {
+    let key = paths.key().ok()?;
+    let bytes = tokio::fs::read(file).await.ok()?;
+    key.open(&bytes)
+        .inspect_err(|e| log::warn!("a picture did not open: {e}"))
+        .ok()
 }
 
 #[cfg(test)]

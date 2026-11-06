@@ -68,9 +68,8 @@ pub async fn repaint_picture(state: State<'_, AppState>, id: i64) -> CmdResult<O
 /// creator then shows the crop.
 #[tauri::command]
 pub async fn stage_picture(state: State<'_, AppState>, id: i64) -> CmdResult<Staged> {
-    let bytes = tokio::fs::read(state.pictures.file(id).await?)
-        .await
-        .map_err(unstrung_core::error::Error::from)?;
+    let file = state.pictures.file(id).await?;
+    let bytes = state.paths.key()?.read(&file)?;
     let paths = state.paths.clone();
     tauri::async_runtime::spawn_blocking(move || avatar::stage(&paths, &bytes))
         .await
@@ -110,7 +109,9 @@ pub async fn export_picture(
     else {
         return Ok(false);
     };
-    tokio::fs::copy(from, to.path())
+    // The saved copy is a plain PNG: the user asked for it outside the app.
+    let bytes = state.paths.key()?.read(&from)?;
+    tokio::fs::write(to.path(), bytes)
         .await
         .map_err(unstrung_core::error::Error::from)?;
     Ok(true)
