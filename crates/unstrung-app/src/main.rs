@@ -258,6 +258,7 @@ fn main() {
             if self_test {
                 selftest::arm_timeout(app.handle().clone());
             }
+            app.manage(setup::FolderGrants::new(info.paths.clone(), self_test));
             let mut theme = None;
             // Before the chats file opens: nothing holds the files yet.
             if let Err(e) = unstrung_core::backup::apply_pending(&info.paths) {
@@ -328,8 +329,34 @@ fn open_window(app: &tauri::App, background: bool, theme: Option<&str>) -> tauri
         .theme(theme)
         .background_color(window_background(theme))
         .focused(!background)
+        // The app has no outside links. A page that tries to leave the app,
+        // or to open a second window, is stopped.
+        .on_navigation(|url| {
+            let ok = local_page(url);
+            if !ok {
+                log::warn!("blocked a page change away from the app");
+            }
+            ok
+        })
+        .on_new_window(|_, _| {
+            log::warn!("blocked a new window");
+            tauri::webview::NewWindowResponse::Deny
+        })
         .build()?;
     Ok(())
+}
+
+/// The app's own pages: the bundled UI and the isolation frame, which
+/// WebView2 serves as `http://<name>.localhost`.
+fn local_page(url: &tauri::Url) -> bool {
+    let local_host = url
+        .host_str()
+        .is_some_and(|h| h == "localhost" || h.ends_with(".localhost"));
+    match url.scheme() {
+        "http" | "https" => local_host,
+        "tauri" | "isolation" => true,
+        _ => false,
+    }
 }
 
 /// The page background of the Windows app theme, so the window does not
@@ -532,5 +559,22 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
             .body(bytes)
             .unwrap_or_default(),
         Err(_) => not_found(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::local_page;
+
+    #[test]
+    fn only_app_pages_may_load() {
+        let ok = |u: &str| tauri::Url::parse(u).is_ok_and(|u| local_page(&u));
+        assert!(ok("http://tauri.localhost/index.html"));
+        assert!(ok("http://isolation.localhost/index.html"));
+        assert!(ok("tauri://localhost/"));
+        assert!(!ok("https://example.com/"));
+        assert!(!ok("http://localhost.example.com/"));
+        assert!(!ok("file:///C:/Windows/win.ini"));
+        assert!(!ok("javascript:alert(1)"));
     }
 }
