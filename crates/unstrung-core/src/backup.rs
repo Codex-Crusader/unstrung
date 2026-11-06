@@ -518,6 +518,15 @@ async fn check_rows(db: &Db) -> Result<[i64; 4]> {
 async fn check_staged(paths: &AppPaths, id: &str, manifest: Manifest) -> Result<BackupInfo> {
     let (dir, _) = staging(paths, id)?;
     let file = dir.join(DATABASE);
+    // The chats file comes plain out of the zip. It stays here until the
+    // user restores or closes the backup, so it is encrypted at once.
+    if crate::vault::is_plain_database(&file)
+        && crate::db::encrypt_plain(&file, &paths.key()?)
+            .await
+            .is_err()
+    {
+        return Err(not_a_backup("the chats file in it is damaged"));
+    }
     match Db::integrity_check_file(&file, &paths.key()?).await {
         Ok(Some(problems)) if problems.is_empty() => {}
         _ => return Err(not_a_backup("the chats file in it is damaged")),
@@ -995,6 +1004,8 @@ mod tests {
         let counts = [info.characters, info.personas, info.chats, info.pictures];
         assert_eq!(counts, [1, 1, 1, 1]);
         let (staged, gallery) = staging(&paths, &info.id).unwrap();
+        // The zip holds a plain chats file; the opened copy is encrypted.
+        assert!(!crate::vault::is_plain_database(&staged.join(DATABASE)));
         let key = paths.key().unwrap();
         let avatar = std::fs::read(staged.join("avatars").join("ren.png")).unwrap();
         assert!(crate::vault::is_sealed(&avatar), "encrypted on disk");

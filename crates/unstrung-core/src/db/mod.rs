@@ -77,7 +77,7 @@ fn file_options(path: &Path, key: &DataKey) -> SqliteConnectOptions {
 /// Encrypts a plain chats file in place: an encrypted copy next to it,
 /// checked, then moved over it. The plain file stays until the copy is
 /// good, so a stop at any point loses nothing.
-async fn encrypt_plain(path: &Path, key: &DataKey) -> Result<()> {
+pub(crate) async fn encrypt_plain(path: &Path, key: &DataKey) -> Result<()> {
     let new = PathBuf::from(format!("{}.encrypting", path.display()));
     let _ = std::fs::remove_file(&new);
     let plain = SqlitePoolOptions::new()
@@ -224,6 +224,19 @@ impl Db {
             .max_connections(1)
             .connect_with(options)
             .await?;
+        // Plain SQLite ignores the key pragma without an error, so a build
+        // that lost SQLCipher would write the chats in the clear. Refuse.
+        #[cfg(windows)]
+        if sqlx::query_scalar::<_, String>("PRAGMA cipher_version")
+            .fetch_optional(&pool)
+            .await?
+            .is_none()
+        {
+            pool.close().await;
+            return Err(Error::Invalid(
+                "this build of Unstrung cannot encrypt the chats file".into(),
+            ));
+        }
         let newest = MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default();
         // A new database has no migrations table, so nothing is pending.
         let applied: Option<i64> = sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations")
