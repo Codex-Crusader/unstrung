@@ -6,7 +6,7 @@
 //! never allowed. The prompt rule, `pictures::safety` and the ages in the
 //! database carry it whether the setting is on or off.
 
-use crate::db::{Character, Db, Persona};
+use crate::db::{Character, CharacterFields, Db, Persona};
 use crate::error::Result;
 use crate::library::ADULT_AGE;
 
@@ -32,6 +32,50 @@ pub fn adult_people(character: &Character, persona: Option<&Persona>) -> bool {
         && persona
             .and_then(|p| p.age)
             .is_some_and(|age| age >= ADULT_AGE)
+        && profile_minor_word(character, persona).is_none()
+}
+
+/// The first word in the card or the persona that points to someone under
+/// 18. Such a card or persona keeps the chat general, also when the ages
+/// say 18 or older: an age field is easy to set, and the text says who the
+/// model plays.
+pub fn profile_minor_word(character: &Character, persona: Option<&Persona>) -> Option<String> {
+    let card = [
+        &character.name,
+        &character.tagline,
+        &character.personality,
+        &character.scenario,
+        &character.greeting,
+        &character.example_dialogue,
+        &character.voice_anchor,
+        &character.appearance_tags,
+        &character.outfit,
+    ];
+    let persona_text = persona.map_or(Vec::new(), |p| {
+        vec![&p.name, &p.description, &p.appearance_tags, &p.outfit]
+    });
+    first_minor_word(card.into_iter().chain(persona_text))
+}
+
+/// The same check for a card that the user saves or imports.
+pub fn card_minor_word(f: &CharacterFields) -> Option<String> {
+    first_minor_word([
+        &f.name,
+        &f.tagline,
+        &f.personality,
+        &f.scenario,
+        &f.greeting,
+        &f.example_dialogue,
+        &f.voice_anchor,
+        &f.appearance_tags,
+        &f.outfit,
+    ])
+}
+
+fn first_minor_word<'a>(texts: impl IntoIterator<Item = &'a String>) -> Option<String> {
+    texts
+        .into_iter()
+        .find_map(|t| crate::pictures::safety::minor_word(t))
 }
 
 /// Mature content is allowed in this chat now. Read per reply and per
@@ -84,6 +128,25 @@ mod tests {
             );
         }
         assert!(!adult_people(&c, None), "no persona");
+    }
+
+    #[test]
+    fn card_or_persona_text_about_a_minor_turns_mature_off() {
+        let (mut c, p) = people(true, 30, Some(25));
+        c.scenario = "She is a schoolgirl.".into();
+        assert!(!adult_people(&c, Some(&p)));
+        assert_eq!(
+            profile_minor_word(&c, Some(&p)).as_deref(),
+            Some("schoolgirl")
+        );
+        let (c, mut p) = people(true, 30, Some(25));
+        p.description = "A fifteen-year-old runaway.".into();
+        assert!(!adult_people(&c, Some(&p)));
+        let fields = CharacterFields {
+            appearance_tags: "loli, maid".into(),
+            ..CharacterFields::default()
+        };
+        assert_eq!(card_minor_word(&fields).as_deref(), Some("loli"));
     }
 
     #[test]

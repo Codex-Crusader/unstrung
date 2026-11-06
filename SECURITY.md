@@ -29,6 +29,7 @@ Unstrung runs all chat on your computer. The design follows these rules:
 - The window can name a folder only if you picked that folder in the Windows folder picker, or if it is one of the app's own folders. Other file paths never come from the window. The core builds them from a fixed root folder.
 - The chat engine (Ollama) listens only on `127.0.0.1`, on a random free port, with its own models folder. Other devices on the network cannot reach it. Settings from your own Ollama do not reach it. The engine stops when the app stops, also after a crash.
 - Downloads go only to the hosts in the app's catalog, over HTTPS. Each downloaded file must match a SHA-256 hash from the catalog, or the app deletes it.
+- Sexual content that involves anyone under 18 is never allowed, whatever the settings. Adult content needs an 18+ character and a persona with an adult age, from the database, not from the model. A chat stays general when the card, the persona, the messages or the memory notes mention someone under 18, also when the age is written as a word. The app refuses such text in your own messages, stops a reply that crosses the line, and checks every picture prompt.
 - The database uses parameterized queries only.
 - The project crates forbid `unsafe` code.
 

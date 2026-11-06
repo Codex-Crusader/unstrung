@@ -51,6 +51,9 @@ pub enum ImportNote {
     Cut { field: &'static str },
     /// The card is marked 18+.
     Adult,
+    /// The card is marked 18+, but its text points to someone under 18, so
+    /// it comes in as a general character.
+    AdultRemoved { word: String },
     /// The card has no age, so the user must enter one.
     NoAge,
     /// The card had its own system prompt or instructions. They are not used.
@@ -302,7 +305,7 @@ fn from_value(value: &Value) -> Result<ParsedCard> {
         .filter(|a| (1..=MAX_AGE).contains(a))
         .unwrap_or(0);
 
-    let fields = CharacterFields {
+    let mut fields = CharacterFields {
         name: cut(name.replace('\n', " "), MAX_NAME, "name", &mut notes),
         tagline: cut(
             own_text("tagline").replace('\n', " "),
@@ -359,7 +362,10 @@ fn from_value(value: &Value) -> Result<ParsedCard> {
         age,
         is_adult,
     };
-    if is_adult {
+    if is_adult && let Some(word) = crate::content::card_minor_word(&fields) {
+        fields.is_adult = false;
+        notes.push(ImportNote::AdultRemoved { word });
+    } else if is_adult {
         notes.push(ImportNote::Adult);
     }
     if age == 0 {

@@ -291,9 +291,40 @@ pub fn flagged(text: &str) -> bool {
 /// True when `text` mentions a minor: the words and ages that block a
 /// sexual picture. In a mature chat, such a mention makes the reply general.
 pub fn mentions_minor(text: &str) -> bool {
-    let words = Words::new(text);
-    words.any(MINOR) || words.has_minor_age()
+    minor_word(text).is_some()
 }
+
+/// The first word or age in `text` that points to someone under 18, as the
+/// user can find it in the text.
+pub fn minor_word(text: &str) -> Option<String> {
+    let words = Words::new(text);
+    if let Some(word) = MINOR.iter().find(|w| words.any(&[w])) {
+        return Some((*word).to_owned());
+    }
+    words.has_minor_age().then(|| "an age under 18".to_owned())
+}
+
+/// Ages under 18 written as words. They count only with "old" or "aged"
+/// next to them, because "two years later" is not an age.
+const YOUNG_WORDS: &[&str] = &[
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+];
 
 /// Words of the picture lists that are not sexual, or not a minor, in story
 /// text: "explicit instructions", "a strip of grass", "nothing on TV", and
@@ -406,6 +437,18 @@ impl Words {
             if matches!(word.as_str(), "age" | "aged") && young(next(1)) {
                 return true;
             }
+            // "at the age of 12", "aged twelve", "twelve years old",
+            // "a twelve-year-old".
+            let young_word = |s: &str| YOUNG_WORDS.contains(&s);
+            let age_after = |k: usize| young(next(k)) || young_word(next(k));
+            if (word == "age" && next(1) == "of" && age_after(2))
+                || (word == "aged" && young_word(next(1)))
+            {
+                return true;
+            }
+            if young_word(word) && matches!(next(1), "year" | "years") && next(2) == "old" {
+                return true;
+            }
         }
         false
     }
@@ -450,6 +493,32 @@ mod tests {
         ] {
             assert!(!reply_crosses_line(text), "{text}");
         }
+    }
+
+    #[test]
+    fn ages_written_as_words_count() {
+        for text in [
+            "She is twelve years old.",
+            "a fourteen-year-old girl",
+            "aged fifteen",
+            "at the age of 13",
+            "at the age of sixteen",
+        ] {
+            assert!(mentions_minor(text), "{text}");
+        }
+        for text in [
+            "Two years later they met again.",
+            "She is twenty years old.",
+            "at the age of 30",
+        ] {
+            assert!(!mentions_minor(text), "{text}");
+        }
+        assert_eq!(minor_word("A sweet loli maid.").as_deref(), Some("loli"));
+        assert_eq!(minor_word("She is 15.").as_deref(), None);
+        assert_eq!(
+            minor_word("She is 15 years old.").as_deref(),
+            Some("an age under 18")
+        );
     }
 
     #[test]

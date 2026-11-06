@@ -76,6 +76,8 @@ function noteText(note: ImportNote): string {
       return t.cut(t.fieldNames.get(note.field) ?? note.field);
     case "adult":
       return t.adult;
+    case "adult_removed":
+      return t.adultRemoved(note.word);
     case "no_age":
       return t.noAge;
     case "dropped_prompts":

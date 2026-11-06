@@ -132,6 +132,8 @@ export const strings = {
     cut: (field: string) => `The ${field} was too long, so its end was cut.`,
     adult:
       "This card is marked 18+. It shows on Home only while Settings > Content > Allow adult content is on.",
+    adultRemoved: (word: string) =>
+      `This card is marked 18+, but its text says "${word}", which points to someone under 18. Unstrung imports it as a general character. Adult content never involves anyone under 18.`,
     noAge: "The card has no age. Enter the age before you save.",
     droppedPrompts: "The card has its own system prompt or instructions. Unstrung does not use them, so the character can act differently than in other apps.",
     moreGreetings: (n: number) =>

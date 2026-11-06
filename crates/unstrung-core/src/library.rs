@@ -110,6 +110,13 @@ pub fn check_character(f: &CharacterFields) -> Result<CharacterFields> {
             "an 18+ character must be 18 or older".into(),
         ));
     }
+    if out.is_adult
+        && let Some(word) = crate::content::card_minor_word(&out)
+    {
+        return Err(Error::Invalid(format!(
+            "an 18+ character's card cannot mention someone under 18. It says \"{word}\". Change that text, or turn off 18+"
+        )));
+    }
     Ok(out)
 }
 

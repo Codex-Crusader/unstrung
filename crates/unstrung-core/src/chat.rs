@@ -1718,6 +1718,7 @@ impl ChatService {
             .collect();
         let last = recent.last().map_or("", |m| m.content.as_str());
         let minor_mentioned = pictures::safety::mentions_minor(wish)
+            || crate::content::profile_minor_word(&character, persona.as_ref()).is_some()
             || recent
                 .iter()
                 .any(|m| pictures::safety::mentions_minor(&m.content));
@@ -2112,6 +2113,15 @@ pub fn clean_input(text: &str) -> Result<String> {
             "the message is longer than {MAX_MESSAGE_CHARS} characters"
         )));
     }
+    // The hard limit holds for what the user writes too, so a story never
+    // stores such text, and the model never reads it.
+    if crate::pictures::safety::reply_crosses_line(&text) {
+        log::warn!("a message was refused: explicit words next to a minor");
+        return Err(Error::Rejected {
+            message: "Unstrung does not take sexual content that involves anyone under 18. Change the message.".into(),
+            why: "explicit words next to a minor".into(),
+        });
+    }
     Ok(text)
 }
 
@@ -2379,6 +2389,8 @@ mod tests {
     fn input_is_checked() {
         assert!(clean_input("   ").is_err());
         assert!(clean_input(&"a".repeat(MAX_MESSAGE_CHARS + 1)).is_err());
+        assert!(clean_input("*He undressed the schoolgirl.*").is_err());
+        assert!(clean_input("*She pulls him onto the bed.*").is_ok());
         assert_eq!(
             clean_input(" hi\u{0007}\nthere\u{202E} ").unwrap(),
             "hi\nthere"

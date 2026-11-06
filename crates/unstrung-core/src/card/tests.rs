@@ -291,3 +291,15 @@ fn fuzz_seeds_parse() {
         assert_eq!(card.is_png, png);
     }
 }
+
+#[test]
+fn an_adult_card_that_points_to_a_minor_comes_in_general() {
+    let mut card = v2();
+    card["data"]["scenario"] = Value::from("{{char}} is twelve years old.");
+    let card = parse_card(card.to_string().as_bytes()).unwrap();
+    assert!(!card.fields.is_adult);
+    assert!(card.notes.contains(&ImportNote::AdultRemoved {
+        word: "an age under 18".into()
+    }));
+    assert!(!card.notes.contains(&ImportNote::Adult));
+}

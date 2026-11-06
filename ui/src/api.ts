@@ -480,6 +480,7 @@ export interface ImportExtras {
 export type ImportNote =
   | { kind: "cut"; field: string }
   | { kind: "adult" }
+  | { kind: "adult_removed"; word: string }
   | { kind: "no_age" }
   | { kind: "dropped_prompts" }
   | { kind: "more_greetings"; count: number }
