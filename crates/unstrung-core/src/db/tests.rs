@@ -672,3 +672,31 @@ async fn files_from_an_earlier_build_still_open() {
     let sealed = std::fs::read(Path::new(FIXTURES).join("sealed.bin")).unwrap();
     assert_eq!(key.open(&sealed).unwrap(), b"unstrung picture");
 }
+
+/// A new install never writes a plain chats file: the first open makes it
+/// encrypted, and the starters' pictures are sealed.
+#[cfg(windows)]
+#[tokio::test]
+async fn a_new_install_stores_everything_encrypted() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
+    paths.ensure().unwrap();
+    let key = paths.key().unwrap();
+    let db = Db::open(&paths.database(), &key).await.unwrap();
+    crate::starters::ensure(&db, &paths).await.unwrap();
+    db.close().await;
+    assert!(!crate::vault::is_plain_database(&paths.database()));
+    assert!(!readable_without_key(&paths.database()).await);
+    let avatars: Vec<_> = std::fs::read_dir(paths.avatars())
+        .unwrap()
+        .flatten()
+        .collect();
+    assert!(!avatars.is_empty());
+    for a in avatars {
+        assert!(
+            crate::vault::is_sealed(&std::fs::read(a.path()).unwrap()),
+            "{:?}",
+            a.path()
+        );
+    }
+}
