@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { SnipGame } from "./SnipGame";
 import {
   downloadModel,
   downloadRunning,
@@ -328,6 +329,7 @@ export function ModelsView({
             imported={download.model === imported}
           />
         )}
+        {download && downloadRunning(download) && <SnipGame />}
         {/* Only before the first chat model: later, the list below has it. */}
         {pick && installed.length === 0 && (
           <div className="recommended-card">

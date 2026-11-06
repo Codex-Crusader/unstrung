@@ -18,6 +18,7 @@ import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
 import { Loading } from "./Loading";
+import { SnipGame } from "./SnipGame";
 import { FadeImage, PictureViewer } from "./PictureViewer";
 import { picturesReady } from "./PictureModels";
 
@@ -78,6 +79,7 @@ function SetupCard({
           >
             {s.stop}
           </button>
+          <SnipGame />
         </div>
       ) : (
         <>

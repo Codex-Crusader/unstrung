@@ -38,6 +38,7 @@ import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
 import { Splash } from "./Loading";
+import { SnipGame } from "./SnipGame";
 import { Avatar } from "./Avatar";
 import figure from "../assets/figure.png";
 
@@ -754,6 +755,7 @@ function Downloads({
           )}
         </div>
       )}
+      {!shownError && !stopped && <SnipGame />}
       <p className="field-hint">{s.closeHint}</p>
       <label className="check-confirm">
         <input

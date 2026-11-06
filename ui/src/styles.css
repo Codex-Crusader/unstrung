@@ -3039,3 +3039,56 @@ dialog.viewer::backdrop {
     animation: none;
   }
 }
+
+/* Snip the strings: the game under a running download. */
+.snip-open {
+  margin: 4px 0 0;
+}
+
+.snip {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 8px;
+}
+
+.snip-hud {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9em;
+  color: var(--text-soft);
+}
+
+.snip-board {
+  position: relative;
+}
+
+.snip-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 360 / 220;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.snip-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.snip-over {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border-radius: var(--radius);
+}

@@ -14,6 +14,16 @@ export const strings = {
   loading: {
     label: "Loading",
   },
+  snip: {
+    open: "Play Snip the strings while you wait",
+    help: "Tap the frayed strings before they reach the puppet, and let the clean ones through. Keys 1 to 5 snip a lane.",
+    score: (snipped: number, kept: number) => `Snipped ${String(snipped)} · Kept ${String(kept)}`,
+    lives: (n: number) => `${String(n)} ${n === 1 ? "life" : "lives"} left`,
+    over: (snipped: number, kept: number, best: number) =>
+      `Tangled up. You snipped ${String(snipped)} and kept ${String(kept)}. Best this time: ${String(best)}.`,
+    again: "Play again",
+    close: "Close the game",
+  },
   crash: {
     title: "A string snapped",
     body: "Something went wrong while this screen was drawing. Your chats and characters are saved. Reload the window to go on.",
