@@ -12,22 +12,22 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 log = { version = "0.4", features = ["std"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls"] }
-sha2 = "0.10"
-aes-gcm = "0.10"
-hkdf = "0.12"
-getrandom = "0.3"
+sha2 = "0.11"
+aes-gcm = "0.11"
+hkdf = "0.13"
+getrandom = "0.4"
 zip = { version = "9.2", default-features = false, features = ["deflate-flate2"] }
 # zip needs a flate2 backend; the pure Rust one is already in the build.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
-sysinfo = { version = "0.37", default-features = false, features = ["system", "disk"] }
+sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
 tokio-util = "0.7"
