@@ -208,7 +208,8 @@ pub fn seal_old_pictures(paths: &AppPaths) -> Result<usize> {
             continue;
         }
         // shortcut: a picture deleted during this pass comes back as an
-        // orphan file without a row; harmless, and only once per install.
+        // orphan file without a row (only during the first start after the
+        // update); delete files without a row here if users report them.
         match std::fs::read(&file) {
             Ok(bytes) => key.write(&file, &bytes)?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
