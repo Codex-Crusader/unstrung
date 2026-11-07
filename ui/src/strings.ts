@@ -30,7 +30,7 @@ export const strings = {
     reload: "Reload the window",
     copy: "Copy details",
     copied: "Copied",
-    help: "If it happens again, copy the details and add them to a bug report on GitHub.",
+    help: "If it happens again, copy the details and add them to a bug report at github.com/Codex-Crusader/unstrung/issues.",
   },
   status: {
     starting: "Waking up your characters...",
@@ -632,7 +632,7 @@ export const strings = {
     keep: "Safe start does not change your chats, characters, personas or pictures.",
     startNormally: "Start normally",
     copyReport: "Copy diagnostic report",
-    copied: "Copied. Paste it into your bug report.",
+    copied: "Copied. Paste it into a bug report at github.com/Codex-Crusader/unstrung/issues.",
     copyFailed: "The report could not be copied.",
     reportHint: "The report has the app version and the last log lines, with no chat text and no user name.",
     repair: "Quick repair",

@@ -29,10 +29,12 @@ You can close Unstrung during the downloads. The next start goes on from where i
 | Folder | Holds |
 | --- | --- |
 | `%LOCALAPPDATA%\Unstrung` | The chats database (`app.db`), profile pictures, logs, the chat engine, and copies of the database from before each update that changes it (`backups`) |
-| The library folder that you picked in the welcome flow | Pictures (Phase 5). By default it is inside the app folder. |
+| The library folder that you picked in the welcome flow | Pictures. By default it is inside the app folder. |
 | The models folder that you picked in the welcome flow | The chat models. By default it is inside the app folder. |
 
 The database always stays in the app folder, so a sync tool such as OneDrive cannot damage it.
+
+Your chats and pictures are encrypted with a key that Windows keeps for your Windows user account. Only that account on this PC can open them. A copy of the app folder on another PC, or after you reinstall Windows, does not open. Before you move to a new PC or reinstall Windows, go to Settings and click Export everything. On the new system, click Import backup in Settings. The backup zip is not encrypted, so keep it in a safe place.
 
 ## When something goes wrong
 
@@ -40,7 +42,7 @@ The Start menu has a shortcut named "Unstrung (Safe start)". It opens the app wi
 
 ## Uninstall
 
-Use Settings, Apps, Installed apps. The uninstaller asks if it must also delete your chats, characters, pictures and models. If you leave that box clear, your data stays, and a new install finds it again.
+Use Settings, Apps, Installed apps. The uninstaller asks if it must also delete your chats, characters, pictures and models. If you leave that box clear, your data stays, and a new install for the same Windows user finds it again. After a Windows reinstall the old data does not open, so export a backup first.
 
 ## Build from source
 
@@ -102,6 +104,10 @@ target\debug\unstrung-app.exe --self-test --background
 ```
 
 `--background` opens the window without focus.
+
+## Report a bug
+
+Open an issue at [github.com/Codex-Crusader/unstrung/issues](https://github.com/Codex-Crusader/unstrung/issues). In Unstrung, go to Settings and click Copy diagnostic report, then paste the report into the issue. The report has the app version and the last log lines. It has no chat text and no user name. If the app does not start, open "Unstrung (Safe start)" from the Start menu and copy the report there.
 
 ## Security
 

@@ -1,0 +1,29 @@
+name: Bug report
+description: Something in Unstrung does not work as it should.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen again
+      placeholder: |
+        1. Open a chat with ...
+        2. Click ...
+  - type: textarea
+    id: report
+    attributes:
+      label: Diagnostic report
+      description: >
+        In Unstrung, go to Settings and click Copy diagnostic report, then paste it here.
+        If the app does not start, open "Unstrung (Safe start)" from the Start menu and copy it there.
+        The report has no chat text and no user name. Do not paste chat text or pictures that you want to keep private.
+      render: text
+    validations:
+      required: true

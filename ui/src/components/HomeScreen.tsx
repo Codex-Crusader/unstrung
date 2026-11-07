@@ -50,7 +50,10 @@ export function HomeScreen({
 
   const load = () => {
     listCharacters()
-      .then(setCharacters)
+      .then((list) => {
+        setCharacters(list);
+        setError(null);
+      })
       .catch((e: unknown) => {
         setError(toUiError(e));
       });
@@ -89,7 +92,17 @@ export function HomeScreen({
           />
         </label>
       </div>
-      {error && <ErrorNote error={error} lead={strings.home.loadFailed} />}
+      {/* The lead fits only a failed load; a failed restore shows its own message. */}
+      {error &&
+        (characters === null ? (
+          <ErrorNote error={error} lead={strings.home.loadFailed}>
+            <button type="button" className="button" onClick={load}>
+              {strings.status.retry}
+            </button>
+          </ErrorNote>
+        ) : (
+          <ErrorNote error={error} />
+        ))}
       <ul className="card-grid">
         <li>
           <button type="button" className="character-card character-card-new" onClick={onCreate}>
