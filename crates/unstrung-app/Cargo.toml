@@ -24,7 +24,7 @@ unstrung-core.workspace = true
 # crates that cargo audit flags as unmaintained.
 [target.'cfg(windows)'.dependencies]
 rfd = { version = "0.17", default-features = false }
-tauri-winrt-notification = "0.7"
+tauri-winrt-notification = "0.8"
 winreg = "0.56"
 
 [build-dependencies]
