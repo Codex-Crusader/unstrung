@@ -13,10 +13,10 @@ The installer does not have a code signing certificate yet. Windows SmartScreen 
 Because Windows cannot check the publisher, check the file yourself. Each release has a `SHA256SUMS.txt` file with the SHA-256 hash of the installer. To get the hash of your download, run this command in PowerShell:
 
 ```
-Get-FileHash .\Unstrung_0.1.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Unstrung_0.2.0_x64-setup.exe -Algorithm SHA256
 ```
 
-In Command Prompt, use `certutil -hashfile Unstrung_0.1.0_x64-setup.exe SHA256`. If the hash is not the same as the one in `SHA256SUMS.txt`, do not run the file. Report it as a security bug.
+In Command Prompt, use `certutil -hashfile Unstrung_0.2.0_x64-setup.exe SHA256`. If the hash is not the same as the one in `SHA256SUMS.txt`, do not run the file. Report it as a security bug.
 
 Updates inside the app do not depend on this check. The app installs an update only when it carries a valid signature from the project's update key, for the version that it announces.
 

@@ -10,7 +10,7 @@ Status: all eight phases are done, except code signing. The installer is not sig
 
 ## Install
 
-1. Run `Unstrung_0.1.0_x64-setup.exe`. It installs for your Windows user only and needs no administrator rights. The installer is not signed yet, so Windows SmartScreen can show "Windows protected your PC". To go on, click More info, then Run anyway. To make sure that the download is the real one, compare its SHA-256 hash with the release's `SHA256SUMS.txt`, as [SECURITY.md](SECURITY.md#check-your-download) shows.
+1. Run `Unstrung_0.2.0_x64-setup.exe`. It installs for your Windows user only and needs no administrator rights. The installer is not signed yet, so Windows SmartScreen can show "Windows protected your PC". To go on, click More info, then Run anyway. To make sure that the download is the real one, compare its SHA-256 hash with the release's `SHA256SUMS.txt`, as [SECURITY.md](SECURITY.md#check-your-download) shows.
 2. Start Unstrung. The welcome flow asks where to keep your pictures and models, then downloads two things:
    - The chat engine (Ollama 0.40.13), about 1.6 GB. AMD graphics cards get an extra 0.26 GB.
    - One chat model, 3.3 GB to 6.6 GB. The app suggests a model that fits your PC.

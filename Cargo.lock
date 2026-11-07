@@ -5005,7 +5005,7 @@ dependencies = [
 
 [[package]]
 name = "unstrung-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "log",
  "rfd",
@@ -5022,7 +5022,7 @@ dependencies = [
 
 [[package]]
 name = "unstrung-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -5051,7 +5051,7 @@ dependencies = [
 
 [[package]]
 name = "unstrung-quality"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "log",
  "serde",
