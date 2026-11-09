@@ -741,3 +741,24 @@ async fn stats_count_live_chats_and_hide_adult_characters() {
     assert_eq!(all.len(), 2);
     assert_eq!((all[1].name.as_str(), all[1].messages), ("Vex", 1));
 }
+
+#[tokio::test]
+async fn a_transcript_shows_the_visible_branch_with_names() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
+    let id = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let character = db.character(id).await.unwrap();
+    let chat = db.create_chat(&character, None, "", true).await.unwrap();
+    let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+    user(&db, chat, Some(greeting), "Other branch").await;
+    let hello = user(&db, chat, Some(greeting), "Hello").await;
+    let gone = user(&db, chat, Some(hello.id), "Gone").await;
+    db.delete_subtree(chat, gone.id, 1).await.unwrap();
+    db.set_chat_head(chat, Some(hello.id)).await.unwrap();
+
+    let t = db.transcript(chat).await.unwrap();
+    assert_eq!(t.file_name, "Chat with Ren.md");
+    assert_eq!(t.text, "# Ren\n\n**Ren:** Sit. Talk.\n\n**User:** Hello\n");
+}

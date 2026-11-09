@@ -338,6 +338,9 @@ export interface Added {
 /** With a password: opens the zip that was picked last time again. */
 export const openBackup = (password?: string) =>
   invoke<BackupInfo | null>("open_backup", { password: password ?? null });
+/** The file name, or null when the user closed the picker. */
+export const saveChatText = (chatId: number) => invoke<string | null>("save_chat_text", { chatId });
+
 export interface CharacterStats {
   character_id: number;
   name: string;

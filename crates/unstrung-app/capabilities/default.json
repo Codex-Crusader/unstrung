@@ -48,6 +48,7 @@
     "allow-export-backup",
     "allow-backup-status",
     "allow-snooze-backup-reminder",
+    "allow-save-chat-text",
     "allow-chat-stats",
     "allow-set-backup-password",
     "allow-auto-backup-status",

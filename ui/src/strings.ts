@@ -362,6 +362,8 @@ export const strings = {
       return days <= 1 ? "Goes for good within a day" : `Goes for good in ${String(days)} days`;
     },
     restore: "Bring back",
+    saveText: "Save as text",
+    savedText: (file: string) => `Saved ${file}.`,
   },
   pictures: {
     title: "Pictures",

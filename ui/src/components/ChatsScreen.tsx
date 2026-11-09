@@ -3,6 +3,7 @@ import {
   deleteChat,
   deletedChats,
   recentChats,
+  saveChatText,
   restoreChat,
   toUiError,
   type DeletedChat,
@@ -24,6 +25,7 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
   const [error, setError] = useState<UiError | null>(null);
   // The chat whose delete asks "are you sure" now.
   const [confirm, setConfirm] = useState<number | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
   const c = strings.chats;
 
   const remove = (chatId: number) => {
@@ -48,6 +50,19 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
     deletedChats().then(setDeleted, () => undefined);
   };
   useEffect(load, []);
+
+  const saveText = (chatId: number) => {
+    setError(null);
+    setSaved(null);
+    saveChatText(chatId).then(
+      (file) => {
+        if (file !== null) setSaved(s.savedText(file));
+      },
+      (e: unknown) => {
+        setError(toUiError(e));
+      },
+    );
+  };
 
   const restore = (chatId: number) => {
     setError(null);
@@ -81,6 +96,11 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
         )}
       </div>
       {error && <ErrorNote error={error} />}
+      {saved && (
+        <p className="field-hint" role="status">
+          {saved}
+        </p>
+      )}
       {chats === null && !error && <Loading />}
       {chats && chats.length === 0 && (
         <div className="empty-pictures">
@@ -135,17 +155,30 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
                     </button>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`${c.delete}: ${r.character_name}`}
-                    title={c.delete}
-                    onClick={() => {
-                      setConfirm(r.chat_id);
-                    }}
-                  >
-                    <Icon name="remove" />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`${s.saveText}: ${r.character_name}`}
+                      title={s.saveText}
+                      onClick={() => {
+                        saveText(r.chat_id);
+                      }}
+                    >
+                      <Icon name="download" />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`${c.delete}: ${r.character_name}`}
+                      title={c.delete}
+                      onClick={() => {
+                        setConfirm(r.chat_id);
+                      }}
+                    >
+                      <Icon name="remove" />
+                    </button>
+                  </>
                 )}
               </span>
             </li>

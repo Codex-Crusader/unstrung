@@ -468,6 +468,36 @@ pub async fn open_backup(
     ))
 }
 
+/// "Save as text": the visible branch of a chat as a Markdown file in a place
+/// that the user picks. The file name, or `None` when the user closes the picker.
+#[tauri::command]
+pub async fn save_chat_text(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    chat_id: i64,
+) -> CmdResult<Option<String>> {
+    let transcript = state.chats.db().transcript(chat_id).await?;
+    let Some(to) = rfd::AsyncFileDialog::new()
+        .set_parent(&window)
+        .set_file_name(&transcript.file_name)
+        .add_filter("Markdown", &["md"])
+        .add_filter("Text", &["txt"])
+        .save_file()
+        .await
+    else {
+        return Ok(None);
+    };
+    let path = to.path().to_path_buf();
+    let text = transcript.text;
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+    tauri::async_runtime::spawn_blocking(move || {
+        unstrung_core::files::write_atomic(&path, text.as_bytes())
+    })
+    .await
+    .map_err(|e| unstrung_core::error::Error::Io(std::io::Error::other(e)))??;
+    Ok(name)
+}
+
 /// Chats, messages and pictures per character, for Settings > Storage.
 #[tauri::command]
 pub async fn chat_stats(
