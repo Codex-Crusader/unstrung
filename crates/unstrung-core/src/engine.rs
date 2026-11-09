@@ -317,9 +317,13 @@ impl Engine {
         let mut last_restart: Option<tokio::time::Instant> = None;
         loop {
             tokio::time::sleep(HEALTH_INTERVAL).await;
-            let exited = self.sidecar.lock().await.as_mut().and_then(Sidecar::exited);
+            let (running, exited) = {
+                let mut sidecar = self.sidecar.lock().await;
+                let exited = sidecar.as_mut().and_then(Sidecar::exited);
+                (sidecar.is_some() && exited.is_none(), exited)
+            };
             let Some(code) = exited else {
-                if last_restart.is_some_and(|t| t.elapsed() > STABLE_AFTER) {
+                if running && last_restart.is_some_and(|t| t.elapsed() > STABLE_AFTER) {
                     *self.restarts.lock().await = 0;
                     last_restart = None;
                 }

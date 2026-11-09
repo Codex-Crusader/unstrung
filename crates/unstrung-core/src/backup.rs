@@ -1067,7 +1067,7 @@ mod tests {
     #[tokio::test]
     async fn the_reminder_comes_30_days_after_the_last_backup_or_later() {
         let dir = tempfile::tempdir().unwrap();
-        let (paths, db) = home(dir.path()).await;
+        let (_paths, db) = home(dir.path()).await;
         let day = 24 * 60 * 60 * 1000;
         let start = now_ms();
         let first = status(&db, start).await.unwrap();
@@ -1080,12 +1080,18 @@ mod tests {
         assert!(!status(&db, start + 59 * day).await.unwrap().due);
         assert!(status(&db, start + 60 * day).await.unwrap().due);
 
+        // A backup restarts the wait: a fresh home, so no "Later" hides it.
+        let dir = tempfile::tempdir().unwrap();
+        let (paths, db) = home(dir.path()).await;
+        status(&db, start - 60 * day).await.unwrap();
+        assert!(status(&db, start).await.unwrap().due);
         export(&db, &paths, &dir.path().join("b.zip"), "1")
             .await
             .unwrap();
         let after = status(&db, now_ms()).await.unwrap();
-        assert!(after.last_ms.is_some_and(|t| t >= start));
+        assert!(after.last_ms.is_some_and(|t| t >= start) && !after.due);
         assert!(!status(&db, now_ms() + 29 * day).await.unwrap().due);
+        assert!(status(&db, now_ms() + 31 * day).await.unwrap().due);
     }
 
     #[tokio::test]

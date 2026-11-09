@@ -144,7 +144,12 @@ pub fn diagnostic_report(info: State<'_, StartInfo>) -> String {
     out.push(format!("Last {LOG_LINES} lines of app.log:"));
     match std::fs::read_to_string(info.paths.logs().join("app.log")) {
         Ok(log) => {
-            let lines: Vec<&str> = log.lines().collect();
+            // Right after a rotation the log is short; the older file has the rest.
+            let older = (log.lines().count() < LOG_LINES)
+                .then(|| std::fs::read_to_string(info.paths.logs().join("app.log.1")).ok())
+                .flatten()
+                .unwrap_or_default();
+            let lines: Vec<&str> = older.lines().chain(log.lines()).collect();
             let from = lines.len().saturating_sub(LOG_LINES);
             out.extend(lines[from..].iter().map(|l| redact(l)));
         }
