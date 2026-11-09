@@ -29,3 +29,6 @@ winreg = "0.56"
 
 [build-dependencies]
 tauri-build = { version = "2.5", features = ["isolation"] }
+
+[dev-dependencies]
+tempfile = "3"

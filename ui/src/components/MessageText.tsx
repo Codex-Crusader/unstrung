@@ -3,7 +3,7 @@
 // description, even when the model left out the asterisks.
 // No HTML, no links, no images: model output and imported cards are untrusted.
 
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 const ACTION = /(\*[^*\n]+\*)/g;
 const SPEECH = /("[^"\n]*"|“[^”\n]*”)/g;
@@ -24,7 +24,8 @@ function actions(text: string, rest: string, key: string): ReactNode[] {
   );
 }
 
-export function MessageText({ text }: { text: string }) {
+// memo: a streamed reply re-renders the chat for each word; the other messages keep their text.
+export const MessageText = memo(function MessageText({ text }: { text: string }) {
   const parts = text.split(SPEECH);
   const quoted = parts.length > 1;
   return (
@@ -43,4 +44,4 @@ export function MessageText({ text }: { text: string }) {
         : actions(text, "", "t")}
     </p>
   );
-}
+});

@@ -5222,6 +5222,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-updater",
  "tauri-winrt-notification",
+ "tempfile",
  "tokio",
  "unstrung-core",
  "winreg",

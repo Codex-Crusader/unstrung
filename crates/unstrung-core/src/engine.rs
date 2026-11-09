@@ -21,6 +21,9 @@ const MAX_RESTARTS: u32 = 3;
 // that took 27 to 33 seconds on every start, so 30 was too short.
 const READY_TIMEOUT: Duration = Duration::from_secs(120);
 const HEALTH_INTERVAL: Duration = Duration::from_secs(3);
+/// An engine that runs this long after a restart is healthy again, so the
+/// restart count starts over: crashes weeks apart are not a crash loop.
+const STABLE_AFTER: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
@@ -308,14 +311,21 @@ impl Engine {
         }
     }
 
-    /// Checks the process every few seconds and restarts it up to 3 times.
+    /// Checks the process every few seconds and restarts it up to 3 times
+    /// in a row.
     pub async fn watch_health(self: Arc<Self>) {
+        let mut last_restart: Option<tokio::time::Instant> = None;
         loop {
             tokio::time::sleep(HEALTH_INTERVAL).await;
             let exited = self.sidecar.lock().await.as_mut().and_then(Sidecar::exited);
             let Some(code) = exited else {
+                if last_restart.is_some_and(|t| t.elapsed() > STABLE_AFTER) {
+                    *self.restarts.lock().await = 0;
+                    last_restart = None;
+                }
                 continue;
             };
+            last_restart = Some(tokio::time::Instant::now());
             self.client.send_replace(None);
             self.sidecar.lock().await.take();
             let attempt = {

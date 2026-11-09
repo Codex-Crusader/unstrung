@@ -438,6 +438,22 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     }
     unstrung_core::avatar::clear_staging(&paths);
     unstrung_core::backup::clear_leftovers(&paths);
+    // The app can stay open for weeks: the daily copy must not wait for a restart.
+    let (daily_db, daily_file) = (db.clone(), paths.database());
+    tauri::async_runtime::spawn(async move {
+        let mut hourly = tokio::time::interval(std::time::Duration::from_secs(60 * 60));
+        hourly.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // The first tick is now, and the start made today's copy above.
+        hourly.tick().await;
+        loop {
+            hourly.tick().await;
+            match daily_db.daily_snapshot(&daily_file).await {
+                Ok(Some(file)) => log::info!("daily copy of the chats: {}", file.display()),
+                Ok(None) => {}
+                Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
+            }
+        }
+    });
     // Data from before encryption: converted once, in the background.
     let old = paths.clone();
     let copies_key = key.clone();

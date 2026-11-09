@@ -11,6 +11,8 @@ stops when the section is missing.
 - Screens, setup steps, menus and the picture viewer now ease in instead of appearing at once. The Windows setting and Settings > Reduce motion turn this off.
 - Home reminds you to make a backup when you have chats and made no backup in 30 days. Settings shows the date of the last backup.
 - The Pictures grid loads small copies of the pictures, so a large gallery scrolls faster and uses less memory.
+- For an app that stays open for days: the daily copy of the chats, the update check and the log size limit now work without a restart. After three engine crashes in a row Unstrung still stops restarting the engine, but a crash after ten good minutes no longer counts toward that limit.
+- Long chats stay smooth while a reply streams in.
 - Dependency updates, including new versions of the encryption libraries. Files that 0.2.0 encrypted open as before.
 
 ## 0.2.0

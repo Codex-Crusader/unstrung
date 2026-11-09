@@ -15,6 +15,8 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 pub const META_KEY: &str = "update_check";
 /// The check after start waits, so it does not slow the start.
 const FIRST_CHECK_AFTER: Duration = Duration::from_secs(60);
+/// The app can stay open for weeks, so it checks again each day.
+const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Available {
@@ -61,25 +63,30 @@ async fn find(app: &AppHandle) -> tauri_plugin_updater::Result<Option<Update>> {
     app.updater()?.check().await
 }
 
-/// The check after start. A failed check is quiet, because Unstrung works
-/// offline and there is nothing to tell.
+/// The check after start, then once a day until an update is found. A
+/// failed check is quiet, because Unstrung works offline and there is
+/// nothing to tell.
 pub fn check_after_start(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(FIRST_CHECK_AFTER).await;
-        let Some(state) = app.try_state::<AppState>() else {
-            return;
-        };
-        if !checks_on(&state).await {
-            return;
-        }
-        match find(&app).await {
-            Ok(Some(update)) => {
-                log::info!("Unstrung {} is ready to install", update.version);
-                let _ = app.emit("update-available", Available::from(&update));
+        loop {
+            let Some(state) = app.try_state::<AppState>() else {
+                return;
+            };
+            // Settings can turn the check on or off while the app runs.
+            if checks_on(&state).await {
+                match find(&app).await {
+                    Ok(Some(update)) => {
+                        log::info!("Unstrung {} is ready to install", update.version);
+                        let _ = app.emit("update-available", Available::from(&update));
+                        return;
+                    }
+                    Ok(None) => log::info!("Unstrung is up to date"),
+                    Err(e) => log::info!("the update check failed: {e}"),
+                }
             }
-            Ok(None) => log::info!("Unstrung is up to date"),
-            Err(e) => log::info!("the update check failed: {e}"),
+            tokio::time::sleep(CHECK_EVERY).await;
         }
     });
 }
