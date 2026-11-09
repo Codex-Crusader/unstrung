@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import {
   deleteChat,
   deletedChats,
+  MIN_SEARCH_CHARS,
   recentChats,
   saveChatText,
   restoreChat,
+  searchChats,
   toUiError,
   type DeletedChat,
   type RecentChat,
+  type SearchHit,
   type UiError,
 } from "../api";
 import { strings } from "../strings";
@@ -17,7 +20,12 @@ import { ErrorNote } from "./ErrorNote";
 import { Loading } from "./Loading";
 
 /** The chats screen: the latest chats with every character, newest first. */
-export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, chatId: number) => void }) {
+export function ChatsScreen({
+  onOpenChat,
+}: {
+  /** With a message: the chat opens at that message. */
+  onOpenChat: (characterId: number, chatId: number, messageId?: number) => void;
+}) {
   const s = strings.chatsPage;
   const [chats, setChats] = useState<RecentChat[] | null>(null);
   const [deleted, setDeleted] = useState<DeletedChat[]>([]);
@@ -26,6 +34,8 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
   // The chat whose delete asks "are you sure" now.
   const [confirm, setConfirm] = useState<number | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  // The last search answer, with the text that it answers.
+  const [found, setFound] = useState<{ text: string; hits: SearchHit[] } | null>(null);
   const c = strings.chats;
 
   const remove = (chatId: number) => {
@@ -71,7 +81,31 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
     });
   };
 
-  const wanted = query.trim().toLowerCase();
+  const text = query.trim();
+  const short = Array.from(text).length < MIN_SEARCH_CHARS;
+  // null while the search for this text waits or runs.
+  const hits = short ? [] : found?.text === text ? found.hits : null;
+  useEffect(() => {
+    if (short) return;
+    let active = true;
+    // Waits for a pause in typing, so not every key runs a search.
+    const timer = window.setTimeout(() => {
+      searchChats(text).then(
+        (list) => {
+          if (active) setFound({ text, hits: list });
+        },
+        () => {
+          if (active) setFound({ text, hits: [] });
+        },
+      );
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [text, short]);
+
+  const wanted = text.toLowerCase();
   const shown = wanted
     ? chats?.filter((c) => `${c.character_name} ${c.preview}`.toLowerCase().includes(wanted))
     : chats;
@@ -109,7 +143,7 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
           <p className="muted">{s.emptyText}</p>
         </div>
       )}
-      {shown && shown.length === 0 && wanted && <p className="muted">{s.noMatch(query.trim())}</p>}
+      {shown && shown.length === 0 && wanted && hits?.length === 0 && <p className="muted">{s.noMatch(text)}</p>}
       {shown && shown.length > 0 && (
         <ul className="chat-rows">
           {shown.map((r) => (
@@ -184,6 +218,39 @@ export function ChatsScreen({ onOpenChat }: { onOpenChat: (characterId: number, 
             </li>
           ))}
         </ul>
+      )}
+      {hits === null && <p className="field-hint">{s.searching}</p>}
+      {hits && hits.length > 0 && (
+        <section className="search-hits" aria-label={s.inMessages(hits.length)}>
+          <h2>{s.inMessages(hits.length)}</h2>
+          <ul className="chat-rows">
+            {hits.map((h) => (
+              <li key={h.message_id}>
+                <button
+                  type="button"
+                  className="recent-chat"
+                  onClick={() => {
+                    onOpenChat(h.character_id, h.chat_id, h.message_id);
+                  }}
+                >
+                  <Avatar
+                    kind="character"
+                    owner={{ id: h.character_id, name: h.character_name, avatar_path: h.avatar_path }}
+                  />
+                  <span className="recent-text">
+                    <span className="recent-name">{h.character_name}</span>
+                    <span className="recent-preview">
+                      {h.before}
+                      <mark>{h.hit}</mark>
+                      {h.after}
+                    </span>
+                  </span>
+                  <span className="chat-when field-hint">{strings.home.when(h.created_at)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {deleted.length > 0 && (
         <details className="more deleted-chats">

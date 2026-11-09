@@ -468,6 +468,17 @@ pub async fn open_backup(
     ))
 }
 
+/// Messages of all chats that hold the text, newest first.
+#[tauri::command]
+pub async fn search_chats(
+    state: State<'_, AppState>,
+    text: String,
+) -> CmdResult<Vec<unstrung_core::db::SearchHit>> {
+    let db = state.chats.db();
+    let adult = unstrung_core::content::adult_on(db).await?;
+    Ok(db.search(&text, adult).await?)
+}
+
 /// "Save as text": the visible branch of a chat as a Markdown file in a place
 /// that the user picks. The file name, or `None` when the user closes the picker.
 #[tauri::command]

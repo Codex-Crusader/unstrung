@@ -338,6 +338,22 @@ export interface Added {
 /** With a password: opens the zip that was picked last time again. */
 export const openBackup = (password?: string) =>
   invoke<BackupInfo | null>("open_backup", { password: password ?? null });
+export interface SearchHit {
+  chat_id: number;
+  message_id: number;
+  character_id: number;
+  character_name: string;
+  avatar_path: string | null;
+  created_at: number;
+  /** The text around the hit: before, the hit itself, after. */
+  before: string;
+  hit: string;
+  after: string;
+}
+/** Shorter text finds nothing: the Rust side has the same limit. */
+export const MIN_SEARCH_CHARS = 3;
+export const searchChats = (text: string) => invoke<SearchHit[]>("search_chats", { text });
+
 /** The file name, or null when the user closed the picker. */
 export const saveChatText = (chatId: number) => invoke<string | null>("save_chat_text", { chatId });
 

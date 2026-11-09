@@ -762,3 +762,51 @@ async fn a_transcript_shows_the_visible_branch_with_names() {
     assert_eq!(t.file_name, "Chat with Ren.md");
     assert_eq!(t.text, "# Ren\n\n**Ren:** Sit. Talk.\n\n**User:** Hello\n");
 }
+
+#[tokio::test]
+async fn search_finds_live_messages_and_treats_wildcards_as_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
+    let ren_id = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let ren_c = db.character(ren_id).await.unwrap();
+    let chat = db.create_chat(&ren_c, None, "", true).await.unwrap();
+    let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+    let hit = user(&db, chat, Some(greeting), "The Lighthouse at dawn").await;
+    user(&db, chat, Some(hit.id), "Sold at 100% off").await;
+    let gone = user(&db, chat, Some(hit.id), "A lighthouse, deleted").await;
+    db.delete_subtree(chat, gone.id, 1).await.unwrap();
+    let old = db.create_chat(&ren_c, None, "", true).await.unwrap();
+    let old_head = db.chat(old).await.unwrap().head_message_id.unwrap();
+    user(&db, old, Some(old_head), "lighthouse in a deleted chat").await;
+    db.delete_chat(old).await.unwrap();
+    let vex = CharacterFields {
+        name: "Vex".into(),
+        is_adult: true,
+        ..ren()
+    };
+    let vex_id = db.insert_character(&vex, None, "{}").await.unwrap();
+    let vex_c = db.character(vex_id).await.unwrap();
+    let adult_chat = db.create_chat(&vex_c, None, "", true).await.unwrap();
+    let adult_head = db.chat(adult_chat).await.unwrap().head_message_id.unwrap();
+    user(&db, adult_chat, Some(adult_head), "lighthouse, adult").await;
+
+    let found = db.search("LIGHTHOUSE", false).await.unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].message_id, hit.id);
+    assert_eq!(
+        (
+            found[0].before.as_str(),
+            found[0].hit.as_str(),
+            found[0].after.as_str()
+        ),
+        ("The ", "Lighthouse", " at dawn")
+    );
+    assert_eq!(db.search("lighthouse", true).await.unwrap().len(), 2);
+    // % and _ are text, not wildcards.
+    assert_eq!(db.search("00%", false).await.unwrap().len(), 1);
+    assert!(db.search("t_e", false).await.unwrap().is_empty());
+    // Too short.
+    assert!(db.search(" at ", false).await.unwrap().is_empty());
+}

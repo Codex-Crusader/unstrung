@@ -73,7 +73,7 @@ export function MessageItem({
   );
 
   return (
-    <article className={`message message-${message.role}`}>
+    <article id={`message-${String(message.id)}`} className={`message message-${message.role}`}>
       {fromCharacter ? (
         <Avatar kind="character" owner={character} />
       ) : (

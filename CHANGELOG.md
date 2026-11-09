@@ -19,6 +19,7 @@ stops when the section is missing.
 - Each backup is read back and checked after it is written, so a bad write shows as an error at once.
 - Automatic backup: in Settings > Storage, pick a folder, and Unstrung makes a backup there once a week and keeps the 3 newest. If the folder is missing, for example on an unplugged drive, Settings shows why and Unstrung tries again 6 hours later.
 - Chats that stay in "Recently deleted" past 7 days no longer leave empty folders behind.
+- Search in messages: on the Chats page, type 3 letters or more, and the 50 newest messages that hold the text show below the chats. Click one to open its chat at that message, also when it is on another branch.
 - Save a chat as text: on the Chats page, the download button next to a chat saves the messages that you see as a Markdown file, with the name of who wrote each one.
 - Settings > Storage shows your chats in numbers: chats, messages and pictures for each character.
 - Backup password: in Settings > Storage, set a password, and every backup is encrypted with it, also the automatic ones. To import such a backup, Unstrung asks for its password. If you forget the password, nobody can open the backup. Backups without a password open as before. Version 0.2.0 cannot open an encrypted backup and says that the file is not a backup that it can read.

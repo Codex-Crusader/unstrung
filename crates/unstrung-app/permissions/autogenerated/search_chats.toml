@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-search-chats"
+description = "Enables the search_chats command without any pre-configured scope."
+commands.allow = ["search_chats"]
+
+[[permission]]
+identifier = "deny-search-chats"
+description = "Denies the search_chats command without any pre-configured scope."
+commands.deny = ["search_chats"]

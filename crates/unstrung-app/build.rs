@@ -41,6 +41,7 @@ const COMMANDS: &[&str] = &[
     "export_backup",
     "backup_status",
     "snooze_backup_reminder",
+    "search_chats",
     "save_chat_text",
     "chat_stats",
     "set_backup_password",

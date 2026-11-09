@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT m.id AS \"message_id!\", m.chat_id AS \"chat_id!\", m.content AS \"content!\",\n                    m.created_at AS \"created_at!\", ch.id AS \"character_id!\",\n                    ch.name AS \"character_name!\", ch.avatar_path\n             FROM messages m\n             JOIN chats c ON c.id = m.chat_id\n             JOIN characters ch ON ch.id = c.character_id\n             WHERE c.deleted_at IS NULL AND m.deleted_at IS NULL\n               AND (ch.is_adult = 0 OR ?)\n               AND m.role IN ('user', 'character', 'ooc')\n               AND m.content LIKE ? ESCAPE '\\'\n             ORDER BY m.created_at DESC, m.id DESC\n             LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chat_id!",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "content!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "character_id!",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "character_name!",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "avatar_path",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b7ec1a6f8009b113965f1c96767e22175c924f6c3bb5b27d85c63a28e0be0636"
+}

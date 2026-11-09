@@ -1343,6 +1343,37 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.search-hits h2 {
+  font-size: 16px;
+  margin: 20px 0 8px;
+}
+
+.search-hits mark {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.message-found .bubble {
+  animation: found-glow 2.4s ease-out;
+}
+
+@keyframes found-glow {
+  from {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-found .bubble {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
 .stats {
   margin: 12px 0;
 }

@@ -35,7 +35,7 @@ import { Brand } from "./components/Brand";
 
 export type Screen =
   | { name: "home" }
-  | { name: "chat"; characterId: number; chatId?: number }
+  | { name: "chat"; characterId: number; chatId?: number; messageId?: number }
   | { name: "creator"; characterId: number | null; draft?: ImportDraft; draftKey?: number; picture?: Staged }
   | { name: "chats" }
   | { name: "personas" }
@@ -248,6 +248,7 @@ function MainApp() {
               status={status}
               characterId={screen.characterId}
               chatId={screen.chatId}
+              messageId={screen.messageId}
               personas={personas}
               onBack={home}
               onUseAsAvatar={(characterId, staged) => {
@@ -271,8 +272,12 @@ function MainApp() {
           )}
           {screen.name === "chats" && (
             <ChatsScreen
-              onOpenChat={(characterId, chatId) => {
-                setScreen({ name: "chat", characterId, chatId });
+              onOpenChat={(characterId, chatId, messageId) => {
+                setScreen(
+                  messageId === undefined
+                    ? { name: "chat", characterId, chatId }
+                    : { name: "chat", characterId, chatId, messageId },
+                );
               }}
             />
           )}

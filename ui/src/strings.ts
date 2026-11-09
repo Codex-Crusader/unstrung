@@ -362,6 +362,8 @@ export const strings = {
       return days <= 1 ? "Goes for good within a day" : `Goes for good in ${String(days)} days`;
     },
     restore: "Bring back",
+    inMessages: (n: number) => (n >= 50 ? "In messages (the newest 50)" : `In messages (${String(n)})`),
+    searching: "Searching the messages.",
     saveText: "Save as text",
     savedText: (file: string) => `Saved ${file}.`,
   },

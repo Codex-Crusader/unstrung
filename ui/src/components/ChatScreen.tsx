@@ -117,6 +117,7 @@ export function ChatScreen({
   status,
   characterId,
   chatId: startChat,
+  messageId: jumpTo,
   personas,
   onBack,
   onUseAsAvatar,
@@ -125,6 +126,8 @@ export function ChatScreen({
   characterId: number;
   /** A chat to open. Without it, the character's latest chat opens. */
   chatId?: number | undefined;
+  /** A message to show, for example a search hit. */
+  messageId?: number | undefined;
   personas: Persona[];
   onBack: () => void;
   onUseAsAvatar: (characterId: number, staged: Staged) => void;
@@ -244,7 +247,12 @@ export function ChatScreen({
   useEffect(() => {
     let active = true;
     (startChat === undefined ? openCharacter(characterId) : openChat(startChat))
-      .then((v) => {
+      .then(async (v) => {
+        // A hit on another branch: show that branch. While a reply runs this
+        // fails, and the chat opens without the jump.
+        if (jumpTo !== undefined && !v.messages.some((m) => m.id === jumpTo)) {
+          v = await showBranch(v.chat.id, jumpTo).catch(() => v);
+        }
         if (active) setView(v);
       })
       .catch((e: unknown) => {
@@ -253,7 +261,20 @@ export function ChatScreen({
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- jumpTo is read once, when the chat opens
   }, [characterId, startChat]);
+
+  // Scrolls to the message once, after the first view draws.
+  const jumped = useRef(false);
+  useEffect(() => {
+    if (jumped.current || jumpTo === undefined || view === null) return;
+    jumped.current = true;
+    const found = document.getElementById(`message-${String(jumpTo)}`);
+    if (!found) return;
+    atBottom.current = false;
+    found.scrollIntoView({ block: "center" });
+    found.classList.add("message-found");
+  }, [view, jumpTo]);
 
   // Follow new text only when the user is already at the bottom, so reading
   // older messages is not interrupted.
