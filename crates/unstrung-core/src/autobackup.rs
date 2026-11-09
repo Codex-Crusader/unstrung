@@ -63,6 +63,8 @@ pub async fn set_folder(db: &Db, paths: &AppPaths, folder: Option<&Path>) -> Res
     let value = folder.map(|f| f.to_string_lossy().into_owned());
     db.set_meta(FOLDER, value.as_deref().unwrap_or_default())
         .await?;
+    // A new folder gets its first backup at the next hourly round.
+    db.set_meta(DONE, "").await?;
     db.set_meta(FAILED, "").await?;
     db.set_meta(TRIED, "").await?;
     status(db).await
@@ -287,6 +289,14 @@ mod tests {
                 .is_some()
         );
 
+        let other = dir.path().join("other");
+        std::fs::create_dir_all(&other).unwrap();
+        set_folder(&db, &paths, Some(&other)).await.unwrap();
+        let soon = later + EVERY_MS + 60 * 60 * 1000;
+        assert!(
+            run_if_due(&db, &paths, soon, "1").await.unwrap().is_some(),
+            "a new folder does not wait a week"
+        );
         set_folder(&db, &paths, None).await.unwrap();
         assert!(status(&db).await.unwrap().folder.is_none());
     }

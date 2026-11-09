@@ -38,6 +38,6 @@ impl FileGuard {
         self.0
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map(|_| FileHold(&self.0))
-            .map_err(|_| unstrung_core::error::Error::Invalid("Wait until the backup ends.".into()))
+            .map_err(|_| unstrung_core::error::Error::Invalid("Wait until the backup or the folder move ends.".into()))
     }
 }
