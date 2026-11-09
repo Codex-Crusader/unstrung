@@ -7,6 +7,15 @@ targets = ["x86_64-pc-windows-msvc"]
 
 [advisories]
 yanked = "deny"
+ignore = [
+    # SQLite before 3.54 with a crafted database and -wal pair. Unstrung opens
+    # only database files that it wrote: a backup import stages the chats file
+    # as app.db and never extracts another file next to it, Move folder needs
+    # an empty folder, and a swap deletes old -wal and -shm files. sqlx 0.8
+    # pins libsqlite3-sys 0.30, and the SQLCipher build of 0.39 still has
+    # SQLite 3.53. Remove this when sqlx and SQLCipher ship SQLite 3.54.
+    { id = "RUSTSEC-2026-0459", reason = "Unstrung opens only database files that it wrote, and no fixed SQLCipher exists yet" },
+]
 
 [licenses]
 confidence-threshold = 0.93
