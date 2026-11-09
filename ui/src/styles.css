@@ -118,6 +118,25 @@ body {
   outline-offset: 2px;
 }
 
+/* The parts that the browser draws take the theme too. Placeholders use the
+   soft text color, which passes AA (4.5:1) in every theme; the default gray
+   did not (3.3:1 in dark). */
+::placeholder {
+  color: var(--text-soft);
+  opacity: 1;
+}
+
+body {
+  accent-color: var(--accent-strong);
+  caret-color: var(--accent-strong);
+  scrollbar-color: color-mix(in srgb, var(--text-soft) 55%, transparent) transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text);
+}
+
 .app {
   display: flex;
   flex-direction: column;
