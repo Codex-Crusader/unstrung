@@ -11,7 +11,7 @@ import {
   type UpdateInfo,
 } from "../api";
 import { strings } from "../strings";
-import { bytesText } from "./SettingsScreen";
+import { bytesText } from "./StorageSettings";
 import { ErrorNote } from "./ErrorNote";
 
 /**
