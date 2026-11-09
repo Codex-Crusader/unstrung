@@ -595,6 +595,13 @@ export const strings = {
     passwordOpen: "Open",
     passwordOf: "Password of this backup",
     exportAll: "Export everything",
+    statsTitle: "Your chats in numbers",
+    statsTotal: (chats: number, messages: number, pictures: number) =>
+      `${String(chats)} ${chats === 1 ? "chat" : "chats"}, ${messages.toLocaleString()} ${messages === 1 ? "message" : "messages"} and ${String(pictures)} ${pictures === 1 ? "picture" : "pictures"}, without deleted chats.`,
+    statsCharacter: "Character",
+    statsChats: "Chats",
+    statsMessages: "Messages",
+    statsPictures: "Pictures",
     autoTitle: "Automatic backup",
     autoOff: (sealed: boolean) =>
       sealed

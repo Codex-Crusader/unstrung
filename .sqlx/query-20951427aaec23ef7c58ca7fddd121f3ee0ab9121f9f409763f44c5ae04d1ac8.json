@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ch.id AS \"character_id!\", ch.name AS \"name!\",\n                    (SELECT count(*) FROM chats c\n                     WHERE c.character_id = ch.id AND c.deleted_at IS NULL) AS \"chats!: i64\",\n                    (SELECT count(*) FROM messages m JOIN chats c ON c.id = m.chat_id\n                     WHERE c.character_id = ch.id AND c.deleted_at IS NULL\n                       AND m.deleted_at IS NULL AND m.role IN ('user', 'character'))\n                        AS \"messages!: i64\",\n                    (SELECT count(*) FROM images i JOIN chats c ON c.id = i.chat_id\n                     WHERE c.character_id = ch.id AND c.deleted_at IS NULL) AS \"pictures!: i64\"\n             FROM characters ch\n             WHERE ch.is_adult = 0 OR ?\n             ORDER BY 4 DESC, ch.name",
+  "describe": {
+    "columns": [
+      {
+        "name": "character_id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "chats!: i64",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "messages!: i64",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "pictures!: i64",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "20951427aaec23ef7c58ca7fddd121f3ee0ab9121f9f409763f44c5ae04d1ac8"
+}

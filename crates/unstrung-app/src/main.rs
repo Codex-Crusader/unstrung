@@ -147,6 +147,7 @@ fn main() {
             commands::export_backup,
             commands::backup_status,
             commands::snooze_backup_reminder,
+            commands::chat_stats,
             commands::set_backup_password,
             commands::auto_backup_status,
             commands::choose_auto_backup_folder,

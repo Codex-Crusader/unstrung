@@ -1343,6 +1343,35 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.stats {
+  margin: 12px 0;
+}
+
+.stats summary {
+  cursor: pointer;
+}
+
+.stats table {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.stats th,
+.stats td {
+  padding: 4px 16px 4px 0;
+  text-align: right;
+  font-weight: normal;
+}
+
+.stats th:first-child {
+  text-align: left;
+}
+
+.stats thead th {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
 .password-form {
   display: flex;
   flex-direction: column;

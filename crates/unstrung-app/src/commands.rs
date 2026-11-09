@@ -468,6 +468,16 @@ pub async fn open_backup(
     ))
 }
 
+/// Chats, messages and pictures per character, for Settings > Storage.
+#[tauri::command]
+pub async fn chat_stats(
+    state: State<'_, AppState>,
+) -> CmdResult<Vec<unstrung_core::db::CharacterStats>> {
+    let db = state.chats.db();
+    let adult = unstrung_core::content::adult_on(db).await?;
+    Ok(db.stats(adult).await?)
+}
+
 /// Sets the backup password, or removes it with `None`.
 #[tauri::command]
 pub async fn set_backup_password(

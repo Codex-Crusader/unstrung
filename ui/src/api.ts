@@ -338,6 +338,15 @@ export interface Added {
 /** With a password: opens the zip that was picked last time again. */
 export const openBackup = (password?: string) =>
   invoke<BackupInfo | null>("open_backup", { password: password ?? null });
+export interface CharacterStats {
+  character_id: number;
+  name: string;
+  chats: number;
+  messages: number;
+  pictures: number;
+}
+export const chatStats = () => invoke<CharacterStats[]>("chat_stats");
+
 /** null removes the password. */
 export const setBackupPassword = (password: string | null) => invoke<null>("set_backup_password", { password });
 export const addFromBackup = (id: string) => invoke<Added>("add_from_backup", { id });

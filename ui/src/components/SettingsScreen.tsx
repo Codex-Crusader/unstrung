@@ -3,10 +3,12 @@ import {
   addFromBackup,
   autoBackupStatus,
   backupStatus,
+  chatStats,
   setBackupPassword,
   chooseAutoBackupFolder,
   stopAutoBackup,
   type AutoBackup,
+  type CharacterStats,
   checkFolder,
   diagnosticReport,
   discardBackup,
@@ -482,6 +484,47 @@ function FreeUp({ onDone }: { onDone: () => void }) {
 }
 
 /** Export everything and Import backup. */
+/** Settings > Storage: chats, messages and pictures per character. */
+function StatsView() {
+  const s = strings.settings;
+  const [stats, setStats] = useState<CharacterStats[] | null>(null);
+  useEffect(() => {
+    chatStats().then(setStats, () => {});
+  }, []);
+  if (stats === null || stats.length === 0) return null;
+  const sum = (pick: (c: CharacterStats) => number) => stats.reduce((n, c) => n + pick(c), 0);
+  return (
+    <details className="stats">
+      <summary>{s.statsTitle}</summary>
+      <p>{s.statsTotal(
+          sum((c) => c.chats),
+          sum((c) => c.messages),
+          sum((c) => c.pictures),
+        )}</p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">{s.statsCharacter}</th>
+            <th scope="col">{s.statsChats}</th>
+            <th scope="col">{s.statsMessages}</th>
+            <th scope="col">{s.statsPictures}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stats.map((c) => (
+            <tr key={c.character_id}>
+              <th scope="row">{c.name}</th>
+              <td>{c.chats}</td>
+              <td>{c.messages.toLocaleString()}</td>
+              <td>{c.pictures}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
 /** Settings > Storage: set, change or remove the backup password. */
 function PasswordView({ sealed, onChange }: { sealed: boolean; onChange: () => void }) {
   const s = strings.settings;
@@ -688,6 +731,7 @@ function Storage() {
           setMeasured((n) => n + 1);
         }}
       />
+      <StatsView />
       <p>
         {s.backupIntro}
         {lastBackup !== undefined && ` ${s.lastBackup(lastBackup)}`}

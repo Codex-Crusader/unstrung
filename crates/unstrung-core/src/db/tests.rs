@@ -700,3 +700,44 @@ async fn a_new_install_stores_everything_encrypted() {
         );
     }
 }
+
+#[tokio::test]
+async fn stats_count_live_chats_and_hide_adult_characters() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+        .await
+        .unwrap();
+    let ren_id = db.insert_character(&ren(), None, "{}").await.unwrap();
+    let adult = CharacterFields {
+        name: "Vex".into(),
+        is_adult: true,
+        ..ren()
+    };
+    let vex_id = db.insert_character(&adult, None, "{}").await.unwrap();
+    let ren_c = db.character(ren_id).await.unwrap();
+    let chat = db.create_chat(&ren_c, None, "", true).await.unwrap();
+    let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+    let hello = user(&db, chat, Some(greeting), "Hello").await;
+    let gone = user(&db, chat, Some(hello.id), "Gone").await;
+    db.delete_subtree(chat, gone.id, 1).await.unwrap();
+    // A deleted chat does not count.
+    let old = db.create_chat(&ren_c, None, "", true).await.unwrap();
+    db.delete_chat(old).await.unwrap();
+    let vex_c = db.character(vex_id).await.unwrap();
+    db.create_chat(&vex_c, None, "", true).await.unwrap();
+
+    let shown = db.stats(false).await.unwrap();
+    assert_eq!(
+        shown,
+        [CharacterStats {
+            character_id: ren_id,
+            name: "Ren".into(),
+            chats: 1,
+            messages: 2,
+            pictures: 0,
+        }]
+    );
+    let all = db.stats(true).await.unwrap();
+    assert_eq!(all.len(), 2);
+    assert_eq!((all[1].name.as_str(), all[1].messages), ("Vex", 1));
+}
