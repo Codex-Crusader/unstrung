@@ -200,7 +200,7 @@ const MessageCard = memo(function MessageCard({
                   if (id !== undefined) actions.showVersion(id);
                 }}
               >
-                ‹
+                <Icon name="back" />
               </button>
               <span>{strings.message.version(at + 1, count)}</span>
               <button
@@ -213,7 +213,7 @@ const MessageCard = memo(function MessageCard({
                   if (id !== undefined) actions.showVersion(id);
                 }}
               >
-                ›
+                <Icon name="forward" />
               </button>
             </span>
           )}

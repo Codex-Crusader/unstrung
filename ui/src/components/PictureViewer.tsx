@@ -212,7 +212,7 @@ export function PictureViewer({
               go(-1);
             }}
           >
-            ‹
+            <Icon name="back" />
           </button>
         )}
         <div className={working ? "viewer-frame busy" : "viewer-frame"}>
@@ -242,7 +242,7 @@ export function PictureViewer({
               go(1);
             }}
           >
-            ›
+            <Icon name="forward" />
           </button>
         )}
       </div>

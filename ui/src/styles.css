@@ -1192,6 +1192,18 @@ textarea:focus-visible {
   color: var(--text-soft);
 }
 
+.versions .icon-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.versions .icon {
+  width: 16px;
+  height: 16px;
+}
+
 .menu {
   position: relative;
 }
@@ -2721,6 +2733,8 @@ dialog.viewer::backdrop {
 
 .viewer-arrow {
   flex: none;
+  display: grid;
+  place-items: center;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -2730,6 +2744,11 @@ dialog.viewer::backdrop {
   font-size: 26px;
   line-height: 1;
   cursor: pointer;
+}
+
+.viewer-arrow .icon {
+  width: 22px;
+  height: 22px;
 }
 
 .viewer-arrow:disabled {

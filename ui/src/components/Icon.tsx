@@ -29,6 +29,7 @@ const ICONS = {
     </>
   ),
   back: <path d="M14.5 5.5 8 12l6.5 6.5" />,
+  forward: <path d="M9.5 5.5 16 12l-6.5 6.5" />,
   memory: (
     <>
       <path d="M7 3.5h10a1 1 0 0 1 1 1v16l-6-4-6 4v-16a1 1 0 0 1 1-1z" />
