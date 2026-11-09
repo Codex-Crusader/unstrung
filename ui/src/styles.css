@@ -1491,6 +1491,11 @@ textarea:focus-visible {
   background: var(--panel);
 }
 
+/* A closed panel is only its summary: no gap under it. */
+.more:not([open]) {
+  gap: 0;
+}
+
 .more[open] > summary {
   margin-bottom: 12px;
 }
@@ -1508,9 +1513,9 @@ textarea:focus-visible {
 
 .tips {
   padding: 10px 14px;
-  border-left: 3px solid var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   background: var(--accent-soft);
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
   font-size: 14px;
 }
 
@@ -1754,9 +1759,9 @@ textarea:focus-visible {
 
 .notes {
   padding: 10px 14px;
-  border-left: 3px solid var(--bad);
+  border: 1px solid color-mix(in srgb, var(--bad) 55%, transparent);
   background: var(--panel);
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
   font-size: 14px;
 }
 
