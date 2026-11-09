@@ -353,8 +353,13 @@ export interface SearchHit {
   hit: string;
   after: string;
 }
-/** Shorter text finds nothing: the Rust side has the same limit. */
-export const MIN_SEARCH_CHARS = 3;
+/** True when the text is too short to search. Text outside ASCII, such as
+ * Chinese or Japanese, needs two letters, other text three. The Rust side
+ * has the same rule in `search_too_short`. */
+export const searchTooShort = (text: string) => {
+  const letters = Array.from(text.trim());
+  return letters.length < (letters.every((c) => c.charCodeAt(0) < 128) ? 3 : 2);
+};
 export const searchChats = (text: string) => invoke<SearchHit[]>("search_chats", { text });
 
 /** The file name, or null when the user closed the picker. */

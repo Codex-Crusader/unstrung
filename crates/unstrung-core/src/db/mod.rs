@@ -12,7 +12,7 @@ pub mod snapshots;
 
 pub use characters::{Character, CharacterFields, WorldEntry};
 pub use chats::{Chat, ChatSummary, DeletedChat, RecentChat};
-pub use history::{CharacterStats, MIN_SEARCH_CHARS, SearchHit, Transcript};
+pub use history::{CharacterStats, MIN_SEARCH_CHARS, SearchHit, Transcript, search_too_short};
 pub use images::{GalleryImage, Image, NewImage};
 pub use kept::{CharacterMemory, Kept, MEMORY_MODES};
 pub use memories::Memory;

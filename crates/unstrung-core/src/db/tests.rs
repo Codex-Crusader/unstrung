@@ -809,4 +809,8 @@ async fn search_finds_live_messages_and_treats_wildcards_as_text() {
     assert!(db.search("t_e", false).await.unwrap().is_empty());
     // Too short.
     assert!(db.search(" at ", false).await.unwrap().is_empty());
+    // Two Chinese or Japanese letters are a word, and one is too short.
+    user(&db, chat, Some(hit.id), "明日は東京へ行く").await;
+    assert_eq!(db.search("東京", false).await.unwrap().len(), 1);
+    assert!(db.search("東", false).await.unwrap().is_empty());
 }

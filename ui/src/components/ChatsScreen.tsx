@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import {
   deleteChat,
   deletedChats,
-  MIN_SEARCH_CHARS,
   recentChats,
   saveChatText,
   restoreChat,
   searchChats,
+  searchTooShort,
   toUiError,
   type DeletedChat,
   type RecentChat,
@@ -82,7 +82,7 @@ export function ChatsScreen({
   };
 
   const text = query.trim();
-  const short = Array.from(text).length < MIN_SEARCH_CHARS;
+  const short = searchTooShort(text);
   // null while the search for this text waits or runs.
   const hits = short ? [] : found?.text === text ? found.hits : null;
   useEffect(() => {

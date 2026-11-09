@@ -43,6 +43,20 @@ impl Db {
 
 /// The shortest search text: shorter ones match nearly every message.
 pub const MIN_SEARCH_CHARS: usize = 3;
+/// Text with letters outside ASCII, such as Chinese or Japanese, often
+/// holds a whole word in two letters, so two are enough there.
+const MIN_SEARCH_CHARS_WIDE: usize = 2;
+
+/// True when `text` is too short to search.
+pub fn search_too_short(text: &str) -> bool {
+    let text = text.trim();
+    let min = if text.is_ascii() {
+        MIN_SEARCH_CHARS
+    } else {
+        MIN_SEARCH_CHARS_WIDE
+    };
+    text.chars().count() < min
+}
 /// The most hits one search returns, newest first.
 pub const SEARCH_LIMIT: i64 = 50;
 /// Bytes of text around a hit in its snippet.
@@ -68,10 +82,10 @@ pub struct SearchHit {
 impl Db {
     /// Messages of live chats that hold `text`, newest first. Like SQLite
     /// LIKE, the match ignores case only for ASCII letters. Adult characters
-    /// only when `adult`. Text shorter than `MIN_SEARCH_CHARS` finds nothing.
+    /// only when `adult`. Text that `search_too_short` refuses finds nothing.
     pub async fn search(&self, text: &str, adult: bool) -> Result<Vec<SearchHit>> {
         let text = text.trim();
-        if text.chars().count() < MIN_SEARCH_CHARS {
+        if search_too_short(text) {
             return Ok(Vec::new());
         }
         let pattern = format!("%{}%", like_escape(text));
