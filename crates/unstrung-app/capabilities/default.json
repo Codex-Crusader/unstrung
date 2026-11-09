@@ -46,6 +46,8 @@
     "allow-add-from-backup",
     "allow-discard-backup",
     "allow-export-backup",
+    "allow-backup-status",
+    "allow-snooze-backup-reminder",
     "allow-rebuild-summary",
     "allow-save-summary",
     "allow-next-chapter",

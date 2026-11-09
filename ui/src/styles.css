@@ -1875,6 +1875,22 @@ body > iframe {
   font-size: 14px;
 }
 
+.backup-due {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.backup-due p {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
 .memory-panel {
   flex: none;
   width: 300px;

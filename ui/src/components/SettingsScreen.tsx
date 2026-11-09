@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   addFromBackup,
+  backupStatus,
   checkFolder,
   diagnosticReport,
   discardBackup,
@@ -484,6 +485,14 @@ function Storage() {
   const [confirmReplace, setConfirmReplace] = useState(false);
   // Measures again after "Free up space".
   const [measured, setMeasured] = useState(0);
+  const [lastBackup, setLastBackup] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    backupStatus()
+      .then((b) => {
+        setLastBackup(b.last_ms);
+      })
+      .catch(() => {});
+  }, [state]);
   const fail = (e: unknown) => {
     setImporting("idle");
     setError(toUiError(e));
@@ -503,7 +512,10 @@ function Storage() {
           setMeasured((n) => n + 1);
         }}
       />
-      <p>{s.backupIntro}</p>
+      <p>
+        {s.backupIntro}
+        {lastBackup !== undefined && ` ${s.lastBackup(lastBackup)}`}
+      </p>
       <div className="safe-actions">
         <button
           type="button"

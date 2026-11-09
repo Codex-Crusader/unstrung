@@ -334,6 +334,22 @@ pub async fn save_summary(
     Ok(state.chats.save_summary(chat_id, through_id, &text).await?)
 }
 
+/// When the last backup was made, and whether to remind the user now.
+#[tauri::command]
+pub async fn backup_status(
+    state: State<'_, AppState>,
+) -> CmdResult<unstrung_core::backup::BackupStatus> {
+    let db = state.chats.db();
+    Ok(unstrung_core::backup::status(db, unstrung_core::db::now_ms()).await?)
+}
+
+/// "Later" on the backup reminder.
+#[tauri::command]
+pub async fn snooze_backup_reminder(state: State<'_, AppState>) -> CmdResult<()> {
+    let db = state.chats.db();
+    Ok(unstrung_core::backup::snooze(db, unstrung_core::db::now_ms()).await?)
+}
+
 /// "Export everything": the user picks where the zip goes. `None` when
 /// the user closes the picker.
 #[tauri::command]

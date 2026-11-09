@@ -55,6 +55,47 @@ pub struct Exported {
     pub pictures: usize,
 }
 
+/// When the last "Export everything" finished.
+const LAST_BACKUP: &str = "last_backup_ms";
+/// When the reminder clock started: the first check, or the last "Later".
+const REMINDER_CLOCK: &str = "backup_reminder_ms";
+/// How long the app waits before it reminds the user to make a backup.
+pub const REMIND_AFTER_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BackupStatus {
+    pub last_ms: Option<i64>,
+    /// True when there are chats and no backup or "Later" in 30 days.
+    pub due: bool,
+}
+
+async fn meta_ms(db: &Db, key: &str) -> Result<Option<i64>> {
+    Ok(db.meta(key).await?.and_then(|v| v.parse().ok()))
+}
+
+pub async fn status(db: &Db, now: i64) -> Result<BackupStatus> {
+    let last = meta_ms(db, LAST_BACKUP).await?;
+    let clock = match meta_ms(db, REMINDER_CLOCK).await? {
+        Some(t) => t,
+        // The clock starts now, so an update does not remind at once.
+        None => {
+            db.set_meta(REMINDER_CLOCK, &now.to_string()).await?;
+            now
+        }
+    };
+    let since = last.map_or(clock, |l| l.max(clock));
+    let chats = db.counts().await?[2];
+    Ok(BackupStatus {
+        last_ms: last,
+        due: chats > 0 && now - since >= REMIND_AFTER_MS,
+    })
+}
+
+/// "Later" on the reminder: ask again in 30 days.
+pub async fn snooze(db: &Db, now: i64) -> Result<()> {
+    db.set_meta(REMINDER_CLOCK, &now.to_string()).await
+}
+
 fn zip_error(e: zip::result::ZipError) -> Error {
     Error::Io(std::io::Error::other(e))
 }
@@ -220,7 +261,12 @@ pub async fn export(db: &Db, paths: &AppPaths, to: &Path, app_version: &str) -> 
     if let Err(e) = std::fs::remove_file(&copy) {
         log::warn!("could not delete {}: {e}", copy.display());
     }
-    result?
+    let done = result??;
+    // The zip is safe on disk; a failed note only brings the reminder early.
+    if let Err(e) = db.set_meta(LAST_BACKUP, &now_ms().to_string()).await {
+        log::warn!("could not note the backup time: {e}");
+    }
+    Ok(done)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1016,6 +1062,30 @@ mod tests {
         assert_eq!(db.counts().await.unwrap(), [1, 1, 1, 1]);
         clear_leftovers(&paths);
         assert!(!staged.exists() && !gallery.exists());
+    }
+
+    #[tokio::test]
+    async fn the_reminder_comes_30_days_after_the_last_backup_or_later() {
+        let dir = tempfile::tempdir().unwrap();
+        let (paths, db) = home(dir.path()).await;
+        let day = 24 * 60 * 60 * 1000;
+        let start = now_ms();
+        let first = status(&db, start).await.unwrap();
+        assert!(
+            first.last_ms.is_none() && !first.due,
+            "the clock starts at the first check"
+        );
+        assert!(status(&db, start + 30 * day).await.unwrap().due);
+        snooze(&db, start + 30 * day).await.unwrap();
+        assert!(!status(&db, start + 59 * day).await.unwrap().due);
+        assert!(status(&db, start + 60 * day).await.unwrap().due);
+
+        export(&db, &paths, &dir.path().join("b.zip"), "1")
+            .await
+            .unwrap();
+        let after = status(&db, now_ms()).await.unwrap();
+        assert!(after.last_ms.is_some_and(|t| t >= start));
+        assert!(!status(&db, now_ms() + 29 * day).await.unwrap().due);
     }
 
     #[tokio::test]

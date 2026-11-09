@@ -21,6 +21,8 @@ const STAGED_SIDE: u32 = 1600;
 /// The smallest crop, in staged pixels.
 const MIN_CROP: u32 = 32;
 pub const AVATAR_SIDE: u32 = 512;
+/// The longest side of a gallery thumbnail: sharp in a grid cell at 200% scale.
+pub const THUMB_SIDE: u32 = 384;
 pub(crate) const STAGING: &str = "staging";
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -175,6 +177,22 @@ pub fn clear_staging(paths: &AppPaths) {
     }
 }
 
+/// A small JPEG copy of a gallery picture for the grid. It is made for each
+/// request and never saved, so no extra file needs encryption or deletion.
+pub fn thumbnail(bytes: &[u8]) -> Result<Vec<u8>> {
+    let picture = decode(bytes)?;
+    let small = if picture.width().max(picture.height()) > THUMB_SIDE {
+        picture.thumbnail(THUMB_SIDE, THUMB_SIDE)
+    } else {
+        picture
+    };
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 85)
+        .encode_image(&small.to_rgb8())
+        .map_err(|e| Error::Invalid(format!("the thumbnail could not be made ({e})")))?;
+    Ok(out)
+}
+
 fn encode_png(picture: &DynamicImage) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     picture
@@ -260,6 +278,20 @@ mod tests {
             finish(&paths, &staged.token, crop, "x").is_err(),
             "a token works once"
         );
+    }
+
+    #[test]
+    fn a_thumbnail_is_a_small_jpeg_with_the_same_shape() {
+        let thumb = thumbnail(&png(1024, 768)).unwrap();
+        let small = image::load_from_memory_with_format(&thumb, ImageFormat::Jpeg).unwrap();
+        assert_eq!((small.width(), small.height()), (THUMB_SIDE, 288));
+        let tiny = image::load_from_memory(&thumbnail(&png(100, 50)).unwrap()).unwrap();
+        assert_eq!(
+            (tiny.width(), tiny.height()),
+            (100, 50),
+            "never made larger"
+        );
+        assert!(thumbnail(b"not a picture").is_err());
     }
 
     #[test]

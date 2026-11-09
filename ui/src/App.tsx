@@ -240,6 +240,9 @@ function MainApp() {
               onImport={(draft) => {
                 setScreen({ name: "creator", characterId: null, draft, draftKey: Date.now() });
               }}
+              onBackup={() => {
+                setScreen({ name: "settings" });
+              }}
             />
           )}
           {screen.name === "chat" && (

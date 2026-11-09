@@ -39,6 +39,8 @@ const COMMANDS: &[&str] = &[
     "add_from_backup",
     "discard_backup",
     "export_backup",
+    "backup_status",
+    "snooze_backup_reminder",
     "rebuild_summary",
     "save_summary",
     "next_chapter",

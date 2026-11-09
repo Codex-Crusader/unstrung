@@ -59,6 +59,10 @@ export const strings = {
     restored: "The starter characters are back.",
     search: "Search characters",
     noMatch: (query: string) => `No character matches "${query}".`,
+    backupDue:
+      "You did not make a backup in the last 30 days. Your chats are only on this PC, and only your Windows account can open them.",
+    backupNow: "Make a backup",
+    backupLater: "Later",
     when: (ms: number) => {
       const minutes = Math.floor((Date.now() - ms) / 60_000);
       if (minutes < 1) return "Just now";
@@ -574,6 +578,8 @@ export const strings = {
     backupIntro:
       "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again. The zip is not encrypted, so that it opens on a new PC. Keep it in a safe place.",
     exportAll: "Export everything",
+    lastBackup: (ms: number | null) =>
+      ms === null ? "Last backup: never." : `Last backup: ${new Date(ms).toLocaleDateString()}.`,
     exporting: "Exporting. With many pictures this takes some minutes.",
     exported: (pictures: number, bytes: number) =>
       `The backup is saved: ${String(pictures)} ${pictures === 1 ? "picture" : "pictures"}, ${(bytes / (1024 * 1024)).toFixed(1)} MB.`,

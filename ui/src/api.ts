@@ -298,6 +298,14 @@ export interface Exported {
 }
 /** Opens a save picker. `null` when the user closes it. */
 export const exportBackup = () => invoke<Exported | null>("export_backup");
+
+export interface BackupStatus {
+  last_ms: number | null;
+  /** There are chats and no backup or "Later" in 30 days. */
+  due: boolean;
+}
+export const backupStatus = () => invoke<BackupStatus>("backup_status");
+export const snoozeBackupReminder = () => invoke<null>("snooze_backup_reminder");
 export interface BackupInfo {
   id: string;
   created_ms: number;
@@ -746,8 +754,9 @@ export function stagedUrl(token: string): string {
  * A gallery picture. The database can give a deleted picture's id to a new
  * one, so the time it was made keeps the window from showing the old file.
  */
-export function pictureUrl(picture: { id: number; created_at: number }): string {
-  return `${AVATAR_BASE}/picture/${String(picture.id)}?v=${String(picture.created_at)}`;
+/** A gallery picture, or with `thumb` its small copy for the grid. */
+export function pictureUrl(picture: { id: number; created_at: number }, thumb = false): string {
+  return `${AVATAR_BASE}/${thumb ? "thumb" : "picture"}/${String(picture.id)}?v=${String(picture.created_at)}`;
 }
 
 export interface Picture {

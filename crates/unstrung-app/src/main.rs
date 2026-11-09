@@ -145,6 +145,8 @@ fn main() {
             commands::add_from_backup,
             commands::discard_backup,
             commands::export_backup,
+            commands::backup_status,
+            commands::snooze_backup_reminder,
             commands::rebuild_summary,
             commands::save_summary,
             commands::next_chapter,
@@ -537,9 +539,9 @@ fn start_engine(app: &tauri::AppHandle, engine: &Arc<Engine>, models: &Arc<Model
     });
 }
 
-/// Serves `avatar://localhost/character/<id>` (also persona, staged and
-/// picture, a gallery picture by id). The path comes from the database,
-/// never from the request.
+/// Serves `avatar://localhost/character/<id>` (also persona, staged,
+/// picture, a gallery picture by id, and thumb, its small copy for the grid).
+/// The path comes from the database, never from the request.
 async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
     let not_found = || {
         Response::builder()
@@ -555,7 +557,7 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
     };
     let db = state.chats.db();
     let id = key.parse::<i64>().ok();
-    if let ("picture", Some(id)) = (kind, id) {
+    if let ("picture" | "thumb", Some(id)) = (kind, id) {
         // Gallery pictures live in the library folder, not the app folder.
         let Ok(image) = db.image(id).await else {
             return not_found();
@@ -564,9 +566,23 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
         else {
             return not_found();
         };
-        return match plain(&state.paths, file).await {
+        let mut bytes = plain(&state.paths, file).await;
+        let mut mime = "image/png";
+        if kind == "thumb" {
+            mime = "image/jpeg";
+            bytes = match bytes {
+                Some(b) => {
+                    tokio::task::spawn_blocking(move || unstrung_core::avatar::thumbnail(&b))
+                        .await
+                        .ok()
+                        .and_then(|t| t.inspect_err(|e| log::warn!("no thumbnail: {e}")).ok())
+                }
+                None => None,
+            };
+        }
+        return match bytes {
             Some(bytes) => Response::builder()
-                .header("Content-Type", "image/png")
+                .header("Content-Type", mime)
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Cache-Control", "no-store")
                 .body(bytes)

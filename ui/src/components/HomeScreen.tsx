@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  backupStatus,
   importCard,
   listCharacters,
   restoreStarters,
+  snoozeBackupReminder,
   toUiError,
   type Character,
   type ImportDraft,
@@ -19,11 +21,13 @@ export function HomeScreen({
   onCreate,
   onEdit,
   onImport,
+  onBackup,
 }: {
   onOpen: (character: Character) => void;
   onCreate: () => void;
   onEdit: (character: Character) => void;
   onImport: (draft: ImportDraft) => void;
+  onBackup: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -47,6 +51,14 @@ export function HomeScreen({
   const [query, setQuery] = useState("");
   const [error, setError] = useState<UiError | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [backupDue, setBackupDue] = useState(false);
+  useEffect(() => {
+    backupStatus()
+      .then((b) => {
+        setBackupDue(b.due);
+      })
+      .catch(() => {});
+  }, []);
 
   const load = () => {
     listCharacters()
@@ -92,6 +104,24 @@ export function HomeScreen({
           />
         </label>
       </div>
+      {backupDue && (
+        <div className="backup-due" role="status">
+          <p>{strings.home.backupDue}</p>
+          <button type="button" className="button" onClick={onBackup}>
+            {strings.home.backupNow}
+          </button>
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              setBackupDue(false);
+              snoozeBackupReminder().catch(() => {});
+            }}
+          >
+            {strings.home.backupLater}
+          </button>
+        </div>
+      )}
       {/* The lead fits only a failed load; a failed restore shows its own message. */}
       {error &&
         (characters === null ? (
