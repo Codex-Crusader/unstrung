@@ -372,6 +372,8 @@ body {
   font-weight: 600;
   border: none;
   border-radius: var(--radius);
+  /* A button alone in a row is still an easy target (WCAG 2.5.8 asks 24px). */
+  min-height: 32px;
   padding: 0 20px;
   background: var(--accent-strong);
   color: var(--accent-text);
@@ -1198,9 +1200,15 @@ textarea:focus-visible {
   list-style: none;
   cursor: pointer;
   color: var(--text-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 24px;
   padding: 0 6px;
   border-radius: 6px;
-  opacity: 0.5;
+  /* Quiet at rest, but still 3:1 against the bubble, so it can be found. */
+  opacity: 0.8;
 }
 
 .menu summary::-webkit-details-marker {
