@@ -26,7 +26,8 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
-    /// `UNSTRUNG_HOME` if set, else `%LOCALAPPDATA%\Unstrung`.
+    /// `UNSTRUNG_HOME` if set, else `%LOCALAPPDATA%\Unstrung`. A debug build
+    /// uses `Unstrung-dev`, so a test build never opens the real chats.
     pub fn resolve() -> Result<Self> {
         if let Some(home) = std::env::var_os(HOME_ENV).filter(|v| !v.is_empty()) {
             return Ok(Self::at(PathBuf::from(home)));
@@ -34,7 +35,12 @@ impl AppPaths {
         let local = std::env::var_os("LOCALAPPDATA")
             .filter(|v| !v.is_empty())
             .ok_or_else(|| Error::Invalid("LOCALAPPDATA is not set".into()))?;
-        Ok(Self::at(PathBuf::from(local).join("Unstrung")))
+        let name = if cfg!(debug_assertions) {
+            "Unstrung-dev"
+        } else {
+            "Unstrung"
+        };
+        Ok(Self::at(PathBuf::from(local).join(name)))
     }
 
     pub fn at(root: PathBuf) -> Self {

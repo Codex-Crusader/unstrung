@@ -82,7 +82,7 @@ set PERL=C:\Strawberry\perl\bin\perl.exe
 
 The app starts its own private Ollama process on a random port on `127.0.0.1`. It does not use or change the Ollama that you run yourself.
 
-A debug build reads models from your own Ollama folder (`%USERPROFILE%\.ollama\models`), so you do not download them twice. If the app folder has no engine, a debug build also uses your installed Ollama program. A release build uses only its own engine and its own models folder. To point a build at another models folder, set `UNSTRUNG_DEV_OLLAMA_MODELS`. To use a different app folder, for example for a test, set `UNSTRUNG_HOME`.
+A debug build reads models from your own Ollama folder (`%USERPROFILE%\.ollama\models`), so you do not download them twice. If the app folder has no engine, a debug build also uses your installed Ollama program. A debug build also keeps its data in `%LOCALAPPDATA%\Unstrung-dev`, so a test build never opens the chats of your installed Unstrung. A release build uses only its own engine and its own models folder. To point a build at another models folder, set `UNSTRUNG_DEV_OLLAMA_MODELS`. To use a different app folder, for example for a test, set `UNSTRUNG_HOME`.
 
 ## Tests
 
