@@ -44,19 +44,23 @@ export type Screen =
   | { name: "settings" }
   | { name: "engine" };
 
-/** Closes open message menus on a click outside them, or on Escape. */
+/** Closes open message menus on a click outside them, or on Escape. Escape
+ * puts the keyboard back on the menu's button, so the place is not lost. */
 function useMenuDismiss() {
   useEffect(() => {
-    const closeAll = (keep: Node | null) => {
+    const closeAll = (keep: Node | null, refocus: boolean) => {
       document.querySelectorAll("details.menu[open]").forEach((menu) => {
-        if (!keep || !menu.contains(keep)) menu.removeAttribute("open");
+        if (keep && menu.contains(keep)) return;
+        const hadFocus = menu.contains(document.activeElement);
+        menu.removeAttribute("open");
+        if (refocus && hadFocus) menu.querySelector("summary")?.focus();
       });
     };
     const onPointer = (e: PointerEvent) => {
-      closeAll(e.target instanceof Node ? e.target : null);
+      closeAll(e.target instanceof Node ? e.target : null, false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeAll(null);
+      if (e.key === "Escape") closeAll(null, true);
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
