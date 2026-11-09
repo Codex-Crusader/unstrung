@@ -366,6 +366,11 @@ pub async fn export_backup(
     else {
         return Ok(None);
     };
+    // The job slot keeps a library move, Free up space and the hourly purge
+    // out: they delete pictures that the zip still has to read, and the
+    // backup would then miss them without an error. Taken after the picker,
+    // so an open picker does not block replies.
+    let (_token, _guard) = state.chats.begin_job()?;
     let done = unstrung_core::backup::export(
         state.chats.db(),
         &state.paths,

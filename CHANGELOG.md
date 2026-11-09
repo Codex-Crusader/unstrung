@@ -15,6 +15,7 @@ stops when the section is missing.
 - Long chats stay smooth while a reply streams in.
 - The first reply after a long pause no longer fails with a timeout on a slow PC. When the model was unloaded after 30 idle minutes, Unstrung now waits up to 5 minutes for the model to load and read the chat again. Stop still ends the wait at once.
 - The chat engine's own log stays small while the app runs for weeks.
+- A backup can no longer miss pictures when a library move or Free up space starts while it runs. While a backup runs, these and new replies ask you to wait until it ends. Chats that stay in "Recently deleted" past 7 days no longer leave empty folders behind.
 - Dependency updates, including new versions of the encryption libraries. Files that 0.2.0 encrypted open as before.
 
 ## 0.2.0
