@@ -93,6 +93,24 @@
   scroll-behavior: auto !important;
 }
 
+/* The setting above ends every animation at once, so the steady versions of
+   the signals that matter are set here, as the Windows setting gets them
+   below: the typing dots stay visible, and a search hit keeps its ring. */
+:root[data-motion="reduce"] .typing span {
+  animation: none;
+  opacity: 0.6;
+}
+
+:root[data-motion="reduce"] .message-found .bubble {
+  animation: none;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+:root[data-motion="reduce"] .painting-card {
+  animation: none;
+  background: var(--accent-soft);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -446,6 +464,11 @@ body {
   .typing span {
     animation: none;
     opacity: 0.6;
+  }
+
+  .painting-card {
+    animation: none;
+    background: var(--accent-soft);
   }
 }
 
