@@ -78,7 +78,7 @@ set PERL=C:\Strawberry\perl\bin\perl.exe
 
    The installer is in `target/release/bundle/nsis`. The build also signs the update files, so it needs the updater's private key in `TAURI_SIGNING_PRIVATE_KEY` and its password in `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Without the key, the build fails.
 
-4. To publish a release, set the app version in `Cargo.toml` and `tauri.conf.json`, then push a tag such as `v0.2.0`. The release workflow builds the installer, signs the update, and makes a draft release with `latest.json`. The app sees the update only after you publish the draft. The workflow needs the two values above as repository secrets with the same names.
+4. To publish a release, follow [RELEASING.md](RELEASING.md): it has the version steps, the update test and the publish steps. The release workflow builds the installer, signs the update, and makes a draft release with `latest.json` and the notes from [CHANGELOG.md](CHANGELOG.md). The workflow needs the two values above as repository secrets with the same names.
 
 The app starts its own private Ollama process on a random port on `127.0.0.1`. It does not use or change the Ollama that you run yourself.
 

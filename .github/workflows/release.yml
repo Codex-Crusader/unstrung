@@ -31,6 +31,28 @@ jobs:
           if ("${{ github.ref_name }}" -ne "v$version") {
             throw "The tag ${{ github.ref_name }} does not match the app version $version in tauri.conf.json."
           }
+      # The release notes are the version's section of CHANGELOG.md, then the
+      # install text that every release shares.
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          $start = [array]::IndexOf($lines, "## $version")
+          if ($start -lt 0) { throw "CHANGELOG.md has no '## $version' section. Rename 'Unreleased' to the version." }
+          $end = $lines.Count
+          for ($i = $start + 1; $i -lt $lines.Count; $i++) { if ($lines[$i].StartsWith("## ")) { $end = $i; break } }
+          $body = ($lines[($start + 1)..($end - 1)] -join "`n").Trim()
+          if (-not $body) { throw "The '## $version' section of CHANGELOG.md is empty." }
+          $install = @"
+
+          ### Install or update
+
+          - If you have an earlier version, Unstrung offers the update by itself. You can also run the installer below.
+          - The installer is not signed, so Windows SmartScreen can show "Windows protected your PC". To go on, click More info, then Run anyway.
+          - To make sure that the download is the real one, compare its SHA-256 hash with ``SHA256SUMS.txt``. SECURITY.md shows how.
+          "@
+          ($body + "`n" + $install) | Set-Content release-notes.md -Encoding utf8NoBOM
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal && rustup default stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -84,4 +106,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = Get-ChildItem target/release/bundle/nsis/*-setup.exe, target/release/bundle/nsis/*-setup.exe.sig, target/release/bundle/nsis/latest.json, target/release/bundle/nsis/SHA256SUMS.txt
-          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes "Unsigned build: Windows SmartScreen shows a warning until the app has a code signing certificate. To check your download, compare its SHA-256 with SHA256SUMS.txt (see SECURITY.md)." $files.FullName
+          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes-file release-notes.md $files.FullName
