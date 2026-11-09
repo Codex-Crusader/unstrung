@@ -2099,6 +2099,11 @@ fn split_ooc(text: &str) -> Result<(&'static str, String)> {
 
 /// Trims the text, removes control characters, and checks the length.
 pub fn clean_input(text: &str) -> Result<String> {
+    clean_text(text, MAX_MESSAGE_CHARS)
+}
+
+/// `clean_input` with another length limit, for example for imported replies.
+pub fn clean_text(text: &str, max: usize) -> Result<String> {
     let text: String = text
         .trim()
         .chars()
@@ -2107,9 +2112,9 @@ pub fn clean_input(text: &str) -> Result<String> {
     if text.is_empty() {
         return Err(Error::Invalid("the message is empty".into()));
     }
-    if text.chars().count() > MAX_MESSAGE_CHARS {
+    if text.chars().count() > max {
         return Err(Error::Invalid(format!(
-            "the message is longer than {MAX_MESSAGE_CHARS} characters"
+            "the message is longer than {max} characters"
         )));
     }
     // The hard limit holds for what the user writes too, so a story never

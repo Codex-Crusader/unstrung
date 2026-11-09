@@ -191,7 +191,8 @@ impl Db {
         .fetch_one(&mut *tx)
         .await?;
         let mut parent: Option<i64> = None;
-        let mut at = now;
+        // The last message lands on now, never in the future.
+        let mut at = now - i64::try_from(messages.len()).unwrap_or(0);
         for (role, content) in messages {
             // One ms apart, so the order by time is the order of the file.
             at += 1;

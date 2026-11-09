@@ -4,7 +4,7 @@
 //! The file comes from outside, so every line is checked, and every message
 //! goes through the same check as a message that the user types.
 
-use crate::chat::clean_input;
+use crate::chat::{MAX_MESSAGE_CHARS, clean_text};
 use crate::db::{Character, Db};
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 pub const MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
 /// The most messages one import takes.
 pub const MAX_MESSAGES: usize = 20_000;
+/// Character lines can be long: SillyTavern's Continue grows a message in
+/// place, and Unstrung's own continued replies have no limit either.
+pub const MAX_REPLY_CHARS: usize = 64_000;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Imported {
@@ -59,10 +62,22 @@ pub fn parse(bytes: &[u8]) -> Result<(Vec<(&'static str, String)>, usize)> {
             skipped += 1;
             continue;
         }
-        let content = match clean_input(&mes) {
+        let max = if parsed.is_user {
+            MAX_MESSAGE_CHARS
+        } else {
+            MAX_REPLY_CHARS
+        };
+        let content = match clean_text(&mes, max) {
             Ok(c) => c,
-            // The hard limit: the whole import stops, with the same message.
-            Err(e @ Error::Rejected { .. }) => return Err(e),
+            // The hard limit: the whole import stops.
+            Err(Error::Rejected { why, .. }) => {
+                return Err(Error::Rejected {
+                    message: format!(
+                        "Line {number} of the file has sexual content that involves someone under 18, so Unstrung does not import this chat."
+                    ),
+                    why,
+                });
+            }
             Err(Error::Invalid(why)) => return Err(bad(&format!("is refused: {why}"))),
             Err(e) => return Err(e),
         };
@@ -150,10 +165,12 @@ mod tests {
         assert!(err(lines(&[r#"{"chat_metadata":{}}"#])).contains("no chat messages"));
         assert!(err(vec![0xff, 0xfe, 0x00]).contains("not a SillyTavern chat"));
         let long = format!(
-            r#"{{"mes":"{}"}}"#,
-            "a".repeat(crate::chat::MAX_MESSAGE_CHARS + 1)
+            r#"{{"mes":"{}","is_user":true}}"#,
+            "a".repeat(MAX_MESSAGE_CHARS + 1)
         );
         assert!(err(long.into_bytes()).contains("line 1"));
+        let longer = format!(r#"{{"mes":"{}"}}"#, "a".repeat(MAX_REPLY_CHARS + 1));
+        assert!(err(longer.into_bytes()).contains("line 1"));
         assert!(err(b"[1,2]".to_vec()).contains("line 1"));
     }
 
@@ -163,7 +180,13 @@ mod tests {
             r#"{"mes":"Fine."}"#,
             r#"{"mes":"*He undressed the schoolgirl.*","is_user":true}"#,
         ]);
-        assert!(matches!(parse(&file), Err(Error::Rejected { .. })));
+        match parse(&file) {
+            Err(Error::Rejected { message, .. }) => assert!(message.starts_with("Line 2 ")),
+            other => panic!("not refused: {other:?}"),
+        }
+        // A long reply is fine: Continue makes such replies.
+        let reply = format!(r#"{{"mes":"{}"}}"#, "a".repeat(MAX_MESSAGE_CHARS + 1));
+        assert_eq!(parse(reply.as_bytes()).unwrap().0.len(), 1);
     }
 
     #[tokio::test]
