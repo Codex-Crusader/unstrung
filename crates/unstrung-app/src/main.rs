@@ -147,6 +147,7 @@ fn main() {
             commands::export_backup,
             commands::backup_status,
             commands::snooze_backup_reminder,
+            commands::import_chat,
             commands::search_chats,
             commands::save_chat_text,
             commands::chat_stats,

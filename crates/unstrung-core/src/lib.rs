@@ -10,6 +10,7 @@ pub mod backupkey;
 pub mod card;
 pub mod catalog;
 pub mod chat;
+pub mod chatimport;
 pub mod content;
 pub mod db;
 pub mod download;

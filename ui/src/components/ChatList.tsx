@@ -12,6 +12,7 @@ export function ChatList({
   disabled,
   onOpen,
   onNew,
+  onImport,
   onDeleted,
   onClose,
 }: {
@@ -23,6 +24,7 @@ export function ChatList({
   onOpen: (chatId: number) => void;
   /** `useMemory`: the answer to "use the kept facts?", false when not asked. */
   onNew: (useMemory: boolean) => void;
+  onImport: () => void;
   onDeleted: (chatId: number) => void;
   onClose: () => void;
 }) {
@@ -112,6 +114,16 @@ export function ChatList({
           </button>
         </div>
       )}
+      <button
+        type="button"
+        className="link-button chat-import"
+        disabled={disabled}
+        title={strings.chats.importChatHint}
+        onClick={onImport}
+      >
+        <Icon name="import" />
+        {strings.chats.importChat}
+      </button>
       {error && <ErrorNote error={error} />}
       <ul>
         {chats.map((c) => (

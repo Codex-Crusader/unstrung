@@ -1343,6 +1343,13 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.chat-import {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+
 .search-hits h2 {
   font-size: 16px;
   margin: 20px 0 8px;

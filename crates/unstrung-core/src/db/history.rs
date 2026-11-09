@@ -165,6 +165,64 @@ fn floor(text: &str, at: usize) -> usize {
     at
 }
 
+impl Db {
+    /// A new chat with `character` that holds `messages` as one branch, the
+    /// last one as the head. One transaction: all or nothing.
+    pub(crate) async fn insert_imported_chat(
+        &self,
+        character: &super::Character,
+        persona_id: Option<i64>,
+        messages: &[(&str, String)],
+    ) -> Result<i64> {
+        let now = super::now_ms();
+        let mut tx = self.pool.begin().await?;
+        let chat_id = sqlx::query_scalar!(
+            r#"INSERT INTO chats (character_id, persona_id, title, tone, reply_style, reply_custom,
+                    created_at, updated_at)
+             VALUES (?, ?, '', ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
+            character.id,
+            persona_id,
+            character.default_tone,
+            character.default_reply_style,
+            character.default_reply_custom,
+            now,
+            now
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        let mut parent: Option<i64> = None;
+        let mut at = now;
+        for (role, content) in messages {
+            // One ms apart, so the order by time is the order of the file.
+            at += 1;
+            let user_persona = if *role == "user" { persona_id } else { None };
+            let id = sqlx::query_scalar!(
+                r#"INSERT INTO messages (chat_id, parent_id, role, persona_id, content, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
+                chat_id,
+                parent,
+                role,
+                user_persona,
+                content,
+                at
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            parent = Some(id);
+        }
+        sqlx::query!(
+            "UPDATE chats SET head_message_id = ?, updated_at = ? WHERE id = ?",
+            parent,
+            at,
+            chat_id
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(chat_id)
+    }
+}
+
 /// One chat as Markdown, for "Save as text".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transcript {

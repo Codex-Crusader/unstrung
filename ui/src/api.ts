@@ -279,6 +279,9 @@ export const openChat = (chatId: number) => invoke<ChatView>("open_chat", { chat
 /** `useMemory` answers the question of the "ask" memory setting. */
 export const newChat = (characterId: number, personaId: number | null, useMemory = false) =>
   invoke<ChatView>("new_chat", { characterId, personaId, useMemory });
+/** A SillyTavern .jsonl chat as a new chat; null when the user closed the picker. */
+export const importChat = (characterId: number, personaId: number | null) =>
+  invoke<ChatView | null>("import_chat", { characterId, personaId });
 /** The next replies see the summary, the memories and only the last lines. */
 export const refreshContext = (chatId: number) => invoke<ChatView>("refresh_context", { chatId });
 /** A new chat that goes on from this one, with its notes. */

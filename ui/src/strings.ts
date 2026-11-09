@@ -800,6 +800,8 @@ export const strings = {
   chats: {
     title: "Chats",
     newChat: "New chat",
+    importChat: "Import a chat",
+    importChatHint: "A chat file from SillyTavern (.jsonl). It becomes a new chat with this character.",
     delete: "Delete chat",
     confirmDelete: "Delete this chat? For 7 days you can bring it back from Recently deleted on the Chats screen.",
     yes: "Delete",

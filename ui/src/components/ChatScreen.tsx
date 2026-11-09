@@ -19,6 +19,7 @@ import {
   modelsPage,
   setChatTone,
   showBranch,
+  importChat,
   stopReply,
   toUiError,
   undoDelete,
@@ -750,6 +751,17 @@ export function ChatScreen({
           }}
           onNew={(useMemory) => {
             change(() => newChat(character.id, view.chat.persona_id, useMemory));
+          }}
+          onImport={() => {
+            setError(null);
+            importChat(character.id, view.chat.persona_id).then(
+              (v) => {
+                if (v) setView(v);
+              },
+              (e: unknown) => {
+                setError(toUiError(e));
+              },
+            );
           }}
           onDeleted={(id) => {
             if (id === chatId) change(() => openCharacter(character.id));

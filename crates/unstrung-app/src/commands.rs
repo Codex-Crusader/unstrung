@@ -300,6 +300,49 @@ pub async fn open_chat(state: State<'_, AppState>, chat_id: i64) -> CmdResult<Ch
     Ok(state.chats.view(chat_id).await?)
 }
 
+/// Imports a SillyTavern chat file that the user picks here, as a new chat
+/// with the character. `None` when the user closes the picker.
+#[tauri::command]
+pub async fn import_chat(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    character_id: i64,
+    persona_id: Option<i64>,
+) -> CmdResult<Option<ChatView>> {
+    use unstrung_core::chatimport;
+    let db = state.chats.db();
+    let character = db.character(character_id).await?;
+    if character.is_adult && !unstrung_core::content::adult_on(db).await? {
+        return Err(unstrung_core::Error::NotFound("character").into());
+    }
+    if let Some(id) = persona_id {
+        db.persona(id).await?;
+    }
+    let Some(file) = rfd::AsyncFileDialog::new()
+        .set_parent(&window)
+        .add_filter("SillyTavern chat", &["jsonl"])
+        .pick_file()
+        .await
+    else {
+        return Ok(None);
+    };
+    let path = file.path().to_path_buf();
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
+        let size = std::fs::metadata(&path)?.len();
+        if size > chatimport::MAX_FILE_BYTES {
+            return Err(unstrung_core::Error::Invalid(format!(
+                "the file is bigger than {} MB",
+                chatimport::MAX_FILE_BYTES / 1024 / 1024
+            )));
+        }
+        Ok(std::fs::read(&path)?)
+    })
+    .await
+    .map_err(|e| unstrung_core::Error::Io(std::io::Error::other(e)))??;
+    let done = chatimport::import(db, &character, persona_id, &bytes).await?;
+    Ok(Some(state.chats.view(done.chat_id).await?))
+}
+
 #[tauri::command]
 pub async fn new_chat(
     state: State<'_, AppState>,
