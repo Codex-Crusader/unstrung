@@ -34,7 +34,7 @@ You can close Unstrung during the downloads. The next start goes on from where i
 
 The database always stays in the app folder, so a sync tool such as OneDrive cannot damage it.
 
-Your chats and pictures are encrypted with a key that Windows keeps for your Windows user account. Only that account on this PC can open them. A copy of the app folder on another PC, or after you reinstall Windows, does not open. Before you move to a new PC or reinstall Windows, go to Settings and click Export everything. On the new system, click Import backup in Settings. The backup zip is not encrypted, so keep it in a safe place.
+Your chats and pictures are encrypted with a key that Windows keeps for your Windows user account. Only that account on this PC can open them. A copy of the app folder on another PC, or after you reinstall Windows, does not open. Before you move to a new PC or reinstall Windows, go to Settings and click Export everything. On the new system, click Import backup in Settings. The backup zip is encrypted only if you set a backup password in Settings > Storage. Without one, keep the zip in a safe place.
 
 ## When something goes wrong
 

@@ -32,3 +32,11 @@ strip = true
 # optimization, so debug builds optimize the hash crate too.
 [profile.dev.package.sha2]
 opt-level = 3
+
+# The backup password key costs 64 MiB of Argon2 work; unoptimized it takes
+# seconds in tests and debug builds.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

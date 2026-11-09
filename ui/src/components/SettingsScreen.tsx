@@ -3,6 +3,7 @@ import {
   addFromBackup,
   autoBackupStatus,
   backupStatus,
+  setBackupPassword,
   chooseAutoBackupFolder,
   stopAutoBackup,
   type AutoBackup,
@@ -481,8 +482,119 @@ function FreeUp({ onDone }: { onDone: () => void }) {
 }
 
 /** Export everything and Import backup. */
+/** Settings > Storage: set, change or remove the backup password. */
+function PasswordView({ sealed, onChange }: { sealed: boolean; onChange: () => void }) {
+  const s = strings.settings;
+  const [editing, setEditing] = useState(false);
+  const [first, setFirst] = useState("");
+  const [again, setAgain] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
+  const save = (password: string | null) => {
+    setError(null);
+    setBackupPassword(password)
+      .then(() => {
+        setEditing(false);
+        setFirst("");
+        setAgain("");
+        setNote(password === null ? s.passwordRemoved : s.passwordSaved);
+        onChange();
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  };
+  // Code points, as Rust counts chars.
+  const problem = Array.from(first).length < 8 ? s.passwordShort : first !== again ? s.passwordDiffer : null;
+  return (
+    <div role="group" aria-label={s.passwordNew}>
+      <p>{sealed ? s.backupSealed : s.backupPlain}</p>
+      {editing ? (
+        <form
+          className="password-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (problem === null) save(first);
+          }}
+        >
+          <label className="field">
+            <span className="field-label">{s.passwordNew}</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={first}
+              onChange={(e) => {
+                setFirst(e.target.value);
+              }}
+            />
+            <span className="field-hint">{s.passwordHint}</span>
+          </label>
+          <label className="field">
+            <span className="field-label">{s.passwordAgain}</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={again}
+              onChange={(e) => {
+                setAgain(e.target.value);
+              }}
+            />
+            {again !== "" && problem !== null && <span className="field-hint warn">{problem}</span>}
+          </label>
+          <div className="safe-actions">
+            <button type="submit" className="button" disabled={problem !== null}>
+              {s.passwordSave}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
+                setEditing(false);
+                setFirst("");
+                setAgain("");
+              }}
+            >
+              {strings.safe.cancel}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="safe-actions">
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              setNote(null);
+              setEditing(true);
+            }}
+          >
+            {sealed ? s.passwordChange : s.passwordSet}
+          </button>
+          {sealed && (
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => {
+                save(null);
+              }}
+            >
+              {s.passwordRemove}
+            </button>
+          )}
+        </div>
+      )}
+      {note && (
+        <p className="field-hint" role="status">
+          {note}
+        </p>
+      )}
+      {error && <ErrorNote error={error} />}
+    </div>
+  );
+}
+
 /** Settings > Storage: the weekly backup into a folder that the user picks. */
-function AutoBackupView() {
+function AutoBackupView({ sealed }: { sealed: boolean }) {
   const s = strings.settings;
   const [auto, setAuto] = useState<AutoBackup | null>(null);
   const [error, setError] = useState<UiError | null>(null);
@@ -503,7 +615,7 @@ function AutoBackupView() {
   return (
     <div role="group" aria-label={s.autoTitle}>
       <h3>{s.autoTitle}</h3>
-      <p>{auto.folder === null ? s.autoOff : s.autoOn(auto.folder, auto.last_ms)}</p>
+      <p>{auto.folder === null ? s.autoOff(sealed) : s.autoOn(auto.folder, auto.last_ms, sealed)}</p>
       {auto.folder !== null && auto.error !== null && <p className="field-hint">{s.autoFailed(auto.error)}</p>}
       <div className="safe-actions">
         <button type="button" className="button button-quiet" onClick={choose}>
@@ -537,16 +649,29 @@ function Storage() {
   // Measures again after "Free up space".
   const [measured, setMeasured] = useState(0);
   const [lastBackup, setLastBackup] = useState<number | null | undefined>(undefined);
+  const [sealed, setSealed] = useState(false);
+  const [checked, setChecked] = useState(0);
+  // The password step of an import: the zip stays picked on the Rust side.
+  const [askPassword, setAskPassword] = useState(false);
+  const [password, setPassword] = useState("");
   useEffect(() => {
     backupStatus()
       .then((b) => {
         setLastBackup(b.last_ms);
+        setSealed(b.password);
       })
       .catch(() => {});
-  }, [state]);
+  }, [state, checked]);
   const fail = (e: unknown) => {
     setImporting("idle");
-    setError(toUiError(e));
+    const ui = toUiError(e);
+    setAskPassword(ui.tip === "password");
+    setError(ui);
+  };
+  const opening = (info: BackupInfo | null) => {
+    setAskPassword(false);
+    setPassword("");
+    setImporting(info ?? "idle");
   };
   const opened = typeof importing === "object" && "id" in importing ? importing : null;
   return (
@@ -567,6 +692,12 @@ function Storage() {
         {s.backupIntro}
         {lastBackup !== undefined && ` ${s.lastBackup(lastBackup)}`}
       </p>
+      <PasswordView
+        sealed={sealed}
+        onChange={() => {
+          setChecked((n) => n + 1);
+        }}
+      />
       <div className="safe-actions">
         <button
           type="button"
@@ -595,17 +726,42 @@ function Storage() {
             onClick={() => {
               setImporting("working");
               setError(null);
-              openBackup()
-                .then((info) => {
-                  setImporting(info ?? "idle");
-                })
-                .catch(fail);
+              setAskPassword(false);
+              openBackup().then(opening).catch(fail);
             }}
           >
             {importing === "working" ? s.importing : s.importBackup}
           </button>
         )}
       </div>
+      {askPassword && opened === null && (
+        <form
+          className="password-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setImporting("working");
+            setError(null);
+            openBackup(password).then(opening).catch(fail);
+          }}
+        >
+          <label className="field">
+            <span className="field-label">{s.passwordOf}</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+              }}
+            />
+          </label>
+          <div className="safe-actions">
+            <button type="submit" className="button" disabled={password === "" || importing === "working"}>
+              {importing === "working" ? s.importing : s.passwordOpen}
+            </button>
+          </div>
+        </form>
+      )}
       {typeof state === "object" && (
         <p className="field-hint" role="status">
           {s.exported(state.pictures, state.bytes)}
@@ -683,7 +839,7 @@ function Storage() {
         </p>
       )}
       {error && <ErrorNote error={error} />}
-      <AutoBackupView />
+      <AutoBackupView sealed={sealed} />
     </section>
   );
 }

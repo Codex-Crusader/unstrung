@@ -37,6 +37,10 @@ pub enum Error {
     #[error("{message} ({why})")]
     Rejected { message: String, why: String },
     /// The database failed its damage check.
+    #[error("this backup has a password")]
+    PasswordNeeded,
+    #[error("the password is wrong")]
+    WrongPassword,
     #[error("damaged data: {0}")]
     Damaged(String),
     /// The data key does not unwrap, or it is missing next to encrypted data.

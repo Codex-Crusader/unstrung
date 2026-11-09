@@ -154,8 +154,8 @@ export interface DeleteUndo {
 export interface UiError {
   message: string;
   detail: string;
-  /** "antivirus": another program keeps locking files. */
-  tip?: "antivirus";
+  /** "antivirus": another program keeps locking files. "password": the backup needs its password. */
+  tip?: "antivirus" | "password";
 }
 
 export type ReplyEvent =
@@ -303,6 +303,8 @@ export interface BackupStatus {
   last_ms: number | null;
   /** There are chats and no backup or "Later" in 30 days. */
   due: boolean;
+  /** Exports are encrypted with the backup password. */
+  password: boolean;
 }
 export const backupStatus = () => invoke<BackupStatus>("backup_status");
 export const snoozeBackupReminder = () => invoke<null>("snooze_backup_reminder");
@@ -333,7 +335,11 @@ export interface Added {
   skipped: number;
 }
 /** Opens a file picker, then checks and stages the backup. `null` when the user closes it. */
-export const openBackup = () => invoke<BackupInfo | null>("open_backup");
+/** With a password: opens the zip that was picked last time again. */
+export const openBackup = (password?: string) =>
+  invoke<BackupInfo | null>("open_backup", { password: password ?? null });
+/** null removes the password. */
+export const setBackupPassword = (password: string | null) => invoke<null>("set_backup_password", { password });
 export const addFromBackup = (id: string) => invoke<Added>("add_from_backup", { id });
 /** Restarts the app, which then swaps all data for the backup. */
 export const replaceFromBackup = (id: string) => invoke<null>("replace_from_backup", { id });

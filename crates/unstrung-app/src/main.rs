@@ -147,6 +147,7 @@ fn main() {
             commands::export_backup,
             commands::backup_status,
             commands::snooze_backup_reminder,
+            commands::set_backup_password,
             commands::auto_backup_status,
             commands::choose_auto_backup_folder,
             commands::stop_auto_backup,
@@ -542,6 +543,7 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
         pictures,
         notify: std::sync::atomic::AtomicBool::new(notify),
         files: state::FileGuard::default(),
+        picked_backup: std::sync::Mutex::default(),
     })
 }
 

@@ -576,13 +576,32 @@ export const strings = {
     freeYes: "Remove now",
     freed: (size: string) => `Done. ${size} is free again.`,
     backupIntro:
-      "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again. The zip is not encrypted, so that it opens on a new PC. Keep it in a safe place.",
+      "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again.",
+    backupPlain:
+      "Without a backup password, the zip is not encrypted, so anyone who gets the file can read your chats. Keep it in a safe place, or set a password.",
+    backupSealed:
+      "Backups are encrypted with your backup password. To open one on a new PC, you need the password. If you forget it, nobody can open the backup: Unstrung cannot show the password or reset it.",
+    passwordSet: "Set a backup password",
+    passwordChange: "Change password",
+    passwordRemove: "Remove password",
+    passwordNew: "Backup password",
+    passwordAgain: "The same password again",
+    passwordHint: "At least 8 characters. A few words that only you know are easy to remember and hard to guess.",
+    passwordShort: "The password needs at least 8 characters.",
+    passwordDiffer: "The two passwords are not the same.",
+    passwordSave: "Save password",
+    passwordSaved: "Saved. The next backups are encrypted with this password. Older backups keep their own password.",
+    passwordRemoved: "Removed. The next backups are not encrypted.",
+    passwordOpen: "Open",
+    passwordOf: "Password of this backup",
     exportAll: "Export everything",
     autoTitle: "Automatic backup",
-    autoOff:
-      "Unstrung can make this backup by itself once a week, into a folder that you pick, and keep the 3 newest. The backups are not encrypted. Pick a folder on this PC or on a drive that only you use, not a cloud folder such as OneDrive.",
-    autoOn: (folder: string, last: number | null) =>
-      `Once a week into ${folder}. The 3 newest stay. ${last === null ? "The first one comes within the next hour." : `Last automatic backup: ${new Date(last).toLocaleDateString()}.`}`,
+    autoOff: (sealed: boolean) =>
+      sealed
+        ? "Unstrung can make this backup by itself once a week, into a folder that you pick, and keep the 3 newest. They are encrypted with your backup password."
+        : "Unstrung can make this backup by itself once a week, into a folder that you pick, and keep the 3 newest. Without a backup password they are not encrypted: pick a folder on this PC or on a drive that only you use, not a cloud folder such as OneDrive.",
+    autoOn: (folder: string, last: number | null, sealed: boolean) =>
+      `Once a week into ${folder}. The 3 newest stay. ${last === null ? "The first one comes within the next hour." : `Last automatic backup: ${new Date(last).toLocaleDateString()}.`}${sealed ? "" : " These backups are not encrypted."}`,
     autoFailed: (why: string) => `The last try did not work: ${why}. Unstrung tries again in 6 hours.`,
     autoChoose: "Choose a folder",
     autoChange: "Change folder",

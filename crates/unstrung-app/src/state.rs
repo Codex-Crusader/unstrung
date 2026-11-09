@@ -17,6 +17,9 @@ pub struct AppState {
     /// Windows notifications when a long job ends in the background.
     pub notify: AtomicBool,
     pub files: FileGuard,
+    /// The backup zip that the user picked last, for a second try with its
+    /// password.
+    pub picked_backup: std::sync::Mutex<Option<std::path::PathBuf>>,
 }
 
 /// Held by a backup export, and by every task that deletes or moves gallery
@@ -38,6 +41,10 @@ impl FileGuard {
         self.0
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map(|_| FileHold(&self.0))
-            .map_err(|_| unstrung_core::error::Error::Invalid("Wait until the backup or the folder move ends.".into()))
+            .map_err(|_| {
+                unstrung_core::error::Error::Invalid(
+                    "Wait until the backup or the folder move ends.".into(),
+                )
+            })
     }
 }

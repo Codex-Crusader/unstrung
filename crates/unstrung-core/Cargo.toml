@@ -20,6 +20,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "str
 sha2 = "0.11"
 aes-gcm = "0.11"
 hkdf = "0.13"
+argon2 = { version = "0.6", default-features = false, features = ["alloc"] }
 getrandom = "0.4"
 zip = { version = "9.2", default-features = false, features = ["deflate-flate2"] }
 # zip needs a flate2 backend; the pure Rust one is already in the build.

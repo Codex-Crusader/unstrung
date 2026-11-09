@@ -19,6 +19,7 @@ stops when the section is missing.
 - Each backup is read back and checked after it is written, so a bad write shows as an error at once.
 - Automatic backup: in Settings > Storage, pick a folder, and Unstrung makes a backup there once a week and keeps the 3 newest. If the folder is missing, for example on an unplugged drive, Settings shows why and Unstrung tries again 6 hours later.
 - Chats that stay in "Recently deleted" past 7 days no longer leave empty folders behind.
+- Backup password: in Settings > Storage, set a password, and every backup is encrypted with it, also the automatic ones. To import such a backup, Unstrung asks for its password. If you forget the password, nobody can open the backup. Backups without a password open as before. Version 0.2.0 cannot open an encrypted backup and says that the file is not a backup that it can read.
 - Dependency updates, including new versions of the encryption libraries. Files that 0.2.0 encrypted open as before.
 
 ## 0.2.0

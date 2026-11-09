@@ -70,6 +70,26 @@ pub async fn set_folder(db: &Db, paths: &AppPaths, folder: Option<&Path>) -> Res
     status(db).await
 }
 
+/// Removes the automatic backup rows from the plain chats file of an export:
+/// the folder belongs to this PC, as `location.json` does, and must not come
+/// back on another PC after Replace everything.
+pub(crate) async fn forget(plain_copy: &Path) -> Result<()> {
+    use sqlx::{ConnectOptions, Connection};
+    let mut conn = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(plain_copy)
+        .connect()
+        .await?;
+    sqlx::query("DELETE FROM meta WHERE key IN (?, ?, ?, ?)")
+        .bind(FOLDER)
+        .bind(DONE)
+        .bind(TRIED)
+        .bind(FAILED)
+        .execute(&mut conn)
+        .await?;
+    conn.close().await?;
+    Ok(())
+}
+
 /// Makes the weekly backup when it is due. `Ok(None)` when it is off or
 /// not due yet. A failure is saved for Settings, and the next try waits.
 pub async fn run_if_due(
@@ -297,6 +317,28 @@ mod tests {
             run_if_due(&db, &paths, soon, "1").await.unwrap().is_some(),
             "a new folder does not wait a week"
         );
+        // The folder of this PC stays out of a backup.
+        let zip = dir.path().join("b.zip");
+        backup::export(&db, &paths, &zip, "1").await.unwrap();
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&zip).unwrap()).unwrap();
+        let copy = dir.path().join("copy.db");
+        std::io::copy(
+            &mut archive.by_name(backup::DATABASE).unwrap(),
+            &mut std::fs::File::create(&copy).unwrap(),
+        )
+        .unwrap();
+        let mut conn = sqlx::ConnectOptions::connect(
+            &sqlx::sqlite::SqliteConnectOptions::new().filename(&copy),
+        )
+        .await
+        .unwrap();
+        let left: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM meta WHERE key LIKE 'auto_backup%'")
+                .fetch_one(&mut conn)
+                .await
+                .unwrap();
+        assert_eq!(left, 0);
+
         set_folder(&db, &paths, None).await.unwrap();
         assert!(status(&db).await.unwrap().folder.is_none());
     }

@@ -795,6 +795,7 @@ body {
 
 select,
 input[type="text"],
+input[type="password"],
 input[type="number"] {
   font: inherit;
   font-size: 14px;
@@ -1340,6 +1341,14 @@ textarea:focus-visible {
   border-radius: 8px;
   padding: 8px;
   resize: vertical;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  margin-bottom: 12px;
 }
 
 .field input[type="number"] {

@@ -6,6 +6,7 @@
 pub mod autobackup;
 pub mod avatar;
 pub mod backup;
+pub mod backupkey;
 pub mod card;
 pub mod catalog;
 pub mod chat;

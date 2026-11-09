@@ -48,6 +48,7 @@
     "allow-export-backup",
     "allow-backup-status",
     "allow-snooze-backup-reminder",
+    "allow-set-backup-password",
     "allow-auto-backup-status",
     "allow-choose-auto-backup-folder",
     "allow-stop-auto-backup",

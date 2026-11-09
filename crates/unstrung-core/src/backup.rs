@@ -3,6 +3,7 @@
 //! pictures. Engines, models, logs and files about this PC (such as
 //! `location.json`) stay out. Every setting is a row in the chats file.
 
+use crate::backupkey::{BackupKey, Encryption};
 use crate::db::{Character, CharacterFields, Db, Persona, PersonaFields, now_ms};
 use crate::error::{Error, Result};
 use crate::paths::{AppPaths, join_safe};
@@ -17,6 +18,11 @@ use zip::{CompressionMethod, ZipArchive};
 pub const MANIFEST: &str = "unstrung-backup.json";
 pub const DATABASE: &str = "app.db";
 const FORMAT: u32 = 1;
+/// An encrypted backup. An older app that knows only 1 says "Update Unstrung
+/// first" instead of failing on the encrypted files.
+const FORMAT_SEALED: u32 = 2;
+/// The backup password, in the encrypted chats file. Every export uses it.
+const PASSWORD: &str = "backup_password";
 /// The only files besides the chats file and the manifest.
 const PICTURE_TYPES: [&str; 4] = ["png", "jpg", "jpeg", "webp"];
 /// Work files in `backups` that a crash can leave behind.
@@ -46,6 +52,9 @@ pub struct Manifest {
     pub schema: i64,
     pub app_version: String,
     pub created_ms: i64,
+    /// Only in an encrypted backup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encryption: Option<Encryption>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -67,6 +76,8 @@ pub struct BackupStatus {
     pub last_ms: Option<i64>,
     /// True when there are chats and no backup or "Later" in 30 days.
     pub due: bool,
+    /// True when exports are encrypted with the backup password.
+    pub password: bool,
 }
 
 async fn meta_ms(db: &Db, key: &str) -> Result<Option<i64>> {
@@ -88,7 +99,26 @@ pub async fn status(db: &Db, now: i64) -> Result<BackupStatus> {
     Ok(BackupStatus {
         last_ms: last,
         due: chats > 0 && now - since >= REMIND_AFTER_MS,
+        password: password(db).await?.is_some(),
     })
+}
+
+async fn password(db: &Db) -> Result<Option<String>> {
+    Ok(db.meta(PASSWORD).await?.filter(|p| !p.is_empty()))
+}
+
+/// Sets the backup password, or removes it with `None`. Backups made before
+/// keep the password they were made with.
+pub async fn set_password(db: &Db, new: Option<&str>) -> Result<()> {
+    if let Some(p) = new
+        && p.chars().count() < crate::backupkey::MIN_PASSWORD_CHARS
+    {
+        return Err(Error::Invalid(format!(
+            "the password needs at least {} characters",
+            crate::backupkey::MIN_PASSWORD_CHARS
+        )));
+    }
+    db.set_meta(PASSWORD, new.unwrap_or_default()).await
 }
 
 /// "Later" on the reminder: ask again in 30 days.
@@ -147,6 +177,7 @@ fn add_picture(
     key: &crate::vault::DataKey,
     file: &Path,
     name: &str,
+    sealed: Option<&BackupKey>,
 ) -> Result<bool> {
     let bytes = match std::fs::read(file) {
         Ok(b) => key.open(&b)?,
@@ -156,13 +187,16 @@ fn add_picture(
     // Pictures are compressed already.
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
     zip.start_file(name, options).map_err(zip_error)?;
-    zip.write_all(&bytes)?;
+    match sealed {
+        Some(backup) => backup.seal(name, &mut bytes.as_slice(), zip)?,
+        None => zip.write_all(&bytes)?,
+    }
     Ok(true)
 }
 
 /// Reads a written backup back before it counts: every file must be in it,
 /// and each one is read to its end, which checks its CRC.
-fn check_zip(file: &Path, files: usize) -> Result<()> {
+fn check_zip(file: &Path, files: usize, key: Option<&BackupKey>) -> Result<()> {
     let failed = |why: String| {
         Error::Invalid(format!(
             "the backup did not pass its check after writing ({why}). Try again, or pick another folder"
@@ -176,15 +210,31 @@ fn check_zip(file: &Path, files: usize) -> Result<()> {
         let mut entry = zip.by_index(i).map_err(|e| failed(e.to_string()))?;
         std::io::copy(&mut entry, &mut std::io::sink()).map_err(|e| failed(e.to_string()))?;
     }
+    if let Some(key) = key {
+        // The manifest must hold the check that this key made.
+        let mut bytes = Vec::new();
+        zip.by_name(MANIFEST)
+            .map_err(|e| failed(e.to_string()))?
+            .read_to_end(&mut bytes)?;
+        let manifest: Manifest = serde_json::from_slice(&bytes)?;
+        manifest
+            .encryption
+            .ok_or_else(|| failed("no password check".into()))
+            .and_then(|e| {
+                key.verify(&e)
+                    .map_err(|_| failed("the password check".into()))
+            })?;
+    }
     Ok(())
 }
 
-/// Adds one file.
+/// Adds one file, encrypted when there is a `sealed` key.
 fn add(
     zip: &mut ZipWriter<BufWriter<File>>,
     file: &Path,
     name: &str,
     method: CompressionMethod,
+    sealed: Option<&BackupKey>,
 ) -> Result<bool> {
     let mut source = match File::open(file) {
         Ok(f) => f,
@@ -192,15 +242,32 @@ fn add(
         Err(e) => return Err(e.into()),
     };
     let len = source.metadata()?.len();
+    // Encrypted bytes do not compress.
+    let method = if sealed.is_some() {
+        CompressionMethod::Stored
+    } else {
+        method
+    };
     let options = SimpleFileOptions::default()
         .compression_method(method)
-        .large_file(len >= u64::from(u32::MAX));
+        .large_file(len >= u64::from(u32::MAX) - (1 << 20));
     zip.start_file(name, options).map_err(zip_error)?;
-    std::io::copy(&mut source, zip)?;
+    match sealed {
+        Some(key) => key.seal(name, &mut source, zip)?,
+        None => {
+            std::io::copy(&mut source, zip)?;
+        }
+    }
     Ok(true)
 }
 
-fn write_zip(paths: &AppPaths, db_copy: &Path, to: &Path, manifest: &Manifest) -> Result<Exported> {
+fn write_zip(
+    paths: &AppPaths,
+    db_copy: &Path,
+    to: &Path,
+    mut manifest: Manifest,
+    password: Option<&str>,
+) -> Result<Exported> {
     let mut files = Vec::new();
     pictures(&paths.avatars(), "avatars", &mut files)?;
     let avatar_count = files.len();
@@ -215,16 +282,33 @@ fn write_zip(paths: &AppPaths, db_copy: &Path, to: &Path, manifest: &Manifest) -
         });
     }
     let key = paths.key()?;
+    // One key for the whole export: making it is slow on purpose.
+    let sealed = match password {
+        Some(p) => {
+            let (backup, encryption) = BackupKey::new(p)?;
+            manifest.format = FORMAT_SEALED;
+            manifest.encryption = Some(encryption);
+            Some(backup)
+        }
+        None => None,
+    };
+    let sealed = sealed.as_ref();
     let part = PathBuf::from(format!("{}.part", to.display()));
     let written = (|| -> Result<Exported> {
         let mut zip = ZipWriter::new(BufWriter::new(File::create(&part)?));
         let deflated = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
         zip.start_file(MANIFEST, deflated).map_err(zip_error)?;
-        zip.write_all(&serde_json::to_vec_pretty(manifest)?)?;
-        add(&mut zip, db_copy, DATABASE, CompressionMethod::Deflated)?;
+        zip.write_all(&serde_json::to_vec_pretty(&manifest)?)?;
+        add(
+            &mut zip,
+            db_copy,
+            DATABASE,
+            CompressionMethod::Deflated,
+            sealed,
+        )?;
         let (mut avatars, mut pictures) = (0, 0);
         for (i, (file, name)) in files.iter().enumerate() {
-            if add_picture(&mut zip, &key, file, name)? {
+            if add_picture(&mut zip, &key, file, name, sealed)? {
                 *(if i < avatar_count {
                     &mut avatars
                 } else {
@@ -236,7 +320,7 @@ fn write_zip(paths: &AppPaths, db_copy: &Path, to: &Path, manifest: &Manifest) -
         out.into_inner()
             .map_err(|e| Error::Io(e.into_error()))?
             .sync_all()?;
-        check_zip(&part, 2 + avatars + pictures)?;
+        check_zip(&part, 2 + avatars + pictures, sealed)?;
         Ok(Exported {
             bytes: size(&part),
             avatars,
@@ -267,17 +351,24 @@ pub async fn export(db: &Db, paths: &AppPaths, to: &Path, app_version: &str) -> 
             .unwrap_or_default(),
         app_version: app_version.to_owned(),
         created_ms: now_ms(),
+        encryption: None,
     };
+    let password = password(db).await?;
     std::fs::create_dir_all(paths.backups())?;
     // A clean copy: never the live file, which may have changes in its journal.
     let copy = paths
         .backups()
         .join(format!("{}{}.db", LEFTOVER_PREFIXES[0], now_ms()));
     db.plain_copy_to(&copy).await?;
+    if let Err(e) = crate::autobackup::forget(&copy).await {
+        let _ = std::fs::remove_file(&copy);
+        return Err(e);
+    }
     let (p, c, t) = (paths.clone(), copy.clone(), to.to_path_buf());
-    let result = tokio::task::spawn_blocking(move || write_zip(&p, &c, &t, &manifest))
-        .await
-        .map_err(|e| Error::Io(std::io::Error::other(e)));
+    let result =
+        tokio::task::spawn_blocking(move || write_zip(&p, &c, &t, manifest, password.as_deref()))
+            .await
+            .map_err(|e| Error::Io(std::io::Error::other(e)));
     if let Err(e) = std::fs::remove_file(&copy) {
         log::warn!("could not delete {}: {e}", copy.display());
     }
@@ -384,7 +475,7 @@ fn read_exact_size(entry: &mut impl Read, size: u64, out: &mut impl Write) -> Re
 
 /// Checks every name and size in the zip, then unpacks the backup into the
 /// staging folders of `id`. Avatars are decoded and saved again.
-fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
+fn unpack(paths: &AppPaths, zip_path: &Path, id: &str, password: Option<&str>) -> Result<Manifest> {
     let mut zip =
         ZipArchive::new(File::open(zip_path)?).map_err(|e| not_a_backup(&e.to_string()))?;
     if zip.len() > MAX_ENTRIES {
@@ -440,6 +531,38 @@ fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
             ));
         }
     }
+    // The notes first: they say whether the files need a password.
+    let manifest = {
+        let (i, size) = plan
+            .iter()
+            .find(|p| p.1 == Part::Manifest)
+            .map(|p| (p.0, p.3))
+            .ok_or_else(|| not_a_backup("the backup notes are missing"))?;
+        let mut entry = zip.by_index(i).map_err(|e| not_a_backup(&e.to_string()))?;
+        let mut bytes = Vec::new();
+        read_exact_size(&mut entry, size, &mut bytes)?;
+        serde_json::from_slice::<Manifest>(&bytes)
+            .map_err(|_| not_a_backup("the backup notes cannot be read"))?
+    };
+    if manifest.format > FORMAT_SEALED {
+        return Err(newer_version());
+    }
+    let sealed = match (&manifest.encryption, password) {
+        (None, _) => None,
+        (Some(_), None) => return Err(Error::PasswordNeeded),
+        (Some(e), Some(p)) => Some(BackupKey::unlock(p, e)?),
+    };
+    // A file of an encrypted backup comes out of `entry` decrypted.
+    let read = |entry: &mut zip::read::ZipFile<'_, File>,
+                name: &str,
+                size: u64,
+                out: &mut dyn Write|
+     -> Result<()> {
+        match &sealed {
+            Some(backup) => backup.open(name, entry, size, &mut &mut *out),
+            None => read_exact_size(entry, size, &mut &mut *out),
+        }
+    };
     has_room(&paths.backups(), total)?;
     has_room(&paths.library(), pictures)?;
     let (dir, gallery) = staging(paths, id)?;
@@ -447,24 +570,20 @@ fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
     let unpacked = (|| -> Result<Manifest> {
         std::fs::create_dir_all(dir.join("avatars"))?;
         std::fs::create_dir_all(&gallery)?;
-        let mut manifest = None;
         for (i, part, name, size) in &plan {
+            if *part == Part::Manifest {
+                continue;
+            }
             let mut entry = zip.by_index(*i).map_err(|e| not_a_backup(&e.to_string()))?;
             if *part == Part::Database {
                 let mut out = File::create(dir.join(DATABASE))?;
-                read_exact_size(&mut entry, *size, &mut out)?;
+                read(&mut entry, name, *size, &mut out)?;
                 out.sync_all()?;
                 continue;
             }
             let mut bytes = Vec::new();
-            read_exact_size(&mut entry, *size, &mut bytes)?;
+            read(&mut entry, name, *size, &mut bytes)?;
             match part {
-                Part::Manifest => {
-                    manifest = Some(
-                        serde_json::from_slice::<Manifest>(&bytes)
-                            .map_err(|_| not_a_backup("the backup notes cannot be read"))?,
-                    );
-                }
                 Part::Avatar => {
                     let clean = crate::avatar::clean_copy(&bytes)
                         .map_err(|e| not_a_backup(&format!("{name}: {e}")))?;
@@ -490,10 +609,6 @@ fn unpack(paths: &AppPaths, zip_path: &Path, id: &str) -> Result<Manifest> {
                     key.write(&to, &bytes)?;
                 }
             }
-        }
-        let manifest = manifest.ok_or_else(|| not_a_backup("the backup notes are missing"))?;
-        if manifest.format > FORMAT {
-            return Err(newer_version());
         }
         Ok(manifest)
     })();
@@ -627,6 +742,16 @@ async fn check_staged(paths: &AppPaths, id: &str, manifest: Manifest) -> Result<
 /// Opens a backup zip: checks it, unpacks it into staging folders and
 /// checks the chats file in it. Nothing of the current data changes.
 pub async fn open(paths: &AppPaths, zip_path: &Path) -> Result<BackupInfo> {
+    open_with(paths, zip_path, None).await
+}
+
+/// `open` for a backup that may have a password. Without one, an encrypted
+/// backup gives `Error::PasswordNeeded`.
+pub async fn open_with(
+    paths: &AppPaths,
+    zip_path: &Path,
+    password: Option<String>,
+) -> Result<BackupInfo> {
     let id = format!(
         "{}",
         std::time::SystemTime::now()
@@ -635,7 +760,7 @@ pub async fn open(paths: &AppPaths, zip_path: &Path) -> Result<BackupInfo> {
     );
     std::fs::create_dir_all(paths.backups())?;
     let (p, z, i) = (paths.clone(), zip_path.to_path_buf(), id.clone());
-    let manifest = tokio::task::spawn_blocking(move || unpack(&p, &z, &i))
+    let manifest = tokio::task::spawn_blocking(move || unpack(&p, &z, &i, password.as_deref()))
         .await
         .map_err(|e| Error::Io(std::io::Error::other(e)))??;
     let checked = check_staged(paths, &id, manifest).await;
@@ -1021,8 +1146,8 @@ mod tests {
         zip.start_file("gallery/1/a.png", stored).unwrap();
         zip.write_all(payload).unwrap();
         zip.finish().unwrap();
-        check_zip(&file, 1).unwrap();
-        assert!(check_zip(&file, 2).is_err(), "a missing file");
+        check_zip(&file, 1, None).unwrap();
+        assert!(check_zip(&file, 2, None).is_err(), "a missing file");
         let mut bytes = std::fs::read(&file).unwrap();
         let at = bytes
             .windows(payload.len())
@@ -1030,7 +1155,7 @@ mod tests {
             .unwrap();
         bytes[at + 5] ^= 0xff;
         std::fs::write(&file, bytes).unwrap();
-        assert!(check_zip(&file, 1).is_err(), "a changed byte");
+        assert!(check_zip(&file, 1, None).is_err(), "a changed byte");
     }
 
     async fn home(dir: &Path) -> (AppPaths, Db) {
@@ -1104,6 +1229,57 @@ mod tests {
         assert_eq!(db.counts().await.unwrap(), [1, 1, 1, 1]);
         clear_leftovers(&paths);
         assert!(!staged.exists() && !gallery.exists());
+    }
+
+    #[tokio::test]
+    async fn a_backup_with_a_password_hides_its_files_and_opens_only_with_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (paths, db) = home(dir.path()).await;
+        assert!(set_password(&db, Some("short")).await.is_err(), "too short");
+        set_password(&db, Some("correct horse")).await.unwrap();
+        assert!(status(&db, now_ms()).await.unwrap().password);
+        let zip = dir.path().join("b.zip");
+        export(&db, &paths, &zip, "1").await.unwrap();
+
+        // Nothing readable in it: not the chats file, not the picture.
+        let raw = std::fs::read(&zip).unwrap();
+        assert!(!raw.windows(15).any(|w| w == b"SQLite format 3"));
+        let picture = png();
+        assert!(!raw.windows(picture.len()).any(|w| w == picture.as_slice()));
+        let mut archive = ZipArchive::new(File::open(&zip).unwrap()).unwrap();
+        let mut notes = String::new();
+        archive
+            .by_name(MANIFEST)
+            .unwrap()
+            .read_to_string(&mut notes)
+            .unwrap();
+        let manifest: Manifest = serde_json::from_str(&notes).unwrap();
+        assert_eq!(manifest.format, FORMAT_SEALED);
+
+        assert!(matches!(
+            open(&paths, &zip).await,
+            Err(Error::PasswordNeeded)
+        ));
+        assert!(matches!(
+            open_with(&paths, &zip, Some("wrong horse".into())).await,
+            Err(Error::WrongPassword)
+        ));
+        let info = open_with(&paths, &zip, Some("correct horse".into()))
+            .await
+            .unwrap();
+        assert_eq!(
+            [info.characters, info.personas, info.chats, info.pictures],
+            [1, 1, 1, 1]
+        );
+        let (_, gallery) = staging(&paths, &info.id).unwrap();
+        let key = paths.key().unwrap();
+        assert_eq!(key.read(&gallery.join("1").join("p.png")).unwrap(), png());
+
+        // Without the password, exports are plain again.
+        set_password(&db, None).await.unwrap();
+        let plain = dir.path().join("plain.zip");
+        export(&db, &paths, &plain, "1").await.unwrap();
+        assert!(open(&paths, &plain).await.is_ok());
     }
 
     #[tokio::test]
@@ -1408,11 +1584,13 @@ mod tests {
         paths.ensure().unwrap();
         let zip = dir.path().join("b.zip");
         let big = vec![7u8; 2 << 20];
+        // Good notes, so the import reaches the picture.
+        let notes = br#"{"format":1,"schema":0,"app_version":"1","created_ms":0}"#;
         zip_of(
             &zip,
             &[
                 ("gallery/1/a.png", &big),
-                (MANIFEST, b"{}"),
+                (MANIFEST, notes),
                 (DATABASE, b"x"),
             ],
         );

@@ -19,7 +19,8 @@ use unstrung_core::presets::StyleSettings;
 pub struct UiError {
     pub message: String,
     pub detail: String,
-    /// A tip that the page shows under the error, for example "antivirus".
+    /// A tip that the page shows under the error: "antivirus", or
+    /// "password" when an import needs the backup password.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tip: Option<&'static str>,
 }
@@ -48,6 +49,18 @@ impl From<Error> for UiError {
                 message: sentence(message),
                 detail: why.clone(),
                 tip: None,
+            };
+        }
+        if matches!(e, Error::PasswordNeeded | Error::WrongPassword) {
+            return Self {
+                message: if matches!(e, Error::WrongPassword) {
+                    "The password is wrong. Try again."
+                } else {
+                    "This backup has a password. Type it, then click Open."
+                }
+                .to_owned(),
+                detail: e.to_string(),
+                tip: Some("password"),
             };
         }
         if file_in_use(&e) {
@@ -94,6 +107,8 @@ impl From<Error> for UiError {
             Error::Engine(_) | Error::Http(_) | Error::Json(_) => {
                 "The chat engine did not answer. Try again.".to_owned()
             }
+            // Handled above, with the password tip.
+            Error::PasswordNeeded | Error::WrongPassword => e.to_string(),
             Error::Damaged(_) => {
                 "Your chats file is damaged. Open Unstrung in safe start and run Repair.".to_owned()
             }
@@ -420,22 +435,46 @@ pub async fn stop_auto_backup(
 
 /// "Import backup": the user picks a zip. It is checked and staged, and
 /// nothing changes yet. `None` when the user closes the picker.
+/// With a `password`, it opens the zip that the user picked last time, so
+/// the window never sends a file path.
 #[tauri::command]
 pub async fn open_backup(
     window: tauri::WebviewWindow,
     state: State<'_, AppState>,
+    password: Option<String>,
 ) -> CmdResult<Option<unstrung_core::backup::BackupInfo>> {
-    let Some(file) = rfd::AsyncFileDialog::new()
-        .set_parent(&window)
-        .add_filter("Zip", &["zip"])
-        .pick_file()
-        .await
-    else {
-        return Ok(None);
+    let picked = if password.is_some() {
+        state
+            .picked_backup
+            .lock()
+            .map_err(|_| Error::Busy)?
+            .clone()
+            .ok_or_else(|| Error::Invalid("Pick the backup again.".into()))?
+    } else {
+        let Some(file) = rfd::AsyncFileDialog::new()
+            .set_parent(&window)
+            .add_filter("Zip", &["zip"])
+            .pick_file()
+            .await
+        else {
+            return Ok(None);
+        };
+        let path = file.path().to_path_buf();
+        *state.picked_backup.lock().map_err(|_| Error::Busy)? = Some(path.clone());
+        path
     };
     Ok(Some(
-        unstrung_core::backup::open(&state.paths, file.path()).await?,
+        unstrung_core::backup::open_with(&state.paths, &picked, password).await?,
     ))
+}
+
+/// Sets the backup password, or removes it with `None`.
+#[tauri::command]
+pub async fn set_backup_password(
+    state: State<'_, AppState>,
+    password: Option<String>,
+) -> CmdResult<()> {
+    Ok(unstrung_core::backup::set_password(state.chats.db(), password.as_deref()).await?)
 }
 
 #[tauri::command]
