@@ -81,7 +81,7 @@ impl DataKey {
         let sealed = self
             .cipher()
             .encrypt(
-                Nonce::from_slice(&nonce),
+                &Nonce::from(nonce),
                 Payload {
                     msg: plain,
                     aad: MAGIC,
@@ -106,9 +106,10 @@ impl DataKey {
             return Err(Error::Invalid(DAMAGED_FILE.into()));
         }
         let (nonce, sealed) = rest.split_at(NONCE_LEN);
+        let nonce = Nonce::try_from(nonce).map_err(|_| Error::Invalid(DAMAGED_FILE.into()))?;
         self.cipher()
             .decrypt(
-                Nonce::from_slice(nonce),
+                &nonce,
                 Payload {
                     msg: sealed,
                     aad: MAGIC,
