@@ -366,11 +366,8 @@ pub async fn export_backup(
     else {
         return Ok(None);
     };
-    // The job slot keeps a library move, Free up space and the hourly purge
-    // out: they delete pictures that the zip still has to read, and the
-    // backup would then miss them without an error. Taken after the picker,
-    // so an open picker does not block replies.
-    let (_token, _guard) = state.chats.begin_job()?;
+    // Taken after the picker, so an open picker blocks nothing.
+    let _files = state.files.take()?;
     let done = unstrung_core::backup::export(
         state.chats.db(),
         &state.paths,
@@ -385,6 +382,40 @@ pub async fn export_backup(
         done.pictures
     );
     Ok(Some(done))
+}
+
+#[tauri::command]
+pub async fn auto_backup_status(
+    state: State<'_, AppState>,
+) -> CmdResult<unstrung_core::autobackup::AutoBackup> {
+    Ok(unstrung_core::autobackup::status(state.chats.db()).await?)
+}
+
+/// Turns automatic backups on with a folder that the user picks here, so no
+/// folder path comes from the window. `None` when the user closes the picker.
+#[tauri::command]
+pub async fn choose_auto_backup_folder(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> CmdResult<Option<unstrung_core::autobackup::AutoBackup>> {
+    let Some(folder) = rfd::AsyncFileDialog::new()
+        .set_parent(&window)
+        .pick_folder()
+        .await
+    else {
+        return Ok(None);
+    };
+    Ok(Some(
+        unstrung_core::autobackup::set_folder(state.chats.db(), &state.paths, Some(folder.path()))
+            .await?,
+    ))
+}
+
+#[tauri::command]
+pub async fn stop_auto_backup(
+    state: State<'_, AppState>,
+) -> CmdResult<unstrung_core::autobackup::AutoBackup> {
+    Ok(unstrung_core::autobackup::set_folder(state.chats.db(), &state.paths, None).await?)
 }
 
 /// "Import backup": the user picks a zip. It is checked and staged, and
@@ -422,8 +453,10 @@ pub async fn replace_from_backup(
     state: State<'_, AppState>,
     id: String,
 ) -> CmdResult<()> {
-    // A running reply or picture would write to the old data.
+    // A running reply or picture would write to the old data, and a
+    // running export would stop half way.
     state.chats.idle()?;
+    let _files = state.files.take()?;
     unstrung_core::backup::ask_replace(&state.paths, &id)?;
     log::info!("restart to replace the data with a backup");
     if let Err(e) = crate::instance::relaunch(&app, false) {
@@ -459,6 +492,7 @@ pub async fn move_folder(
     grants.check(std::path::Path::new(&path))?;
     let (token, _guard) = state.chats.begin_job()?;
     let _pictures = state.pictures.hold()?;
+    let _files = state.files.take()?;
     if state.models.downloading() || state.setup.busy() {
         return Err(Error::Invalid("Wait until the download ends.".into()).into());
     }
@@ -514,6 +548,7 @@ pub async fn free_up_candidates(
 pub async fn free_up_space(state: State<'_, AppState>, ids: Vec<String>) -> CmdResult<u64> {
     // A running reply or picture may write the files that go.
     let (_token, _guard) = state.chats.begin_job()?;
+    let _files = state.files.take()?;
     Ok(unstrung_core::storage::free_up(state.chats.db(), &state.paths, &ids).await?)
 }
 

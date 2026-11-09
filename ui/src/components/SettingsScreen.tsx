@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   addFromBackup,
+  autoBackupStatus,
   backupStatus,
+  chooseAutoBackupFolder,
+  stopAutoBackup,
+  type AutoBackup,
   checkFolder,
   diagnosticReport,
   discardBackup,
@@ -477,6 +481,53 @@ function FreeUp({ onDone }: { onDone: () => void }) {
 }
 
 /** Export everything and Import backup. */
+/** Settings > Storage: the weekly backup into a folder that the user picks. */
+function AutoBackupView() {
+  const s = strings.settings;
+  const [auto, setAuto] = useState<AutoBackup | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
+  useEffect(() => {
+    autoBackupStatus().then(setAuto, () => {});
+  }, []);
+  if (auto === null) return null;
+  const choose = () => {
+    setError(null);
+    chooseAutoBackupFolder()
+      .then((next) => {
+        if (next) setAuto(next);
+      })
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  };
+  return (
+    <div role="group" aria-label={s.autoTitle}>
+      <h3>{s.autoTitle}</h3>
+      <p>{auto.folder === null ? s.autoOff : s.autoOn(auto.folder, auto.last_ms)}</p>
+      {auto.folder !== null && auto.error !== null && <p className="field-hint">{s.autoFailed(auto.error)}</p>}
+      <div className="safe-actions">
+        <button type="button" className="button button-quiet" onClick={choose}>
+          {auto.folder === null ? s.autoChoose : s.autoChange}
+        </button>
+        {auto.folder !== null && (
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              stopAutoBackup().then(setAuto, (e: unknown) => {
+                setError(toUiError(e));
+              });
+            }}
+          >
+            {s.autoStop}
+          </button>
+        )}
+      </div>
+      {error && <ErrorNote error={error} />}
+    </div>
+  );
+}
+
 function Storage() {
   const s = strings.settings;
   const [state, setState] = useState<"idle" | "working" | Exported>("idle");
@@ -632,6 +683,7 @@ function Storage() {
         </p>
       )}
       {error && <ErrorNote error={error} />}
+      <AutoBackupView />
     </section>
   );
 }

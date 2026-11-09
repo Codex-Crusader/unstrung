@@ -3,6 +3,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod autobackup;
 pub mod avatar;
 pub mod backup;
 pub mod card;

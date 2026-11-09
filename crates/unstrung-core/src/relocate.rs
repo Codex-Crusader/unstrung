@@ -39,7 +39,7 @@ pub(crate) fn key(p: &Path) -> String {
 }
 
 /// `inner` is `outer` or a folder inside it (Windows paths: no case).
-fn inside(inner: &Path, outer: &Path) -> bool {
+pub(crate) fn inside(inner: &Path, outer: &Path) -> bool {
     let (i, o) = (key(inner), key(outer));
     i == o || i.starts_with(&format!("{o}\\"))
 }

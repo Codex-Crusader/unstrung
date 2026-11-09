@@ -306,6 +306,18 @@ export interface BackupStatus {
 }
 export const backupStatus = () => invoke<BackupStatus>("backup_status");
 export const snoozeBackupReminder = () => invoke<null>("snooze_backup_reminder");
+
+export interface AutoBackup {
+  /** null when automatic backups are off. */
+  folder: string | null;
+  last_ms: number | null;
+  /** Why the last try failed, until one works. */
+  error: string | null;
+}
+export const autoBackupStatus = () => invoke<AutoBackup>("auto_backup_status");
+/** null when the user closes the folder picker. */
+export const chooseAutoBackupFolder = () => invoke<AutoBackup | null>("choose_auto_backup_folder");
+export const stopAutoBackup = () => invoke<AutoBackup>("stop_auto_backup");
 export interface BackupInfo {
   id: string;
   created_ms: number;

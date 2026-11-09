@@ -147,6 +147,9 @@ fn main() {
             commands::export_backup,
             commands::backup_status,
             commands::snooze_backup_reminder,
+            commands::auto_backup_status,
+            commands::choose_auto_backup_folder,
+            commands::stop_auto_backup,
             commands::rebuild_summary,
             commands::save_summary,
             commands::next_chapter,
@@ -419,14 +422,16 @@ fn prefers_light_theme() -> bool {
 }
 
 /// The app can stay open for weeks: the daily copy, the end of "Recently
-/// deleted" and the engine log size must not wait for a restart.
+/// deleted", the engine log size and the weekly automatic backup must not
+/// wait for a restart.
 fn hourly_upkeep(app: &tauri::AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let mut hourly = tokio::time::interval(std::time::Duration::from_secs(60 * 60));
+        // The first round soon after the start, so a user who opens the app
+        // for half an hour a day still gets the automatic backup.
+        let first = tokio::time::Instant::now() + std::time::Duration::from_secs(5 * 60);
+        let mut hourly = tokio::time::interval_at(first, std::time::Duration::from_secs(60 * 60));
         hourly.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        // The first tick is now, and the start did all of this.
-        hourly.tick().await;
         loop {
             hourly.tick().await;
             let Some(state) = app.try_state::<AppState>() else {
@@ -439,9 +444,9 @@ fn hourly_upkeep(app: &tauri::AppHandle) {
                 Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
             }
             unstrung_core::sidecar::trim_log(&state.paths);
-            // A library move holds the job slot, and a purge then could delete a
-            // picture under its copy. The next hour tries again.
-            if state.chats.idle().is_ok()
+            // An export or a library move holds the files, and a purge then could
+            // delete a picture under them. The next hour tries again.
+            if let Ok(_files) = state.files.take()
                 && let Err(e) = unstrung_core::library::purge_deleted_chats(
                     db,
                     &state.paths,
@@ -450,6 +455,24 @@ fn hourly_upkeep(app: &tauri::AppHandle) {
                 .await
             {
                 log::warn!("could not remove the chats deleted more than 7 days ago: {e}");
+            }
+            if let Ok(_files) = state.files.take() {
+                match unstrung_core::autobackup::run_if_due(
+                    db,
+                    &state.paths,
+                    unstrung_core::db::now_ms(),
+                    env!("CARGO_PKG_VERSION"),
+                )
+                .await
+                {
+                    Ok(Some(done)) => log::info!(
+                        "automatic backup: {} bytes, {} pictures",
+                        done.bytes,
+                        done.pictures
+                    ),
+                    Ok(None) => {}
+                    Err(e) => log::warn!("the automatic backup failed: {e}"),
+                }
             }
         }
     });
@@ -518,6 +541,7 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
         models,
         pictures,
         notify: std::sync::atomic::AtomicBool::new(notify),
+        files: state::FileGuard::default(),
     })
 }
 

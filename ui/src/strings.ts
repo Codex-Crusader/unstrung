@@ -578,6 +578,15 @@ export const strings = {
     backupIntro:
       "A backup is one zip file with your chats, characters, personas, settings and pictures. It does not hold the AI models: you can download them again. The zip is not encrypted, so that it opens on a new PC. Keep it in a safe place.",
     exportAll: "Export everything",
+    autoTitle: "Automatic backup",
+    autoOff:
+      "Unstrung can make this backup by itself once a week, into a folder that you pick, and keep the 3 newest. The backups are not encrypted. Pick a folder on this PC or on a drive that only you use, not a cloud folder such as OneDrive.",
+    autoOn: (folder: string, last: number | null) =>
+      `Once a week into ${folder}. The 3 newest stay. ${last === null ? "The first one comes within the next hour." : `Last automatic backup: ${new Date(last).toLocaleDateString()}.`}`,
+    autoFailed: (why: string) => `The last try did not work: ${why}. Unstrung tries again in 6 hours.`,
+    autoChoose: "Choose a folder",
+    autoChange: "Change folder",
+    autoStop: "Turn off",
     lastBackup: (ms: number | null) =>
       ms === null ? "Last backup: never." : `Last backup: ${new Date(ms).toLocaleDateString()}.`,
     exporting: "Exporting. With many pictures this takes some minutes.",
