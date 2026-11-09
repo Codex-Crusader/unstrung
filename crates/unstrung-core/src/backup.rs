@@ -160,6 +160,25 @@ fn add_picture(
     Ok(true)
 }
 
+/// Reads a written backup back before it counts: every file must be in it,
+/// and each one is read to its end, which checks its CRC.
+fn check_zip(file: &Path, files: usize) -> Result<()> {
+    let failed = |why: String| {
+        Error::Invalid(format!(
+            "the backup did not pass its check after writing ({why}). Try again, or pick another folder"
+        ))
+    };
+    let mut zip = ZipArchive::new(File::open(file)?).map_err(|e| failed(e.to_string()))?;
+    if zip.len() != files {
+        return Err(failed(format!("{} of {files} files", zip.len())));
+    }
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| failed(e.to_string()))?;
+        std::io::copy(&mut entry, &mut std::io::sink()).map_err(|e| failed(e.to_string()))?;
+    }
+    Ok(())
+}
+
 /// Adds one file.
 fn add(
     zip: &mut ZipWriter<BufWriter<File>>,
@@ -217,6 +236,7 @@ fn write_zip(paths: &AppPaths, db_copy: &Path, to: &Path, manifest: &Manifest) -
         out.into_inner()
             .map_err(|e| Error::Io(e.into_error()))?
             .sync_all()?;
+        check_zip(&part, 2 + avatars + pictures)?;
         Ok(Exported {
             bytes: size(&part),
             avatars,
@@ -991,6 +1011,28 @@ mod tests {
     }
 
     /// A home with one of each: character with a picture, persona, chat and gallery picture.
+    #[test]
+    fn the_check_after_writing_finds_a_damaged_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("b.zip");
+        let payload = b"a picture payload that the check must read to its end";
+        let mut zip = ZipWriter::new(File::create(&file).unwrap());
+        let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        zip.start_file("gallery/1/a.png", stored).unwrap();
+        zip.write_all(payload).unwrap();
+        zip.finish().unwrap();
+        check_zip(&file, 1).unwrap();
+        assert!(check_zip(&file, 2).is_err(), "a missing file");
+        let mut bytes = std::fs::read(&file).unwrap();
+        let at = bytes
+            .windows(payload.len())
+            .position(|w| w == payload)
+            .unwrap();
+        bytes[at + 5] ^= 0xff;
+        std::fs::write(&file, bytes).unwrap();
+        assert!(check_zip(&file, 1).is_err(), "a changed byte");
+    }
+
     async fn home(dir: &Path) -> (AppPaths, Db) {
         let paths = AppPaths::at(dir.join("home"));
         paths.ensure().unwrap();
