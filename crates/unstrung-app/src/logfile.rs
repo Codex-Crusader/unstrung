@@ -146,15 +146,8 @@ mod tests {
             file,
             bytes: ROTATE_BYTES + 1,
         };
-        sink.write(
-            "new
-",
-        );
-        assert_eq!(
-            std::fs::read_to_string(&path).unwrap(),
-            "new
-"
-        );
+        sink.write("new\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "new\n");
         assert!(path.with_extension("log.1").exists());
         assert_eq!(sink.bytes, 4);
     }

@@ -281,6 +281,7 @@ fn main() {
                         start_engine(app.handle(), &state.engine, &state.models);
                         send_memory_changes(app.handle(), &state.chats);
                         app.manage(state);
+                        hourly_upkeep(app.handle());
                         if !self_test {
                             updates::check_after_start(app.handle());
                         }
@@ -417,6 +418,43 @@ fn prefers_light_theme() -> bool {
     false
 }
 
+/// The app can stay open for weeks: the daily copy, the end of "Recently
+/// deleted" and the engine log size must not wait for a restart.
+fn hourly_upkeep(app: &tauri::AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut hourly = tokio::time::interval(std::time::Duration::from_secs(60 * 60));
+        hourly.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // The first tick is now, and the start did all of this.
+        hourly.tick().await;
+        loop {
+            hourly.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                return;
+            };
+            let db = state.chats.db();
+            match db.daily_snapshot(&state.paths.database()).await {
+                Ok(Some(file)) => log::info!("daily copy of the chats: {}", file.display()),
+                Ok(None) => {}
+                Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
+            }
+            unstrung_core::sidecar::trim_log(&state.paths);
+            // A library move holds the job slot, and a purge then could delete a
+            // picture under its copy. The next hour tries again.
+            if state.chats.idle().is_ok()
+                && let Err(e) = unstrung_core::library::purge_deleted_chats(
+                    db,
+                    &state.paths,
+                    unstrung_core::db::now_ms(),
+                )
+                .await
+            {
+                log::warn!("could not remove the chats deleted more than 7 days ago: {e}");
+            }
+        }
+    });
+}
+
 async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     // Before anything reads the pictures or the models.
     unstrung_core::relocate::recover(&paths);
@@ -438,30 +476,6 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     }
     unstrung_core::avatar::clear_staging(&paths);
     unstrung_core::backup::clear_leftovers(&paths);
-    // The app can stay open for weeks: the daily copy, the end of
-    // "Recently deleted" and the engine log size must not wait for a restart.
-    let (daily_db, daily_paths) = (db.clone(), paths.clone());
-    tauri::async_runtime::spawn(async move {
-        let mut hourly = tokio::time::interval(std::time::Duration::from_secs(60 * 60));
-        hourly.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        // The first tick is now, and the start made today's copy above.
-        hourly.tick().await;
-        loop {
-            hourly.tick().await;
-            match daily_db.daily_snapshot(&daily_paths.database()).await {
-                Ok(Some(file)) => log::info!("daily copy of the chats: {}", file.display()),
-                Ok(None) => {}
-                Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
-            }
-            unstrung_core::sidecar::trim_log(&daily_paths);
-            let now = unstrung_core::db::now_ms();
-            if let Err(e) =
-                unstrung_core::library::purge_deleted_chats(&daily_db, &daily_paths, now).await
-            {
-                log::warn!("could not remove the chats deleted more than 7 days ago: {e}");
-            }
-        }
-    });
     // Data from before encryption: converted once, in the background.
     let old = paths.clone();
     let copies_key = key.clone();
