@@ -193,17 +193,6 @@ impl Db {
         Ok(())
     }
 
-    pub async fn set_voice_anchor(&self, id: i64, anchor: &str) -> Result<()> {
-        sqlx::query!(
-            "UPDATE characters SET voice_anchor = ? WHERE id = ?",
-            anchor,
-            id
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     /// Deletes the character with its chats, messages and world info.
     pub async fn delete_character(&self, id: i64) -> Result<()> {
         sqlx::query!("DELETE FROM characters WHERE id = ?", id)

@@ -355,13 +355,9 @@ impl Engine {
     }
 
     fn set_error(&self, e: &Error) {
-        let message = match e {
-            Error::Engine(m) if m.contains("not installed") => "The chat engine is not installed.",
-            Error::Engine(m) if m.contains("chat model") => "The chat model is not installed.",
-            _ => "The chat engine could not start.",
-        };
+        // A missing engine or model has its own status (NotInstalled, NoModel).
         self.status.send_replace(EngineStatus::Error {
-            message: message.into(),
+            message: "The chat engine could not start.".into(),
             detail: e.to_string(),
         });
     }

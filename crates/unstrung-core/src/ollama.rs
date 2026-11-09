@@ -173,6 +173,11 @@ pub struct ChatOutcome {
     pub prompt_eval_count: Option<i64>,
 }
 
+/// The longest wait for the first part of a reply. After the 30-minute
+/// keep-alive the engine loads the model and reads the whole chat again
+/// first, which takes minutes on a CPU. Stop still ends the wait at once.
+const FIRST_TEXT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
 #[derive(Clone)]
 pub struct Client {
     http: reqwest::Client,
@@ -443,6 +448,7 @@ impl Client {
     }
 
     /// Streams a chat reply. `on_text` gets each new piece of text.
+    /// `reply_timeout` is the longest pause after the first piece.
     /// Cancel `cancel` to stop: the request is dropped, which stops the engine,
     /// and the text so far is returned with `stopped` set.
     pub async fn chat(
@@ -458,9 +464,10 @@ impl Client {
             .post(format!("{}/api/chat", self.base))
             .json(&request)
             .send();
+        let mut wait = FIRST_TEXT_TIMEOUT.max(reply_timeout);
         let response = tokio::select! {
             () = cancel.cancelled() => return Ok(ChatOutcome { stopped: true, ..Default::default() }),
-            r = tokio::time::timeout(reply_timeout, send) => r.map_err(|_| timeout_error(reply_timeout))??,
+            r = tokio::time::timeout(wait, send) => r.map_err(|_| timeout_error(wait))??,
         };
         if !response.status().is_success() {
             let status = response.status();
@@ -480,11 +487,13 @@ impl Client {
                     out.stopped = true;
                     return Ok(out);
                 }
-                n = tokio::time::timeout(reply_timeout, stream.next()) => n.map_err(|_| timeout_error(reply_timeout))?,
+                n = tokio::time::timeout(wait, stream.next()) => n.map_err(|_| timeout_error(wait))?,
             };
             let Some(bytes) = next else {
                 return Err(Error::Engine("the reply ended early".into()));
             };
+            // The model is loaded and the chat is read: pauses are short now.
+            wait = reply_timeout;
             for &b in bytes?.iter() {
                 if b != b'\n' {
                     if line.len() >= MAX_LINE_BYTES {
@@ -582,6 +591,78 @@ mod tests {
         assert_eq!(seen, "Sit. Talk.");
         assert!(out.cut_at_cap);
         assert_eq!(out.eval_count, Some(7));
+    }
+
+    /// After the keep-alive the first part can take minutes; a pause after it cannot.
+    #[tokio::test]
+    async fn the_first_part_may_wait_long_but_later_pauses_may_not() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut req = vec![0u8; 65536];
+            let _ = socket.read(&mut req).await;
+            let head = "HTTP/1.1 200 OK
+Content-Type: application/x-ndjson
+Connection: close
+
+";
+            socket.write_all(head.as_bytes()).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let line = r#"{"message":{"role":"assistant","content":"Sit."},"done":false}"#;
+            socket
+                .write_all(
+                    format!(
+                        "{line}
+"
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = socket
+                .write_all(
+                    b"{\"done\":true}
+",
+                )
+                .await;
+        });
+        let options = Options {
+            temperature: 0.8,
+            min_p: 0.05,
+            top_p: 1.0,
+            top_k: 0,
+            presence_penalty: 0.0,
+            repeat_penalty: 1.0,
+            repeat_last_n: 64,
+            num_ctx: 4096,
+            num_predict: 20,
+            stop: Vec::new(),
+        };
+        let params = ChatParams {
+            model: "m",
+            messages: &[],
+            options: &options,
+            keep_alive: "30m",
+            think: None,
+            format: None,
+        };
+        let mut seen = String::new();
+        let result = Client::new(port)
+            .unwrap()
+            .chat(
+                &params,
+                Duration::from_secs(1),
+                &CancellationToken::new(),
+                |t| {
+                    seen.push_str(t);
+                },
+            )
+            .await;
+        assert_eq!(seen, "Sit.", "the slow first part arrived");
+        assert!(matches!(result, Err(Error::Timeout(1))), "{result:?}");
     }
 
     #[test]

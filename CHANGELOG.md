@@ -13,6 +13,8 @@ stops when the section is missing.
 - The Pictures grid loads small copies of the pictures, so a large gallery scrolls faster and uses less memory.
 - For an app that stays open for days: the daily copy of the chats, the end of "Recently deleted" after 7 days, the update check and the log size limit now work without a restart. A bug report made right after the log rotates still has the last lines. After three engine crashes in a row Unstrung still stops restarting the engine, but a crash after ten good minutes no longer counts toward that limit.
 - Long chats stay smooth while a reply streams in.
+- The first reply after a long pause no longer fails with a timeout on a slow PC. When the model was unloaded after 30 idle minutes, Unstrung now waits up to 5 minutes for the model to load and read the chat again. Stop still ends the wait at once.
+- The chat engine's own log stays small while the app runs for weeks.
 - Dependency updates, including new versions of the encryption libraries. Files that 0.2.0 encrypted open as before.
 
 ## 0.2.0

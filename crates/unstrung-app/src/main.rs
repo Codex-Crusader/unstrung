@@ -438,8 +438,8 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
     }
     unstrung_core::avatar::clear_staging(&paths);
     unstrung_core::backup::clear_leftovers(&paths);
-    // The app can stay open for weeks: the daily copy and the end of
-    // "Recently deleted" must not wait for a restart.
+    // The app can stay open for weeks: the daily copy, the end of
+    // "Recently deleted" and the engine log size must not wait for a restart.
     let (daily_db, daily_paths) = (db.clone(), paths.clone());
     tauri::async_runtime::spawn(async move {
         let mut hourly = tokio::time::interval(std::time::Duration::from_secs(60 * 60));
@@ -453,6 +453,7 @@ async fn open_core(paths: AppPaths) -> unstrung_core::Result<AppState> {
                 Ok(None) => {}
                 Err(e) => log::warn!("could not make the daily copy of the chats: {e}"),
             }
+            unstrung_core::sidecar::trim_log(&daily_paths);
             let now = unstrung_core::db::now_ms();
             if let Err(e) =
                 unstrung_core::library::purge_deleted_chats(&daily_db, &daily_paths, now).await
@@ -591,16 +592,25 @@ async fn avatar(app: &tauri::AppHandle, path: &str) -> Response<Vec<u8>> {
         };
         let mut bytes = plain(&state.paths, file).await;
         let mut mime = "image/png";
-        if kind == "thumb" {
-            mime = "image/jpeg";
-            bytes = match bytes {
-                Some(b) => {
-                    tokio::task::spawn_blocking(move || unstrung_core::avatar::thumbnail(&b))
-                        .await
-                        .ok()
-                        .and_then(|t| t.inspect_err(|e| log::warn!("no thumbnail: {e}")).ok())
+        if kind == "thumb"
+            && let Some(full) = bytes.take()
+        {
+            // A picture the thumbnail step cannot read (one over 15 MB from a
+            // backup) shows in full rather than as an empty tile.
+            let small = tokio::task::spawn_blocking(move || {
+                unstrung_core::avatar::thumbnail(&full).map_err(|e| (e, full))
+            })
+            .await;
+            bytes = match small {
+                Ok(Ok(thumb)) => {
+                    mime = "image/jpeg";
+                    Some(thumb)
                 }
-                None => None,
+                Ok(Err((e, full))) => {
+                    log::warn!("no thumbnail, the full picture instead: {e}");
+                    Some(full)
+                }
+                Err(_) => None,
             };
         }
         return match bytes {

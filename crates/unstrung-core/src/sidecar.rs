@@ -3,7 +3,7 @@
 //! The engine gets its own port on 127.0.0.1 and its own models folder,
 //! so it never touches an Ollama that the user runs outside Unstrung.
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::paths::AppPaths;
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
@@ -185,6 +185,21 @@ pub(crate) fn open_log(path: &Path) -> Result<File> {
     Ok(OpenOptions::new().create(true).append(true).open(path)?)
 }
 
+/// Keeps the engine's log small while the engine runs for weeks. The engine
+/// writes in append mode, so after the cut it goes on at the new end.
+pub fn trim_log(paths: &AppPaths) {
+    let path = paths.logs().join("ollama.log");
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > LOG_ROTATE_BYTES)
+        && std::fs::copy(&path, path.with_extension("log.1")).is_ok()
+        && let Err(e) = OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .and_then(|f| f.set_len(0))
+    {
+        log::warn!("could not cut the engine log: {e}");
+    }
+}
+
 fn start_time(system: &System, pid: u32) -> Option<u64> {
     system
         .process(Pid::from_u32(pid))
@@ -245,7 +260,29 @@ fn kill_tree(pid: u32) {
     }
 }
 
-/// Error for a missing engine binary, in plain words.
-pub fn missing_engine() -> Error {
-    Error::Engine("the chat engine (Ollama) is not installed".into())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn the_engine_log_is_cut_while_the_engine_still_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = AppPaths::at(dir.path().to_path_buf());
+        paths.ensure().unwrap();
+        let path = paths.logs().join("ollama.log");
+        // The engine's handle, as Sidecar::start gives it.
+        let mut engine = open_log(&path).unwrap();
+        let big = vec![b'x'; usize::try_from(LOG_ROTATE_BYTES).unwrap() + 1];
+        engine.write_all(&big).unwrap();
+        trim_log(&paths);
+        engine.write_all(b"after\n").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"after\n");
+        assert!(
+            std::fs::metadata(path.with_extension("log.1"))
+                .unwrap()
+                .len()
+                > LOG_ROTATE_BYTES
+        );
+    }
 }

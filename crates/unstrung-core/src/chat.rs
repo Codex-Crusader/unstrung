@@ -848,7 +848,7 @@ impl ChatService {
             role: "user".into(),
             persona_id: chat.persona_id,
             content: format!(
-                "(Story note, not said by anyone: the chat starts now. Write the opening                  message of the story as {}.)",
+                "(Story note, not said by anyone: the chat starts now. Write the opening message of the story as {}.)",
                 character.name
             ),
             flagged_out_of_character: false,
@@ -856,8 +856,7 @@ impl ChatService {
             created_at: 0,
         };
         let note = format!(
-            "This is the first message of a new chat. The usual opening is below. Keep its              setting and situation, but write a new opening in your own words. Do not copy it.
-             Usual opening: \"{}\"",
+            "This is the first message of a new chat. The usual opening is below. Keep its setting and situation, but write a new opening in your own words. Do not copy it.\nUsual opening: \"{}\"",
             greeting.content
         );
         let mut extra = note.clone();
