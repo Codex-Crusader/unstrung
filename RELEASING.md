@@ -8,7 +8,7 @@ only after you publish the draft.
 
 1. Make sure that CI passes on main.
 2. In `CHANGELOG.md`, rename "Unreleased" to the new version, for example `## 0.2.1`. Add a new empty "Unreleased" section above it.
-3. Set the new version in `Cargo.toml`, `crates/unstrung-app/tauri.conf.json` and `ui/package.json`. Run `cargo check` in the repo root and in `fuzz`, and `npm install --ignore-scripts` in `ui`, so that the lock files change too.
+3. Set the new version in `Cargo.toml`, `crates/unstrung-app/tauri.conf.json` and `ui/package.json`. Run `cargo update --workspace` in the repo root and in `fuzz`, and `npm install --ignore-scripts` in `ui`, so that the lock files change too. These commands change only the version lines, not other dependencies.
 4. Change the installer file name in `README.md` and `SECURITY.md` to the new version.
 5. Commit, then push a tag: `git tag v0.2.1` and `git push origin v0.2.1`.
 

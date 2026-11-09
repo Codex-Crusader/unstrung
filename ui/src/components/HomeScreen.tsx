@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   backupStatus,
+  exportBackup,
   importCard,
   listCharacters,
   restoreStarters,
   snoozeBackupReminder,
   toUiError,
   type Character,
+  type Exported,
   type ImportDraft,
   type UiError,
 } from "../api";
@@ -21,13 +23,11 @@ export function HomeScreen({
   onCreate,
   onEdit,
   onImport,
-  onBackup,
 }: {
   onOpen: (character: Character) => void;
   onCreate: () => void;
   onEdit: (character: Character) => void;
   onImport: (draft: ImportDraft) => void;
-  onBackup: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -51,14 +51,28 @@ export function HomeScreen({
   const [query, setQuery] = useState("");
   const [error, setError] = useState<UiError | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [backupDue, setBackupDue] = useState(false);
+  // The reminder: null when hidden, then due, working, or the saved backup.
+  const [backup, setBackup] = useState<"due" | "working" | Exported | null>(null);
   useEffect(() => {
     backupStatus()
       .then((b) => {
-        setBackupDue(b.due);
+        if (b.due) setBackup("due");
       })
       .catch(() => {});
   }, []);
+  // The export starts here: Settings is long, and its button can be below the fold.
+  const makeBackup = () => {
+    setBackup("working");
+    setError(null);
+    exportBackup()
+      .then((done) => {
+        setBackup(done ?? "due");
+      })
+      .catch((e: unknown) => {
+        setBackup("due");
+        setError(toUiError(e));
+      });
+  };
 
   const load = () => {
     listCharacters()
@@ -104,22 +118,29 @@ export function HomeScreen({
           />
         </label>
       </div>
-      {backupDue && (
+      {backup !== null && (
         <div className="backup-due" role="status">
-          <p>{strings.home.backupDue}</p>
-          <button type="button" className="button" onClick={onBackup}>
-            {strings.home.backupNow}
-          </button>
-          <button
-            type="button"
-            className="button button-quiet"
-            onClick={() => {
-              setBackupDue(false);
-              snoozeBackupReminder().catch(() => {});
-            }}
-          >
-            {strings.home.backupLater}
-          </button>
+          {typeof backup === "object" ? (
+            <p>{strings.settings.exported(backup.pictures, backup.bytes)}</p>
+          ) : (
+            <>
+              <p>{backup === "working" ? strings.settings.exporting : strings.home.backupDue}</p>
+              <button type="button" className="button" disabled={backup === "working"} onClick={makeBackup}>
+                {strings.home.backupNow}
+              </button>
+              <button
+                type="button"
+                className="button button-quiet"
+                disabled={backup === "working"}
+                onClick={() => {
+                  setBackup(null);
+                  snoozeBackupReminder().catch(() => {});
+                }}
+              >
+                {strings.home.backupLater}
+              </button>
+            </>
+          )}
         </div>
       )}
       {/* The lead fits only a failed load; a failed restore shows its own message. */}
