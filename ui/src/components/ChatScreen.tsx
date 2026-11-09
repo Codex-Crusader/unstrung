@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   branchChat,
   continueReply,
@@ -63,6 +63,8 @@ const STICK_DISTANCE = 80;
 
 /** `replyAfter` value for a new greeting: no earlier message stays in view. Message IDs start at 1. */
 const BEFORE_FIRST = 0;
+/** One empty list for every message without pictures, so its props stay equal. */
+const NO_PICTURES: Picture[] = [];
 
 /** Asks the persona's age once, for a chat with an 18+ character. */
 function PersonaAge({ persona, onSaved }: { persona: Persona; onSaved: () => void }) {
@@ -361,6 +363,18 @@ export function ChatScreen({
       });
   };
 
+  // Each message keeps its own pictures array, for the memoized MessageItem.
+  const picturesOf = useMemo(() => {
+    const by = new Map<number, Picture[]>();
+    for (const p of pictures) {
+      if (p.message_id === null) continue;
+      const list = by.get(p.message_id);
+      if (list) list.push(p);
+      else by.set(p.message_id, [p]);
+    }
+    return by;
+  }, [pictures]);
+
   if (!view) {
     return (
       <section className="chat chat-empty">
@@ -585,9 +599,9 @@ export function ChatScreen({
                 isLast={i === shown.length - 1}
                 locked={locked}
                 actions={actions}
-                pictures={pictures.filter((p) => p.message_id === m.id)}
+                pictures={picturesOf.get(m.id) ?? NO_PICTURES}
                 painting={painting && (painting.message_id ?? last?.id) === m.id ? painting : null}
-                isNew={(id) => !oldPictures.has(id)}
+                oldPictures={oldPictures}
                 onOpenPicture={setOpenPicture}
               />
               {m.id === view.chat.context_start_id && (

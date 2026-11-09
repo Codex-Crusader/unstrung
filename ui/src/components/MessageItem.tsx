@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { Character, Painting, Persona, Picture, RegenMode, ViewMessage } from "../api";
 import { FadeImage, PaintingCard } from "./PictureViewer";
 import { strings } from "../strings";
@@ -19,7 +19,53 @@ export interface MessageActions {
 }
 
 
-export function MessageItem({
+/**
+ * One message. While a reply streams, the chat screen draws again for every
+ * piece of text. This wrapper gives the memoized card actions that keep their
+ * identity and call the newest ones, so the messages above stay as they are.
+ */
+export function MessageItem(props: ComponentProps<typeof MessageCard>) {
+  const latest = useRef(props.actions);
+  useLayoutEffect(() => {
+    latest.current = props.actions;
+  });
+  const actions = useMemo<MessageActions>(
+    () => ({
+      showVersion: (id) => {
+        latest.current.showVersion(id);
+      },
+      regenerate: (id, mode) => {
+        latest.current.regenerate(id, mode);
+      },
+      continueReply: () => {
+        latest.current.continueReply();
+      },
+      edit: (message, text) => {
+        latest.current.edit(message, text);
+      },
+      rewind: (id) => {
+        latest.current.rewind(id);
+      },
+      branch: (id) => {
+        latest.current.branch(id);
+      },
+      remember: (message) => {
+        latest.current.remember(message);
+      },
+      remove: (id) => {
+        latest.current.remove(id);
+      },
+      picture: (id) => {
+        latest.current.picture(id);
+      },
+    }),
+    [],
+  );
+  return <MessageCard {...props} actions={actions} />;
+}
+
+/** Every prop must keep its identity between draws, or the memo does nothing. */
+const MessageCard = memo(function MessageCard({
   message,
   character,
   persona,
@@ -28,7 +74,7 @@ export function MessageItem({
   actions,
   pictures,
   painting,
-  isNew,
+  oldPictures,
   onOpenPicture,
 }: {
   message: ViewMessage;
@@ -43,8 +89,8 @@ export function MessageItem({
   pictures: Picture[];
   /** A picture being made for this message. */
   painting: Painting | null;
-  /** True for a picture made while the chat is open: it develops into view. */
-  isNew: (id: number) => boolean;
+  /** The pictures that were there when the chat opened. The others develop into view. */
+  oldPictures: ReadonlySet<number>;
   onOpenPicture: (id: number) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
@@ -98,7 +144,7 @@ export function MessageItem({
                       onOpenPicture(p.id);
                     }}
                   >
-                    <FadeImage picture={p} alt={strings.chat.picture} develop={isNew(p.id)} />
+                    <FadeImage picture={p} alt={strings.chat.picture} develop={!oldPictures.has(p.id)} />
                   </button>
                 ))}
                 {painting && <PaintingCard painting={painting} />}
@@ -230,4 +276,4 @@ export function MessageItem({
       </div>
     </article>
   );
-}
+});
