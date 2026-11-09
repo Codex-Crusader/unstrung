@@ -26,6 +26,7 @@ stops when the section is missing.
 - Save a chat as text: on the Chats page, the download button next to a chat saves the messages that you see as a Markdown file, with the name of who wrote each one.
 - Settings > Storage shows your chats in numbers: chats, messages and pictures for each character.
 - Backup password: in Settings > Storage, set a password, and every backup is encrypted with it, also the automatic ones. To import such a backup, Unstrung asks for its password. If you forget the password, nobody can open the backup. Backups without a password open as before. Version 0.2.0 cannot open an encrypted backup and says that the file is not a backup that it can read.
+- Easier to use with a keyboard and easier to read: Escape in a message menu returns to its button, buttons and the ... button of a message are larger targets, placeholder text has enough contrast, and Reduce motion keeps the typing dots and the search hit ring visible. Checkboxes, scrollbars and selected text follow the theme, and chat previews no longer show the * marks.
 - Dependency updates, including new versions of the encryption libraries. Files that 0.2.0 encrypted open as before.
 
 ## 0.2.0
