@@ -3108,3 +3108,74 @@ dialog.viewer::backdrop {
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   border-radius: var(--radius);
 }
+
+/* Screens, steps, menus and the picture viewer ease in instead of popping.
+   Each screen mounts fresh, so the animation plays on every switch. */
+.app-main > *,
+.welcome-section {
+  animation: screen-in 0.2s ease-out;
+}
+
+.menu-list {
+  animation: menu-in 0.12s ease-out;
+}
+
+dialog.viewer[open] {
+  animation: viewer-in 0.18s ease-out;
+}
+
+dialog.viewer[open]::backdrop {
+  animation: fade-in 0.18s ease-out;
+}
+
+.nav-item,
+.button,
+.character-card {
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes viewer-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-main > *,
+  .welcome-section,
+  .menu-list,
+  dialog.viewer[open],
+  dialog.viewer[open]::backdrop {
+    animation: none;
+  }
+
+  .nav-item,
+  .button,
+  .character-card {
+    transition: none;
+  }
+}
