@@ -21,7 +21,8 @@ stops when the section is missing.
 - Chats that stay in "Recently deleted" past 7 days no longer leave empty folders behind.
 - Long chats stay smooth while a reply streams: the messages above the reply no longer draw again for every new word.
 - Import a chat from SillyTavern: in a chat, open Chats and click "Import a chat", then pick a .jsonl chat file. It becomes a new chat with this character. Unstrung checks each message as it checks the messages that you type, and a file with a message that it refuses is not imported.
-- Search in messages: on the Chats page, type 3 letters or more, and the 50 newest messages that hold the text show below the chats. Click one to open its chat at that message, also when it is on another branch.
+- Search in messages: on the Chats page, type 3 letters or more (2 for Chinese, Japanese and other text outside ASCII), and the 50 newest messages that hold the text show below the chats. Click one to open its chat at that message, also when it is on another branch.
+- A very long chat, such as an imported one with thousands of messages, opens in half a second and stays smooth while you type. The chat shows the newest 200 messages, and a button above them shows earlier ones. Before, a chat of 20,000 messages froze the window for seconds.
 - Save a chat as text: on the Chats page, the download button next to a chat saves the messages that you see as a Markdown file, with the name of who wrote each one.
 - Settings > Storage shows your chats in numbers: chats, messages and pictures for each character.
 - Backup password: in Settings > Storage, set a password, and every backup is encrypted with it, also the automatic ones. To import such a backup, Unstrung asks for its password. If you forget the password, nobody can open the backup. Backups without a password open as before. Version 0.2.0 cannot open an encrypted backup and says that the file is not a backup that it can read.
