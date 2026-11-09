@@ -276,12 +276,21 @@ pub async fn purge_deleted_chats(db: &Db, paths: &AppPaths, now: i64) -> Result<
 /// The rows are already gone. A file that does not go stays unused, so a
 /// failure is only logged.
 fn remove_pictures(paths: &AppPaths, pictures: &[String]) {
+    let gallery = paths.gallery();
     for picture in pictures {
-        if let Ok(file) = crate::paths::join_safe(&paths.gallery(), picture)
-            && let Err(e) = std::fs::remove_file(&file)
+        let Ok(file) = crate::paths::join_safe(&gallery, picture) else {
+            continue;
+        };
+        if let Err(e) = std::fs::remove_file(&file)
             && e.kind() != std::io::ErrorKind::NotFound
         {
             log::warn!("a picture file of a deleted chat stayed: {e}");
+        }
+        // The chat's folder too, once it is empty: remove_dir keeps a full one.
+        if let Some(folder) = file.parent()
+            && folder != gallery
+        {
+            let _ = std::fs::remove_dir(folder);
         }
     }
 }
@@ -524,7 +533,7 @@ mod tests {
             chats.push((chat, file));
         }
         let now = crate::db::now_ms();
-        let (old, old_file) = &chats[0];
+        let (old, _) = &chats[0];
         let (recent, recent_file) = &chats[1];
         // Deleted 8 days and 6 days before now.
         for (chat, days) in [(old, 8), (recent, 6)] {
@@ -549,8 +558,8 @@ mod tests {
             .collect();
         assert_eq!(left, [*recent]);
         assert!(
-            !paths.gallery().join(old_file).exists(),
-            "the old picture went"
+            !paths.gallery().join(old.to_string()).exists(),
+            "the old picture went, with its empty folder"
         );
         assert!(paths.gallery().join(recent_file).exists());
 
