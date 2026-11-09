@@ -19,6 +19,11 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    # typescript-eslint supports a new TypeScript major only some time after
+    # its release, so a major update fails npm ci. Take it by hand.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 3
 
   - package-ecosystem: github-actions
