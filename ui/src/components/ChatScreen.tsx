@@ -60,6 +60,14 @@ type Reply = { phase: "idle" } | { phase: "thinking" } | { phase: "writing"; tex
 
 /** Distance from the bottom, in pixels, that still counts as "at the bottom". */
 const STICK_DISTANCE = 80;
+/** Messages drawn at once. A long imported chat has thousands, and drawing
+ * them all freezes the window. The buttons at the ends show more. */
+const PAGE = 200;
+/** Messages drawn before and after a search hit in an old part of a chat. */
+const AROUND_HIT = 50;
+
+/** The part of the chat that is drawn: `null` is the newest `PAGE` messages. */
+type Window = { from: number; to: number | null } | null;
 
 /** `replyAfter` value for a new greeting: no earlier message stays in view. Message IDs start at 1. */
 const BEFORE_FIRST = 0;
@@ -149,6 +157,7 @@ export function ChatScreen({
   // Counts the memory passes of this chat, so the panel loads again.
   const [memoryTick, setMemoryTick] = useState(0);
   const [draft, setDraft] = useState("");
+  const [win, setWin] = useState<Window>(null);
   const [pictures, setPictures] = useState<Picture[]>([]);
   // The pictures the chat had when it opened. Later ones develop into view.
   const [oldPictures, setOldPictures] = useState<Set<number>>(new Set());
@@ -256,7 +265,15 @@ export function ChatScreen({
         if (jumpTo !== undefined && !v.messages.some((m) => m.id === jumpTo)) {
           v = await showBranch(v.chat.id, jumpTo).catch(() => v);
         }
-        if (active) setView(v);
+        if (!active) return;
+        const at = jumpTo === undefined ? -1 : v.messages.findIndex((m) => m.id === jumpTo);
+        const count = v.messages.length;
+        setWin(
+          at >= 0 && at < count - PAGE
+            ? { from: Math.max(0, at - AROUND_HIT), to: Math.min(count, at + AROUND_HIT + 1) }
+            : null,
+        );
+        setView(v);
       })
       .catch((e: unknown) => {
         if (active) setError(toUiError(e));
@@ -327,6 +344,8 @@ export function ChatScreen({
     setError(null);
     setHint(null);
     setUndo(null);
+    // A reply goes at the end, so the newest messages come back into view.
+    setWin(null);
     setReply({ phase: "thinking" });
     setReplyAfter(after);
     atBottom.current = true;
@@ -404,6 +423,9 @@ export function ChatScreen({
     const at = pending.parent_id === null ? -1 : shown.findIndex((m) => m.id === pending.parent_id);
     shown = [...shown.slice(0, at + 1), pending];
   }
+  const end = win === null || win.to === null ? shown.length : Math.min(win.to, shown.length);
+  const begin = win === null ? Math.max(0, end - PAGE) : Math.min(win.from, Math.max(0, end - 1));
+  const drawn = shown.slice(begin, end);
 
   /** Makes a picture of a message, or of the latest one when `messageId` is null. */
   const paint = (messageId: number | null, wish: string) => {
@@ -590,13 +612,26 @@ export function ChatScreen({
           // While a reply streams, a screen reader waits and reads it once.
           aria-busy={busy}
         >
-          {shown.map((m, i) => (
+          {begin > 0 && (
+            <p className="system-note">
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setWin({ from: Math.max(0, begin - PAGE), to: win === null ? null : win.to });
+                }}
+              >
+                {strings.chat.earlier(Math.min(PAGE, begin))}
+              </button>
+            </p>
+          )}
+          {drawn.map((m, i) => (
             <Fragment key={m.id}>
               <MessageItem
                 message={m}
                 character={character}
                 persona={personaOf(m.persona_id)}
-                isLast={i === shown.length - 1}
+                isLast={begin + i === shown.length - 1}
                 locked={locked}
                 actions={actions}
                 pictures={picturesOf.get(m.id) ?? NO_PICTURES}
@@ -621,6 +656,19 @@ export function ChatScreen({
               )}
             </Fragment>
           ))}
+          {end < shown.length && (
+            <p className="system-note">
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setWin(end + PAGE >= shown.length ? { from: begin, to: null } : { from: begin, to: end + PAGE });
+                }}
+              >
+                {strings.chat.newer(Math.min(PAGE, shown.length - end))}
+              </button>
+            </p>
+          )}
           {streaming}
           {!busy && view.branches.length > 0 && (
             <p className="system-note">

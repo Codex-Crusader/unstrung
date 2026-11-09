@@ -330,6 +330,8 @@ export const strings = {
     hiddenBranch: (count: number) =>
       count === 1 ? "A later part of this chat is hidden." : `${String(count)} later parts of this chat are hidden.`,
     showHidden: "Show it",
+    earlier: (count: number) => `Show ${String(count)} earlier messages`,
+    newer: (count: number) => `Show ${String(count)} newer messages`,
     deleted: "Message deleted.",
     undo: "Undo",
     dismiss: "Dismiss",
