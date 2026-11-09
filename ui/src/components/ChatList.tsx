@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { deleteChat, keptMemories, listChats, toUiError, type ChatSummary, type UiError } from "../api";
+import { deleteChat, keptMemories, listChats, plainPreview, toUiError, type ChatSummary, type UiError } from "../api";
 import { strings } from "../strings";
 import { Icon } from "./Icon";
 import { ErrorNote } from "./ErrorNote";
@@ -136,7 +136,7 @@ export function ChatList({
                 onOpen(c.id);
               }}
             >
-              <span className="chat-item-title">{c.title || c.preview || strings.chats.untitled}</span>
+              <span className="chat-item-title">{c.title || plainPreview(c.preview) || strings.chats.untitled}</span>
               <span className="chat-item-meta">{strings.chats.messages(c.message_count)}</span>
             </button>
             {confirm === c.id ? (

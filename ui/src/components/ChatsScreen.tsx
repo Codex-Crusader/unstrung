@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   deleteChat,
   deletedChats,
+  plainPreview,
   recentChats,
   saveChatText,
   restoreChat,
@@ -161,7 +162,7 @@ export function ChatsScreen({
                 />
                 <span className="recent-text">
                   <span className="recent-name">{r.character_name}</span>
-                  <span className="recent-preview">{r.preview}</span>
+                  <span className="recent-preview">{plainPreview(r.preview)}</span>
                 </span>
                 <span className="chat-when field-hint">{strings.home.when(r.updated_at)}</span>
               </button>
@@ -266,7 +267,7 @@ export function ChatsScreen({
                   />
                   <span className="recent-text">
                     <span className="recent-name">{d.character_name}</span>
-                    <span className="recent-preview">{d.preview}</span>
+                    <span className="recent-preview">{plainPreview(d.preview)}</span>
                   </span>
                   <span className="chat-when field-hint">{s.deletedWhen(d.deleted_at)}</span>
                 </div>

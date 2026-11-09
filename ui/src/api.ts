@@ -353,6 +353,10 @@ export interface SearchHit {
   hit: string;
   after: string;
 }
+/** A chat preview without the * marks around actions, which the chat itself
+ * shows as italics. */
+export const plainPreview = (text: string) => text.replaceAll("*", "");
+
 /** True when the text is too short to search. Text outside ASCII, such as
  * Chinese or Japanese, needs two letters, other text three. The Rust side
  * has the same rule in `search_too_short`. */
