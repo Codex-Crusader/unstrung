@@ -335,7 +335,7 @@
             <span class="stub" aria-hidden="true">Admit one</span>
             <span class="main">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-              <span class="download-label">Download for Windows</span>
+              <span class="download-label">Download Unstrung</span>
             </span>
           </a>
           <span class="meta download-meta">Windows 10 or 11 · 64-bit · free</span>
@@ -492,7 +492,7 @@
           <span class="stub" aria-hidden="true">Admit one</span>
           <span class="main">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            <span class="download-label">Download for Windows</span>
+            <span class="download-label">Download Unstrung</span>
           </span>
         </a>
       </div>
@@ -575,12 +575,12 @@
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (release) {
       if (!release) return;
-      var installer = (release.assets || []).find(function (a) { return /-setup\.exe$/.test(a.name); });
+      // Match by kind, not by name: the installer's file name changes between releases.
+      var exes = (release.assets || []).filter(function (a) { return /\.exe$/i.test(a.name); });
+      var installer = exes.find(function (a) { return /setup/i.test(a.name); }) || exes[0];
       if (!installer) return;
-      var version = String(release.tag_name || "").replace(/^v/, "");
       var mb = Math.max(1, Math.round(installer.size / 1048576));
       document.querySelectorAll("a.download").forEach(function (a) { a.href = installer.browser_download_url; });
-      document.querySelectorAll(".download-label").forEach(function (s) { s.textContent = "Download Unstrung " + version; });
       document.querySelectorAll(".download-meta").forEach(function (s) { s.textContent = "Windows 10 or 11 · 64-bit · " + mb + " MB · free"; });
     })
     .catch(function () {});
