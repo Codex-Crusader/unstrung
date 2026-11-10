@@ -89,9 +89,9 @@
 
   .stage { position: relative; align-self: stretch; display: flex; flex-direction: column; justify-content: flex-end; min-height: 560px; }
   .beam {
-    position: absolute; left: 50%; top: -48px; bottom: 120px; width: 120%; translate: -50% 0; pointer-events: none;
+    position: absolute; left: 50%; top: -48px; bottom: 0; width: 120%; translate: -50% 0; pointer-events: none;
     clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
-    background: linear-gradient(rgba(242, 169, 59, 0.42), rgba(242, 169, 59, 0.07) 85%);
+    background: linear-gradient(rgba(242, 169, 59, 0.42), rgba(242, 169, 59, 0.08) 65%, transparent);
     filter: blur(14px); opacity: 0.35; transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .pool { position: absolute; left: 50%; bottom: -26px; width: 150%; height: 70px; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, rgba(242, 169, 59, 0.5), rgba(242, 169, 59, 0.12) 60%, transparent); opacity: 0.35; transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
@@ -101,8 +101,8 @@
   .runner { position: relative; width: 100%; height: auto; filter: drop-shadow(0 18px 14px rgba(0, 0, 0, 0.55)); }
 
   /* The chat, set as a play script */
-  .script { position: relative; margin-top: 18px; font: 16px/1.55 var(--script); color: var(--bone); }
-  .script .line + .line { margin-top: 16px; }
+  .script { position: relative; width: min(100%, 420px); margin: 18px auto 0; font: 16px/1.6 var(--script); color: var(--bone); }
+  .script .line + .line { margin-top: 18px; }
   .script .who { display: block; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); }
   .script .who.you { color: var(--soft); }
   .script em { color: var(--soft); }
@@ -110,7 +110,7 @@
   .script em::after { content: ") "; }
   .caret { display: inline-block; width: 9px; height: 1.1em; background: var(--amber); vertical-align: -0.2em; margin-left: 3px; animation: blink 0.9s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  .ver { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 13px; color: var(--soft); transition: opacity 0.4s; }
+  .ver { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; color: var(--soft); transition: opacity 0.4s; }
   .ver svg { width: 12px; height: 12px; }
   .ver.wait { opacity: 0; }
   .cue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); font: 13px/1.4 var(--script); color: var(--soft); }
@@ -252,10 +252,10 @@
 
   /* Curtain call */
   .close { position: relative; overflow: hidden; border-top: 1px solid var(--line); }
-  .close .wrap { position: relative; padding-block: 112px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 36px 56px; align-items: end; }
+  .close .wrap { position: relative; padding-block: 112px; display: grid; justify-items: center; gap: 40px; text-align: center; }
   .close h2 { font-size: clamp(52px, 7vw, 96px); text-transform: uppercase; }
-  .close .steps { margin-top: 20px; color: var(--soft); max-width: 34em; }
-  .close .beam { top: 0; bottom: 0; left: 78%; width: 60%; opacity: 0.5; }
+  .close .steps { margin: 20px auto 0; color: var(--soft); max-width: 30em; }
+  .close .beam { top: 0; bottom: 0; left: 50%; width: 90%; opacity: 0.45; }
   footer.end { border-top: 1px solid var(--line); padding-block: 28px 44px; display: flex; flex-wrap: wrap; gap: 8px 28px; justify-content: space-between; font-size: 14px; color: var(--soft); }
   footer.end a { color: var(--soft); }
   footer.end a:hover { color: var(--amber); }
@@ -316,7 +316,7 @@
     .ledger tr.never td { padding: 0; color: var(--amber); }
     .ledger tr.never td:first-child { padding: 0; color: var(--amber); }
     summary { font-size: 20px; padding-block: 16px; }
-    .close .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 72px; }
+    .close .wrap { padding-block: 72px; }
     footer.end { flex-direction: column; }
   }
 
@@ -365,7 +365,7 @@
         <div class="actor"><div class="pool" aria-hidden="true"></div><img class="runner" src="img/mannequin.webp" width="620" height="640" alt=""></div>
         <div class="script" role="group" aria-label="A chat in Unstrung, set as a script. You ask Ren Kagami who he is, and he answers in character.">
           <p class="line"><span class="who you">You.</span>Hello. Who are you, and what is this place?</p>
-          <p class="line"><span class="who">Ren Kagami.</span><span class="reply"><em>I tap the ash from my cigarette into the overflowing tray.</em>This room is where the city's shadows come to gather. I am Ren Kagami. Sit down and let me finish this smoke before I decide your arrival is just another waste of my time.</span>
+          <p class="line"><span class="who">Ren Kagami.</span><span class="reply"><em>I tap the ash from my cigarette.</em>This room is where the city's shadows come to gather. I am Ren Kagami. Sit down.</span>
             <span class="ver" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg>2 of 2<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6 4.5 9.5"/></svg></span></p>
           <p class="cue"><span class="dot" aria-hidden="true"></span>Ready · Gemma 4 E4B<span>A reply from testing, shortened.</span></p>
         </div>
@@ -398,18 +398,18 @@
       </div>
 
       <div class="players">
-        <div><h3>Who you play</h3><p>A persona is who you are in a chat. The character sees its name, description and looks. Two come with the app.</p></div>
+        <div><h3>Who you play</h3><p>A persona is who you are in a chat. Two come with the app.</p></div>
         <div class="player" style="--tape:var(--bone)"><img src="img/cast/kai.webp" width="320" height="320" alt=""><div><b>Kai</b><span>A traveler and mechanic who is good with his hands and bad at staying in one place.</span></div></div>
         <div class="player" style="--tape:var(--bone)"><img src="img/cast/nora.webp" width="320" height="320" alt=""><div><b>Nora</b><span>A journalist who asks too many questions and writes everything down.</span></div></div>
       </div>
 
       <div class="notes">
-        <div><h3>Write or import</h3><p>A picture, a personality, a way of talking and a first message. Cards from other apps load as PNG or JSON.</p></div>
-        <div><h3>Memory you can read</h3><p>Long chats keep notes: what you came for, the story so far, and facts. Edit, pin or hide any of them.</p></div>
-        <div><h3>Tone and length</h3><p>Pick a tone, and a reply style from two lines of text to a page of a novel.</p></div>
-        <div><h3>Try again</h3><p>Ask for another reply, flip between versions, rewind, or branch the chat from any message.</p></div>
-        <div><h3>Pictures of the scene</h3><p>Turn them on, and Unstrung paints the scene with your characters' looks, also on your PC.</p></div>
-        <div><h3>Many personas</h3><p>Make a few and switch between them for each chat.</p></div>
+        <div><h3>Write or import</h3><p>Make your own, or load a PNG or JSON card.</p></div>
+        <div><h3>Memory you can read</h3><p>Long chats keep notes you can edit, pin or hide.</p></div>
+        <div><h3>Tone and length</h3><p>From two lines to a page of a novel.</p></div>
+        <div><h3>Try again</h3><p>New reply, rewind, or branch from any message.</p></div>
+        <div><h3>Pictures of the scene</h3><p>Painted on your PC, with your characters' looks.</p></div>
+        <div><h3>Many personas</h3><p>Be someone different in each chat.</p></div>
       </div>
 
       <div class="screens">
@@ -454,9 +454,9 @@
         <div><dt>Models</dt><dd class="big">Gemma 4, Qwen</dd><dd class="why">All Apache 2.0, picked to fit your PC.</dd></div>
       </dl>
       <div class="safe">
-        <div><h3>Copies of your chats</h3><p>One every day you use it, and one before each update. Safe start can put a copy back.</p></div>
-        <div><h3>Safe start and Repair</h3><p>If the app fails to start twice, it opens without the engine and offers a quick or a full check.</p></div>
-        <div><h3>One file to move</h3><p>Export everything to one zip: chats, characters, personas, settings and pictures.</p></div>
+        <div><h3>Copies of your chats</h3><p>One a day, and one before each update.</p></div>
+        <div><h3>Safe start and Repair</h3><p>If the app fails to start twice, it opens in safe start and offers a repair.</p></div>
+        <div><h3>One file to move</h3><p>Export everything to one zip.</p></div>
       </div>
     </div>
   </section>
@@ -509,7 +509,7 @@
     <div class="wrap">
       <div>
         <h2>Bring your characters home<span class="stop">.</span></h2>
-        <p class="steps">Run the installer, pick where pictures and models go, and Unstrung downloads the engine and one model. You can close it while it downloads.</p>
+        <p class="steps">Run the installer. Unstrung downloads the engine and one model that fits your PC.</p>
       </div>
       <div class="get">
         <a class="ticket download" href="https://github.com/Codex-Crusader/unstrung/releases/latest">
