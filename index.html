@@ -87,7 +87,7 @@
   .open .lede b { color: var(--bone); font-weight: 600; }
   .open .get { margin-top: 34px; }
 
-  .stage { position: relative; align-self: stretch; display: flex; flex-direction: column; justify-content: flex-end; min-height: 560px; }
+  .stage { position: relative; align-self: stretch; display: flex; flex-direction: column; justify-content: center; min-height: 560px; }
   .beam {
     position: absolute; left: 50%; top: -48px; bottom: 0; width: 120%; translate: -50% 0; pointer-events: none;
     clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
@@ -95,33 +95,17 @@
     filter: blur(14px); opacity: 0.35; transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .pool { position: absolute; left: 50%; bottom: -26px; width: 150%; height: 70px; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, rgba(242, 169, 59, 0.5), rgba(242, 169, 59, 0.12) 60%, transparent); opacity: 0.35; transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
-  .lit .beam { opacity: 1; }
-  .lit .pool { opacity: 1; }
-  .actor { position: relative; width: min(46%, 230px); margin: 0 auto 30px; translate: -8% 0; }
+  .lit .beam, html:not(.js) .beam { opacity: 1; }
+  .lit .pool, html:not(.js) .pool { opacity: 1; }
+  .actor { position: relative; width: min(72%, 380px); margin: 120px auto 40px; translate: -4% 0; }
   .runner { position: relative; width: 100%; height: auto; filter: drop-shadow(0 18px 14px rgba(0, 0, 0, 0.55)); }
 
-  /* The chat, set as a play script */
-  .script { position: relative; width: min(100%, 420px); margin: 18px auto 0; font: 16px/1.6 var(--script); color: var(--bone); }
-  .script .line + .line { margin-top: 18px; }
-  .script .who { display: block; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); }
-  .script .who.you { color: var(--soft); }
-  .script em { color: var(--soft); }
-  .script em::before { content: "("; }
-  .script em::after { content: ") "; }
-  .caret { display: inline-block; width: 9px; height: 1.1em; background: var(--amber); vertical-align: -0.2em; margin-left: 3px; animation: blink 0.9s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  .ver { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; color: var(--soft); transition: opacity 0.4s; }
-  .ver svg { width: 12px; height: 12px; }
-  .ver.wait { opacity: 0; }
-  .cue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); font: 13px/1.4 var(--script); color: var(--soft); }
-  .cue .dot { width: 8px; height: 8px; border-radius: 50%; background: #6fcf6b; flex: none; }
-  .cue span:last-child { flex-basis: 100%; }
 
   @media (max-width: 920px) {
     .open .wrap { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 28px; padding-block: 36px 48px; }
     .stage { min-height: 0; }
     .beam { bottom: 40%; }
-    .actor { width: 170px; }
+    .actor { width: 220px; margin-top: 70px; }
   }
 
   /* Acts */
@@ -276,8 +260,7 @@
     .open .lede { margin-top: 20px; }
     .ticket { width: 100%; }
     .ticket .main { flex: 1; justify-content: center; font-size: clamp(18px, 5.4vw, 22px); white-space: nowrap; padding-inline: 12px; }
-    .script { font-size: 14.5px; }
-    .actor { width: 140px; }
+    .actor { width: 190px; margin-block: 56px 28px; }
     .act { padding-block: 72px; }
     .act-head h2 { font-size: clamp(44px, 13vw, 60px); }
     .cast { margin-top: 36px; }
@@ -321,7 +304,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .caret { animation: none; }
     .ticket, .beam, .pool, .member img, summary svg { transition: none; }
   }
 </style>
@@ -363,12 +345,6 @@
       <div class="stage" id="stage">
         <div class="beam" aria-hidden="true"></div>
         <div class="actor"><div class="pool" aria-hidden="true"></div><img class="runner" src="img/mannequin.webp" width="620" height="640" alt=""></div>
-        <div class="script" role="group" aria-label="A chat in Unstrung, set as a script. You ask Ren Kagami who he is, and he answers in character.">
-          <p class="line"><span class="who you">You.</span>Hello. Who are you, and what is this place?</p>
-          <p class="line"><span class="who">Ren Kagami.</span><span class="reply"><em>I tap the ash from my cigarette.</em>This room is where the city's shadows come to gather. I am Ren Kagami. Sit down.</span>
-            <span class="ver" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg>2 of 2<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6 4.5 9.5"/></svg></span></p>
-          <p class="cue"><span class="dot" aria-hidden="true"></span>Ready · Gemma 4 E4B<span>A reply from testing, shortened.</span></p>
-        </div>
       </div>
     </div>
   </section>
@@ -530,32 +506,11 @@
 </footer>
 
 <script>
-  // The reply streams in word by word, as it does in the app, and the stage
-  // light comes up with the first word. The full text is in the page, so it
-  // reads the same with no script or reduced motion.
+  // The stage light comes up once the page is on screen.
   (function () {
     var stage = document.getElementById("stage");
-    var reply = document.querySelector(".reply");
-    if (!reply || matchMedia("(prefers-reduced-motion: reduce)").matches) { stage.classList.add("lit"); return; }
-    var action = reply.querySelector("em").textContent;
-    var speech = reply.textContent.slice(action.length).trim();
-    var words = speech.split(" ");
-    var em = document.createElement("em");
-    var rest = document.createTextNode("");
-    var caret = document.createElement("span");
-    caret.className = "caret";
-    reply.textContent = "";
-    reply.append(em, rest, caret);
-    var ver = document.querySelector(".ver");
-    ver.classList.add("wait");
-    var actionWords = action.split(" "), i = 0, j = 0;
-    setTimeout(function step() {
-      stage.classList.add("lit");
-      if (i < actionWords.length) { em.textContent += (i ? " " : "") + actionWords[i++]; }
-      else if (j < words.length) { rest.textContent += (j ? " " : "") + words[j++]; }
-      else { caret.remove(); ver.classList.remove("wait"); return; }
-      setTimeout(step, 55 + Math.random() * 50);
-    }, 900);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) stage.classList.add("lit");
+    else setTimeout(function () { stage.classList.add("lit"); }, 500);
   })();
 
   // The cast: all five on stage, the chosen one in the light.
