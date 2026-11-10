@@ -5,469 +5,538 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Unstrung</title>
 <meta name="description" content="Unstrung is a Windows app for roleplay chat with AI characters. The model runs on your own PC. No account, no cloud, no telemetry.">
+<meta name="theme-color" content="#14110e">
 <meta property="og:title" content="Unstrung">
 <meta property="og:description" content="Your characters. Your computer. Nothing leaves it.">
 <meta property="og:image" content="https://codex-crusader.github.io/unstrung/img/chat.webp">
 <link rel="icon" href="favicon.png">
-<link rel="preload" href="fonts/arvo-700.woff2" as="font" type="font/woff2" crossorigin>
+<script>document.documentElement.classList.add("js");</script>
+<link rel="preload" href="fonts/bigshoulders.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/courierprime-400.woff2" as="font" type="font/woff2" crossorigin>
 <style>
-  @font-face { font-family: "Arvo"; src: url("fonts/arvo-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-  @font-face { font-family: "Arvo"; src: url("fonts/arvo-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+  @font-face { font-family: "Big Shoulders Display"; src: url("fonts/bigshoulders.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+  @font-face { font-family: "Courier Prime"; src: url("fonts/courierprime-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: "Courier Prime"; src: url("fonts/courierprime-400i.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+  @font-face { font-family: "Courier Prime"; src: url("fonts/courierprime-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 
-  /* Layout: the tagline's three lines are the page's three acts. The opening
-     plays one real exchange from the app, hanging from the logo's cut string. */
   :root {
-    --bg: #f4efe6;          /* the app's own paper */
-    --surface: #fbf8f2;
-    --panel: #ece6db;
-    --line: #d9d0c1;
-    --fg: #2a2622;
-    --soft: #696058;
-    --accent: #a87a2c;      /* the app's amber */
-    --accent-ink: #7d5a20;
-    --on-accent: #ffffff;
-    --bubble-you: #e6dccb;
-    --ok: #5b8a3a;
-    --deep: #1b1814;        /* the night band behind "Nothing leaves it." */
-    --deep-fg: #efe8dc;
-    --deep-soft: #a99f91;
-    --deep-line: #3a342d;
-    --deep-accent: #d4a955;
-    --display: Rockwell, "Arvo", "Roboto Slab", Georgia, serif;
+    --black: #14110e;        /* the stage floor */
+    --wing: #1d1915;         /* a step lighter, for raised parts */
+    --line: #3b332b;
+    --bone: #efe6d6;         /* programme stock, and text on the stage */
+    --soft: #b4a895;
+    --amber: #f2a93b;        /* the light, the app's own accent */
+    --amber-deep: #a8620a;   /* amber that holds 3:1 on bone, for large type only */
+    --ink: #1a140d;          /* ink on bone and on amber */
+    --ink-soft: #5a4a36;
+    --ink-amber: #523608;
+    --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
     --body: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
-    --mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
-    color-scheme: light;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #1e1e1e; --surface: #262624; --panel: #2d2c29; --line: #3b3934;
-      --fg: #ece6db; --soft: #a79f93; --accent: #c9a052; --accent-ink: #dcb672;
-      --on-accent: #1e1e1e; --bubble-you: #3a3630; --ok: #7fb35a; --deep: #121110; --deep-line: #2e2a25; color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #1e1e1e; --surface: #262624; --panel: #2d2c29; --line: #3b3934;
-    --fg: #ece6db; --soft: #a79f93; --accent: #c9a052; --accent-ink: #dcb672;
-    --on-accent: #1e1e1e; --bubble-you: #3a3630; --ok: #7fb35a; --deep: #121110; --deep-line: #2e2a25; color-scheme: dark;
+    --script: "Courier Prime", "Courier New", monospace;
+    --gutter: max(20px, env(safe-area-inset-left, 0px));
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--body); }
+  html { -webkit-text-size-adjust: 100%; scrollbar-color: var(--line) var(--black); }
+  body { margin: 0; background: var(--black); color: var(--bone); font: 17px/1.6 var(--body); caret-color: var(--amber); }
+  ::selection { background: var(--amber); color: var(--ink); }
   img { display: block; max-width: 100%; }
-  a { color: var(--accent-ink); text-underline-offset: 3px; }
-  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-  h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.08; margin: 0; text-wrap: balance; }
+  a { color: var(--amber); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 3px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 800; line-height: 0.92; margin: 0; text-wrap: balance; }
   p { margin: 0; }
-  .stop { color: var(--accent); }
+  .stop { color: var(--amber); }
 
-  .wrap {
-    max-width: 1140px; margin: 0 auto;
-    padding-left: max(20px, env(safe-area-inset-left, 0px));
-    padding-right: max(20px, env(safe-area-inset-right, 0px));
+  .wrap { max-width: 1200px; margin: 0 auto; padding-inline: var(--gutter); }
+
+  /* Programme header */
+  .bill { position: relative; z-index: 2; display: flex; align-items: center; gap: 14px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+  .bill .name { display: flex; align-items: center; gap: 10px; font: 800 26px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone); text-decoration: none; }
+  .bill .name img { width: 30px; height: 30px; }
+  .bill nav { margin-left: auto; display: flex; gap: 26px; font: 700 17px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+  .bill nav a { color: var(--soft); text-decoration: none; padding-block: 6px; }
+  .bill nav a:hover { color: var(--amber); }
+  @media (max-width: 680px) { .bill nav .jump { display: none; } }
+
+  /* The ticket: the one download button */
+  .get { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; }
+  .ticket {
+    --notch: radial-gradient(circle at 0 50%, transparent 9px, #000 9.5px) left / 51% 100% no-repeat,
+             radial-gradient(circle at 100% 50%, transparent 9px, #000 9.5px) right / 51% 100% no-repeat;
+    display: inline-flex; align-items: stretch; background: var(--amber); color: var(--ink); text-decoration: none;
+    border-radius: 4px; -webkit-mask: var(--notch); mask: var(--notch);
+    filter: drop-shadow(0 14px 22px rgba(242, 169, 59, 0.18));
+    transition: background-color 0.15s, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  .ticket:hover { background: #ffbb4f; transform: translateY(-2px); }
+  .ticket .stub { display: grid; place-items: center; padding: 0 14px 0 20px; border-right: 2px dashed rgba(26, 20, 13, 0.45); font: 800 13px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; writing-mode: vertical-rl; transform: rotate(180deg); }
+  .ticket .main { display: flex; align-items: center; gap: 12px; padding: 17px 28px 17px 18px; font: 800 24px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+  .ticket svg { width: 20px; height: 20px; flex: none; }
+  .meta { font: 14px/1.5 var(--script); color: var(--soft); }
 
-  /* Top bar */
-  .bar { display: flex; align-items: center; gap: 12px; padding-block: 18px; }
-  .bar .name { display: flex; align-items: center; gap: 10px; font: 700 20px/1 var(--display); color: var(--accent-ink); text-decoration: none; }
-  .bar .name img { width: 28px; height: 28px; }
-  .bar nav { margin-left: auto; display: flex; gap: 22px; font-size: 15px; }
-  .bar nav a { color: var(--soft); text-decoration: none; }
-  .bar nav a:hover { color: var(--fg); }
-  @media (max-width: 640px) { .bar nav .jump { display: none; } }
+  /* Opening: the stage */
+  .open { position: relative; overflow: hidden; }
+  .open .wrap { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr); gap: 40px; align-items: center; min-height: min(820px, calc(100vh - 70px)); padding-block: 48px 56px; }
+  .open h1 { font-size: clamp(54px, 5.7vw, 92px); text-transform: uppercase; letter-spacing: 0.005em; }
+  .open h1 a { color: inherit; text-decoration: none; display: block; width: fit-content; }
+  @media (min-width: 641px) { .open h1 a { white-space: nowrap; } }
+  .open h1 a:hover { color: var(--amber); }
+  .open .lede { margin-top: 28px; font-size: 19px; color: var(--soft); max-width: 30em; }
+  .open .lede b { color: var(--bone); font-weight: 600; }
+  .open .get { margin-top: 34px; }
 
-  /* Opening */
-  .open { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 56px; align-items: center; padding-block: 40px 88px; }
-  .open h1 { font-size: clamp(40px, 4.3vw, 58px); letter-spacing: -0.015em; }
-  .open h1 a { color: inherit; text-decoration: none; display: block; }
-  .open h1 a:hover { color: var(--accent-ink); }
-  .open .lede { margin-top: 26px; font-size: 19px; color: var(--soft); max-width: 31em; }
-  .get { margin-top: 30px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px; border-radius: 10px;
-    background: var(--accent); color: var(--on-accent); font: 600 17px/1 var(--body); text-decoration: none;
-    transition: background-color 0.15s;
+  .stage { position: relative; align-self: stretch; display: flex; flex-direction: column; justify-content: flex-end; min-height: 560px; }
+  .beam {
+    position: absolute; left: 50%; top: -48px; bottom: 120px; width: 120%; translate: -50% 0; pointer-events: none;
+    clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+    background: linear-gradient(rgba(242, 169, 59, 0.42), rgba(242, 169, 59, 0.07) 85%);
+    filter: blur(14px); opacity: 0.35; transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .btn:hover { background: var(--accent-ink); }
-  .btn svg { width: 18px; height: 18px; flex: none; }
-  .meta { font: 13px/1.5 var(--mono); color: var(--soft); }
-  @media (max-width: 900px) { .open { grid-template-columns: minmax(0, 1fr); gap: 48px; padding-block: 24px 64px; } }
+  .pool { position: absolute; left: 50%; bottom: -26px; width: 150%; height: 70px; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, rgba(242, 169, 59, 0.5), rgba(242, 169, 59, 0.12) 60%, transparent); opacity: 0.35; transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+  .lit .beam { opacity: 1; }
+  .lit .pool { opacity: 1; }
+  .actor { position: relative; width: min(46%, 230px); margin: 0 auto 30px; translate: -8% 0; }
+  .runner { position: relative; width: 100%; height: auto; filter: drop-shadow(0 18px 14px rgba(0, 0, 0, 0.55)); }
 
-  /* The chat, hung from the cut string */
-  .stage { position: relative; padding-top: 70px; }
-  .string { position: absolute; top: 0; left: 50%; width: 40px; height: 76px; margin-left: -20px; color: var(--soft); overflow: visible; }
-  .string path { stroke-dasharray: 120; stroke-dashoffset: 0; animation: draw 1.1s ease-out both; }
-  @keyframes draw { from { stroke-dashoffset: 120; } }
-  .chat {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
-    box-shadow: 0 1px 0 var(--line), 0 30px 60px -30px rgba(42, 38, 34, 0.35);
-  }
-  .chat header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-  .chat header img { width: 44px; height: 44px; border-radius: 50%; flex: none; }
-  .chat header div { min-width: 0; }
-  .chat header b { display: block; font: 700 17px/1.2 var(--display); }
-  .chat header span { font-size: 13px; color: var(--soft); }
-  .msgs { display: flex; flex-direction: column; gap: 14px; padding: 20px 18px; min-height: 290px; }
-  .msg { max-width: 86%; padding: 10px 14px 12px; border-radius: 14px; font-size: 15.5px; line-height: 1.55; }
-  .msg small { display: block; font-size: 12px; color: var(--soft); margin-bottom: 2px; }
-  .msg.you { align-self: flex-end; background: var(--bubble-you); border-bottom-right-radius: 4px; }
-  .msg.char { align-self: flex-start; background: var(--bg); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
-  .msg em { color: var(--soft); }
-  .caret { display: inline-block; width: 2px; height: 1.05em; background: var(--accent); vertical-align: -0.15em; margin-left: 2px; animation: blink 0.9s steps(1) infinite; }
+  /* The chat, set as a play script */
+  .script { position: relative; margin-top: 18px; font: 16px/1.55 var(--script); color: var(--bone); }
+  .script .line + .line { margin-top: 16px; }
+  .script .who { display: block; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); }
+  .script .who.you { color: var(--soft); }
+  .script em { color: var(--soft); }
+  .script em::before { content: "("; }
+  .script em::after { content: ") "; }
+  .caret { display: inline-block; width: 9px; height: 1.1em; background: var(--amber); vertical-align: -0.2em; margin-left: 3px; animation: blink 0.9s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  .ver { display: block; text-align: right; font-size: 12px; color: var(--soft); margin-top: 6px; letter-spacing: 0.04em; transition: opacity 0.4s; }
+  .ver { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 13px; color: var(--soft); transition: opacity 0.4s; }
+  .ver svg { width: 12px; height: 12px; }
   .ver.wait { opacity: 0; }
-  .composer { display: flex; gap: 10px; align-items: center; padding: 0 18px 16px; }
-  .composer span { flex: 1; min-width: 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 14px; color: var(--soft); }
-  .composer b { padding: 11px 16px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; opacity: 0.55; }
-  .chat footer { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--panel); font-size: 13px; color: var(--soft); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
-  .chat-note { margin-top: 12px; font-size: 13px; color: var(--soft); text-align: center; }
+  .cue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); font: 13px/1.4 var(--script); color: var(--soft); }
+  .cue .dot { width: 8px; height: 8px; border-radius: 50%; background: #6fcf6b; flex: none; }
+  .cue span:last-child { flex-basis: 100%; }
+
+  @media (max-width: 920px) {
+    .open .wrap { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 28px; padding-block: 36px 48px; }
+    .stage { min-height: 0; }
+    .beam { bottom: 40%; }
+    .actor { width: 170px; }
+  }
 
   /* Acts */
-  .act-band { border-top: 1px solid var(--line); }
-  .act-band.tint { background: var(--surface); }
-  .act { padding-block: 84px; }
-  .act > h2 { font-size: clamp(36px, 5vw, 60px); letter-spacing: -0.01em; }
-  .act > .lede { margin-top: 16px; font-size: 19px; color: var(--soft); max-width: 36em; }
-  .act-body { margin-top: 44px; }
+  .act { padding-block: 104px; }
+  .act-head h2 { font-size: clamp(52px, 7vw, 96px); text-transform: uppercase; }
+  .act-head .lede { margin-top: 20px; font-size: 19px; color: var(--soft); max-width: 34em; }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
 
-  /* Act one: what you can make */
-  .can { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px 40px; }
-  .can h3 { font-size: 19px; margin-bottom: 6px; }
-  .can p { color: var(--soft); font-size: 16px; }
-  @media (max-width: 860px) { .can { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 560px) { .can { grid-template-columns: minmax(0, 1fr); } }
+  /* Act one: the cast */
+  .cast { margin-top: 40px; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 48px; align-items: end; }
+  .roster { display: flex; gap: 14px; align-items: flex-end; position: relative; padding: 110px 6px 6px; margin: 0 -6px -6px; overflow: hidden; }
+  .member { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0; background: none; border: 0; color: var(--soft); cursor: pointer; font: inherit; text-align: center; }
+  .member img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 3px; filter: grayscale(0.85) brightness(0.42); transition: filter 0.12s steps(2), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .member:hover img { filter: grayscale(0.4) brightness(0.7); }
+  .member .tape { position: relative; width: 34px; height: 8px; background: var(--tape); opacity: 0.55; }
+  .member .tape::after { content: ""; position: absolute; left: 50%; top: 0; width: 8px; height: 20px; translate: -50% 0; background: var(--tape); }
+  .member .nm { margin-top: 12px; font: 700 17px/1.1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+  .member::before {
+    content: ""; position: absolute; left: 50%; bottom: 52px; width: 210%; height: calc(100% + 58px); translate: -50% 0; pointer-events: none;
+    clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+    background: linear-gradient(rgba(242, 169, 59, 0.0), rgba(242, 169, 59, 0.3)); filter: blur(10px); opacity: 0;
+    -webkit-mask: linear-gradient(transparent, #000 55%); mask: linear-gradient(transparent, #000 55%);
+  }
+  .member[aria-pressed="true"] { color: var(--bone); }
+  .member[aria-pressed="true"]::before { opacity: 1; }
+  .member[aria-pressed="true"] img { filter: none; transform: translateY(-10px); }
+  .member[aria-pressed="true"] .tape { opacity: 1; }
 
-  .screens { margin-top: 64px; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--panel); border-radius: 12px; width: fit-content; max-width: 100%; }
+  .lines { min-height: 290px; }
+  .part { font: 16px/1.6 var(--script); }
+  .part + .part { margin-top: 36px; }
+  .js .part { display: none; }
+  .js .part.on { display: block; }
+  .part h3 { font: 800 38px/1 var(--display); text-transform: uppercase; color: var(--tape); }
+  .part .tag { margin-top: 8px; font: 17px/1.5 var(--body); color: var(--soft); }
+  .part .dir { margin-top: 22px; font-style: italic; color: var(--soft); }
+  .part .say { margin-top: 10px; font-size: 18px; color: var(--bone); max-width: 32em; }
+  .part .say::before { content: attr(data-who) "."; display: block; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tape); margin-bottom: 2px; }
+
+  .players { margin-top: 64px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 40px; align-items: start; border-top: 1px solid var(--line); padding-top: 28px; }
+  .players h3 { font-size: 28px; text-transform: uppercase; }
+  .players p { font-size: 15px; color: var(--soft); max-width: 36em; }
+  .player { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; align-items: center; }
+  .player img { width: 64px; height: 64px; border-radius: 3px; object-fit: cover; }
+  .player b { display: block; font: 700 20px/1.1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tape); }
+  .player span { display: block; font-size: 15px; color: var(--soft); }
+
+  .notes { margin-top: 88px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 48px; }
+  .notes div { padding-block: 22px 26px; border-top: 1px solid var(--line); }
+  .notes h3 { font-size: 26px; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 10px; }
+  .notes p { color: var(--soft); font-size: 16px; }
+
+  .screens { margin-top: 72px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px 26px; }
   .tabs button {
-    font: 600 14px/1 var(--body); color: var(--soft); background: transparent; border: 0; cursor: pointer;
-    padding: 10px 14px; border-radius: 9px;
+    font: 700 18px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft);
+    background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; padding: 8px 0 10px;
   }
-  .tabs button:hover { color: var(--fg); }
-  .tabs button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
-  .shot { margin: 16px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 32px; align-items: start; }
-  .shot a { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-  .shot img { width: 100%; height: auto; max-height: 80vh; object-fit: contain; background: var(--panel); }
-  .shot figcaption h3 { font-size: 21px; margin-bottom: 8px; }
+  .tabs button:hover { color: var(--bone); }
+  .tabs button[aria-pressed="true"] { color: var(--amber); border-bottom-color: var(--amber); }
+  .shot { margin: 22px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 36px; align-items: start; }
+  .shot a { display: block; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 40px 80px -40px rgba(242, 169, 59, 0.28); }
+  .shot img { width: 100%; height: auto; max-height: 80vh; object-fit: contain; background: var(--wing); }
+  .shot figcaption h3 { font-size: 30px; text-transform: uppercase; margin-bottom: 10px; }
   .shot figcaption p { color: var(--soft); font-size: 16px; }
-  @media (max-width: 860px) { .shot { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
 
-  /* Act two: the rating plate */
-  .plate {
-    background:
-      radial-gradient(circle at 9px 9px, var(--line) 3px, transparent 3.6px),
-      radial-gradient(circle at calc(100% - 9px) 9px, var(--line) 3px, transparent 3.6px),
-      radial-gradient(circle at 9px calc(100% - 9px), var(--line) 3px, transparent 3.6px),
-      radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--line) 3px, transparent 3.6px);
+  @media (max-width: 920px) {
+    .cast { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .lines { min-height: 0; }
+    .players { grid-template-columns: minmax(0, 1fr); }
+    .notes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .shot { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   }
-  .plate { margin-inline: 0; border: 2px solid var(--fg); border-radius: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; }
-  .plate div { padding: 18px 20px; border-right: 1px solid var(--line); }
-  .plate div:last-child { border-right: 0; }
-  .plate dt { font: 600 11px/1.3 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); }
-  .plate dd { margin: 6px 0 0; font: 700 19px/1.3 var(--display); }
-  .plate dd small { display: block; font: 13px/1.4 var(--body); color: var(--soft); margin-top: 4px; }
-  @media (max-width: 860px) {
-    .plate { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .plate div:nth-child(2) { border-right: 0; }
-    .plate div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+
+  /* Act two: the technical rider, on programme stock */
+  .insert { background: var(--bone); color: var(--ink); }
+  .insert .act-head .lede { color: var(--ink-soft); }
+  .insert .stop { color: var(--amber-deep); }
+  .insert a { color: var(--ink-amber); }
+  .rider { margin-top: 52px; border-top: 3px solid var(--ink); }
+  .rider div { display: grid; grid-template-columns: minmax(150px, 0.6fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px 32px; align-items: baseline; padding-block: 18px; border-bottom: 1px solid rgba(26, 20, 13, 0.22); }
+  .rider dt { font: 700 13px/1.3 var(--script); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+  .rider dd { margin: 0; }
+  .rider dd.big { font: 800 clamp(30px, 3.4vw, 44px)/1 var(--display); text-transform: uppercase; }
+  .rider dd.why { color: var(--ink-soft); font-size: 16px; }
+  .safe { margin-top: 64px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 48px; }
+  .safe div { border-top: 1px solid rgba(26, 20, 13, 0.22); padding-top: 20px; }
+  .safe h3 { font-size: 26px; text-transform: uppercase; margin-bottom: 10px; }
+  .safe p { color: var(--ink-soft); font-size: 16px; }
+  @media (max-width: 920px) {
+    .rider div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .safe { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   }
-  .safe { margin-top: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px 40px; }
-  .safe h3 { font-size: 19px; margin-bottom: 6px; }
-  .safe p { color: var(--soft); font-size: 16px; }
-  @media (max-width: 860px) { .safe { grid-template-columns: minmax(0, 1fr); gap: 22px; } }
 
-  /* Act three: the network ledger */
-  .ledger { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
-  table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: 15.5px; }
-  th, td { text-align: left; padding: 13px 18px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { font: 600 11px/1.3 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); }
-  td.host { font: 14px/1.6 var(--mono); white-space: nowrap; }
-  td.size { white-space: nowrap; font-variant-numeric: tabular-nums; }
-  tbody tr:last-child td { border-bottom: 0; }
-  tr.never td { color: var(--accent-ink); font-weight: 600; }
-  .ledger-note { margin-top: 18px; color: var(--soft); font-size: 16px; max-width: 46em; }
-
-  .night { background: var(--deep); color: var(--deep-fg); border-top: 0; }
-  .night .act > .lede, .night .ledger-note, .night th { color: var(--deep-soft); }
-  .night .stop, .night tr.never td { color: var(--deep-accent); }
-  .night a { color: var(--deep-accent); }
-  .night .ledger { background: transparent; border-color: var(--deep-line); }
-  .night th, .night td { border-color: var(--deep-line); }
-  .zero { margin-block: 40px 36px; display: flex; align-items: center; gap: 22px; max-width: 34em; font-size: 18px; color: var(--deep-soft); }
-  .zero span { font: 700 clamp(88px, 12vw, 150px)/0.8 var(--display); color: var(--deep-accent); flex: none; }
-  @media (max-width: 560px) { .zero { flex-direction: column; align-items: flex-start; gap: 12px; } }
+  /* Act three: the cue sheet, with the house lights full up */
+  .house { background: var(--amber); color: var(--ink); }
+  .house .act-head .lede { color: var(--ink-amber); }
+  .house .stop { color: var(--black); }
+  .house a { color: var(--ink); text-decoration-thickness: 2px; }
+  .zero { margin-block: 44px 40px; display: flex; align-items: center; gap: 28px; max-width: 40em; font-size: 20px; line-height: 1.45; }
+  .zero span { font: 900 clamp(120px, 15vw, 210px)/0.78 var(--display); flex: none; }
+  .ledger { border-top: 3px solid var(--ink); }
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  th, td { text-align: left; padding: 14px 18px 14px 0; border-bottom: 1px solid rgba(26, 20, 13, 0.28); vertical-align: top; }
+  th { font: 700 13px/1.3 var(--script); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-amber); }
+  td.host { font: 15px/1.6 var(--script); white-space: nowrap; }
+  td.size { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; padding-right: 0; }
+  th.size { text-align: right; padding-right: 0; }
+  tr.never td { background: var(--black); color: var(--amber); font-weight: 700; border-bottom: 0; padding-block: 18px; }
+  tr.never td:first-child { padding-left: 18px; }
+  tr.never td:last-child { padding-right: 18px; }
+  .proof { margin-top: 44px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; }
+  .proof p { border-top: 1px solid rgba(26, 20, 13, 0.35); padding-top: 16px; font-size: 16px; }
+  .proof a { display: inline-block; margin-top: 8px; font: 800 18px/1.2 var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+  @media (max-width: 920px) { .proof { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
 
   /* Questions */
-  .qa { max-width: 760px; }
+  .qa { margin-top: 48px; max-width: 820px; }
   details { border-bottom: 1px solid var(--line); }
   details:first-of-type { border-top: 1px solid var(--line); }
-  summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 20px; padding-block: 18px; font: 700 18px/1.35 var(--display); }
+  summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-block: 20px; font: 700 24px/1.15 var(--display); letter-spacing: 0.02em; text-transform: uppercase; }
   summary::-webkit-details-marker { display: none; }
-  summary::after { content: "+"; font: 400 24px/1 var(--body); color: var(--accent); }
-  details[open] summary::after { content: "\2212"; }
-  details p { padding-bottom: 20px; color: var(--soft); max-width: 42em; }
-  code { font: 14px var(--mono); }
+  summary:hover { color: var(--amber); }
+  summary svg { width: 18px; height: 18px; flex: none; color: var(--amber); transition: rotate 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  details[open] summary svg { rotate: 45deg; }
+  details p { padding-bottom: 22px; color: var(--soft); max-width: 44em; }
+  code { font: 15px var(--script); color: var(--bone); }
 
-  /* Closing */
-  .close { padding-block: 84px; display: flex; flex-wrap: wrap; gap: 28px 48px; align-items: center; justify-content: space-between; }
-  .close > div:first-child { min-width: 0; flex: 1 1 360px; }
-  .close h2 { font-size: clamp(30px, 4vw, 44px); }
-  .close .steps { margin-top: 14px; color: var(--soft); max-width: 34em; }
-  .close .get { margin-top: 0; }
-  footer.end { border-top: 1px solid var(--line); padding-block: 26px 40px; display: flex; flex-wrap: wrap; gap: 8px 28px; justify-content: space-between; font-size: 14px; color: var(--soft); }
+  /* Curtain call */
+  .close { position: relative; overflow: hidden; border-top: 1px solid var(--line); }
+  .close .wrap { position: relative; padding-block: 112px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 36px 56px; align-items: end; }
+  .close h2 { font-size: clamp(52px, 7vw, 96px); text-transform: uppercase; }
+  .close .steps { margin-top: 20px; color: var(--soft); max-width: 34em; }
+  .close .beam { top: 0; bottom: 0; left: 78%; width: 60%; opacity: 0.5; }
+  footer.end { border-top: 1px solid var(--line); padding-block: 28px 44px; display: flex; flex-wrap: wrap; gap: 8px 28px; justify-content: space-between; font-size: 14px; color: var(--soft); }
   footer.end a { color: var(--soft); }
+  footer.end a:hover { color: var(--amber); }
 
-  /* Phones: one column, tighter rhythm, a swipe strip for screens, and the
-     network table as a list. */
+  /* Elsewhere than Windows */
   .strip, .swipe, .pc-note { display: none; }
   .not-pc .pc-note { display: block; }
-  .pc-note { flex-basis: 100%; font-size: 14px; color: var(--soft); max-width: 30em; }
-  .pc-note button {
-    margin-left: 6px; font: 600 14px/1 var(--body); color: var(--accent-ink); background: transparent;
-    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer;
-  }
+  .pc-note { flex-basis: 100%; font-size: 15px; color: var(--soft); max-width: 30em; }
+  .pc-note button { margin-left: 6px; font: 700 14px/1 var(--script); color: var(--amber); background: transparent; border: 1px solid var(--line); border-radius: 3px; padding: 7px 10px; cursor: pointer; }
   .not-pc .download-meta { display: none; }
+
+  /* Phones */
   @media (max-width: 640px) {
     body { font-size: 16px; }
-    .bar { padding-block: 14px; }
-    .open { padding-block: 8px 48px; gap: 36px; }
-    .open .lede, .act > .lede { font-size: 17px; }
-    .open .lede { margin-top: 18px; }
-    .get { margin-top: 22px; }
-    .btn { width: 100%; justify-content: center; }
-    .stage { padding-top: 46px; }
-    .string { height: 50px; }
-    .chat header { padding: 12px 14px; }
-    .chat header span { display: none; }
-    .msgs { min-height: 0; padding: 14px; gap: 10px; }
-    .msg { font-size: 14.5px; max-width: 92%; }
-    .composer { padding: 0 14px 12px; }
-    .chat footer { padding: 8px 14px; }
-    .act { padding-block: 56px; }
-    .act > h2 { font-size: 34px; }
-    .act-body { margin-top: 28px; }
-    .can, .safe { gap: 20px; }
-    .can h3, .safe h3 { font-size: 17px; margin-bottom: 2px; }
-    .can p, .safe p { font-size: 15px; }
-    .screens { margin-top: 44px; }
+    .bill .name { font-size: 22px; }
+    .open h1 { font-size: clamp(40px, 12.5vw, 60px); }
+    .open .lede, .act-head .lede { font-size: 17px; }
+    .open .lede { margin-top: 20px; }
+    .ticket { width: 100%; }
+    .ticket .main { flex: 1; justify-content: center; font-size: clamp(18px, 5.4vw, 22px); white-space: nowrap; padding-inline: 12px; }
+    .script { font-size: 14.5px; }
+    .actor { width: 140px; }
+    .act { padding-block: 72px; }
+    .act-head h2 { font-size: clamp(44px, 13vw, 60px); }
+    .cast { margin-top: 36px; }
+    .roster { gap: 8px; padding-top: 48px; }
+    .member .nm { font-size: 13px; letter-spacing: 0.03em; }
+    .member .tape { width: 24px; }
+    .member::before { height: calc(100% + 4px); bottom: 44px; }
+    .part h3 { font-size: 30px; }
+    .part .say { font-size: 16px; }
+    .players { margin-top: 44px; }
+    .notes { margin-top: 56px; grid-template-columns: minmax(0, 1fr); }
+    .notes div { padding-block: 16px 18px; }
+    .notes h3, .safe h3 { font-size: 23px; }
     .tabs, .shot { display: none; }
     .strip {
       display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
-      margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px;
+      margin-inline: calc(-1 * var(--gutter)); padding-inline: var(--gutter); scroll-padding-inline: var(--gutter);
     }
     .strip::-webkit-scrollbar { display: none; }
     .strip figure { flex: 0 0 88%; margin: 0; scroll-snap-align: start; }
-    .strip a { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-    .strip img { width: 100%; height: auto; background: var(--panel); }
-    .strip figcaption { margin-top: 8px; font-size: 13px; color: var(--soft); }
-    .strip figcaption b { font: 700 15px var(--display); color: var(--fg); margin-right: 4px; }
-    .swipe { display: block; margin-top: 10px; font-size: 13px; color: var(--soft); }
-    .plate dd { font-size: 16px; }
-    .plate div { padding: 14px; }
-    .zero { margin-block: 28px 20px; font-size: 16px; }
-    .zero span { font-size: 96px; }
-    .ledger { overflow: visible; border: 0; border-top: 1px solid var(--deep-line); border-radius: 0; }
-    .ledger table { min-width: 0; }
+    .strip a { display: block; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+    .strip img { width: 100%; height: auto; background: var(--wing); }
+    .strip figcaption { margin-top: 10px; font-size: 13px; color: var(--soft); }
+    .strip figcaption b { font: 700 17px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone); margin-right: 6px; }
+    .swipe { display: block; margin-top: 12px; font-size: 13px; color: var(--soft); }
+    .zero { flex-direction: column; align-items: flex-start; gap: 12px; margin-block: 32px 28px; font-size: 17px; }
+    .zero span { font-size: 128px; }
     .ledger thead { display: none; }
-    .ledger tbody, .ledger tr, .ledger td { display: block; }
-    .ledger tr { padding-block: 14px; border-bottom: 1px solid var(--deep-line); }
-    .ledger td { padding: 0; border: 0; }
-    .ledger td:first-child { font: 600 11px/1.4 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--deep-soft); margin-bottom: 3px; }
-    .ledger td.host, .ledger td.size { display: inline; font-size: 13px; color: var(--deep-soft); }
+    .ledger table, .ledger tbody, .ledger tr, .ledger td { display: block; }
+    .ledger tr { padding-block: 14px; border-bottom: 1px solid rgba(26, 20, 13, 0.28); }
+    .ledger td { padding: 0; border: 0; text-align: left; }
+    .ledger td:first-child { font: 700 12px/1.4 var(--script); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-amber); margin-bottom: 3px; }
+    .ledger td.host, .ledger td.size { display: inline; font-size: 14px; color: var(--ink-amber); }
     .ledger td.host::after { content: " · "; font-family: var(--body); }
-    .night tr.never td { color: var(--deep-accent); }
-    summary { font-size: 16px; padding-block: 15px; }
-    .close { padding-block: 56px; }
+    .ledger tr.never { background: var(--black); padding: 16px; border: 0; }
+    .ledger tr.never td { padding: 0; color: var(--amber); }
+    .ledger tr.never td:first-child { padding: 0; color: var(--amber); }
+    summary { font-size: 20px; padding-block: 16px; }
+    .close .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 72px; }
     footer.end { flex-direction: column; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .string path, .caret { animation: none; }
-    .btn { transition: none; }
+    .caret { animation: none; }
+    .ticket, .beam, .pool, .member img, summary svg { transition: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <div class="bar">
-    <a class="name" href="#"><img src="img/icon.png" alt="">Unstrung</a>
-    <nav aria-label="Page">
-      <a class="jump" href="#characters">Characters</a>
-      <a class="jump" href="#computer">Computer</a>
-      <a class="jump" href="#network">Network</a>
-      <a href="https://github.com/Codex-Crusader/unstrung">GitHub</a>
-    </nav>
-  </div>
+<header class="wrap bill">
+  <a class="name" href="#"><img src="img/icon.png" alt="">Unstrung</a>
+  <nav aria-label="Page">
+    <a class="jump" href="#characters">Characters</a>
+    <a class="jump" href="#computer">Computer</a>
+    <a class="jump" href="#network">Network</a>
+    <a href="https://github.com/Codex-Crusader/unstrung">GitHub</a>
+  </nav>
+</header>
 
-  <main>
-    <div class="open">
+<main>
+  <section class="open">
+    <div class="wrap">
       <div>
         <h1>
           <a href="#characters">Your characters<span class="stop">.</span></a>
           <a href="#computer">Your computer<span class="stop">.</span></a>
           <a href="#network">Nothing leaves it<span class="stop">.</span></a>
         </h1>
-        <p class="lede">Unstrung is a Windows app for roleplay chat with AI characters. The model that writes their replies runs on your own PC. No account, no cloud, no telemetry.</p>
+        <p class="lede"><b>Unstrung is a Windows app for roleplay chat with AI characters.</b> The model that writes their replies runs on your own PC. No account, no cloud, no telemetry.</p>
         <div class="get">
-          <a class="btn download" href="https://github.com/Codex-Crusader/unstrung/releases/latest">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            <span class="download-label">Download for Windows</span>
+          <a class="ticket download" href="https://github.com/Codex-Crusader/unstrung/releases/latest">
+            <span class="stub" aria-hidden="true">Admit one</span>
+            <span class="main">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span class="download-label">Download for Windows</span>
+            </span>
           </a>
           <span class="meta download-meta">Windows 10 or 11 · 64-bit · free</span>
         </div>
       </div>
 
-      <div class="stage">
-        <svg class="string" viewBox="0 0 40 76" aria-hidden="true">
-          <path d="M20 0 V44 q0 6 -5 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          <path d="M23 62 q-3 4 -3 9 V76" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-        <div class="chat" role="img" aria-label="A chat in Unstrung. You ask Ren Kagami who he is, and he answers in character.">
-          <header>
-            <img src="img/ren.webp" width="44" height="44" alt="">
-            <div><b>Ren Kagami</b><span>A private detective who owes money to the wrong people.</span></div>
-          </header>
-          <div class="msgs">
-            <div class="msg you"><small>You</small>Hello. Who are you, and what is this place?</div>
-            <div class="msg char"><small>Ren Kagami</small><span class="reply"><em>I tap the ash from my cigarette into the overflowing tray.</em> This room is where the city's shadows come to gather. I am Ren Kagami. Sit down and let me finish this smoke before I decide your arrival is just another waste of my time.</span><span class="ver" aria-hidden="true">&lsaquo; 2 of 2 &rsaquo;</span></div>
-          </div>
-          <div class="composer" aria-hidden="true"><span>Message Ren Kagami</span><b>Send</b></div>
-          <footer><span class="dot" aria-hidden="true"></span>Ready · Gemma 4 E4B</footer>
+      <div class="stage" id="stage">
+        <div class="beam" aria-hidden="true"></div>
+        <div class="actor"><div class="pool" aria-hidden="true"></div><img class="runner" src="img/mannequin.webp" width="620" height="640" alt=""></div>
+        <div class="script" role="group" aria-label="A chat in Unstrung, set as a script. You ask Ren Kagami who he is, and he answers in character.">
+          <p class="line"><span class="who you">You.</span>Hello. Who are you, and what is this place?</p>
+          <p class="line"><span class="who">Ren Kagami.</span><span class="reply"><em>I tap the ash from my cigarette into the overflowing tray.</em>This room is where the city's shadows come to gather. I am Ren Kagami. Sit down and let me finish this smoke before I decide your arrival is just another waste of my time.</span>
+            <span class="ver" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg>2 of 2<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6 4.5 9.5"/></svg></span></p>
+          <p class="cue"><span class="dot" aria-hidden="true"></span>Ready · Gemma 4 E4B<span>A reply from testing, shortened.</span></p>
         </div>
-        <p class="chat-note">A reply from testing, shortened. Ren is one of the starter characters.</p>
       </div>
     </div>
-  </main>
-</div>
+  </section>
 
-<div class="act-band tint" id="characters">
-  <section class="wrap act">
-    <h2>Your characters<span class="stop">.</span></h2>
-    <p class="lede">Write them, import them, and keep them. Every chat remembers where it was, and you can steer it at any point.</p>
-    <div class="act-body can">
-      <div><h3>Write or import</h3><p>A picture, a personality, a way of talking and a first message. Cards from other apps load as PNG or JSON.</p></div>
-      <div><h3>Be someone too</h3><p>A persona is who you are in a chat. The character sees its name, description and looks.</p></div>
-      <div><h3>Memory you can read</h3><p>Long chats keep notes: what you came for, the story so far, and facts. Edit, pin or hide any of them.</p></div>
-      <div><h3>Tone and length</h3><p>Pick a tone, and a reply style from two lines of text to a page of a novel.</p></div>
-      <div><h3>Try again</h3><p>Ask for another reply, flip between versions, rewind, or branch the chat from any message.</p></div>
-      <div><h3>Pictures of the scene</h3><p>Turn them on, and Unstrung paints the scene with your characters' looks, also on your PC.</p></div>
-    </div>
-
-    <div class="screens">
-      <div class="tabs" role="group" aria-label="Choose a screen">
-        <button type="button" aria-pressed="true" data-shot="0">Chat</button>
-        <button type="button" aria-pressed="false" data-shot="1">Memory</button>
-        <button type="button" aria-pressed="false" data-shot="2">Editor</button>
-        <button type="button" aria-pressed="false" data-shot="3">Personas</button>
-        <button type="button" aria-pressed="false" data-shot="4">Models</button>
-        <button type="button" aria-pressed="false" data-shot="5">Settings</button>
+  <section id="characters">
+    <div class="wrap act">
+      <div class="act-head">
+        <h2>Your characters<span class="stop">.</span></h2>
+        <p class="lede">Write them, import them, and keep them. Every chat remembers where it was, and you can steer it at any point. Five characters come with the app.</p>
       </div>
-      <figure class="shot">
-        <a class="shot-link" href="img/chat.webp"><img class="shot-img" src="img/chat.webp" width="1375" height="950" alt="A chat with Ren Kagami, a private detective."></a>
-        <figcaption aria-live="polite">
-          <h3 class="shot-title">The chat</h3>
-          <p class="shot-text">Pick who you are, the tone, the reply style and the model above the chat. The arrows under a reply show its other versions.</p>
-        </figcaption>
-      </figure>
-      <div class="strip" aria-label="Screens, swipe for more">
-        <figure><a href="img/chat.webp"><img src="img/chat.webp" width="1375" height="950" loading="lazy" alt="A chat with Ren Kagami, a private detective."></a><figcaption><b>The chat</b> 1 of 6</figcaption></figure>
-        <figure><a href="img/memory.webp"><img src="img/memory.webp" width="1375" height="950" loading="lazy" alt="The Memory panel next to a chat."></a><figcaption><b>Memory</b> 2 of 6</figcaption></figure>
-        <figure><a href="img/editor.webp"><img src="img/editor.webp" width="1375" height="950" loading="lazy" alt="The character editor for Ren Kagami."></a><figcaption><b>Character editor</b> 3 of 6</figcaption></figure>
-        <figure><a href="img/personas.webp"><img src="img/personas.webp" width="1375" height="950" loading="lazy" alt="The Personas screen with Kai and Nora."></a><figcaption><b>Personas</b> 4 of 6</figcaption></figure>
-        <figure><a href="img/models.webp"><img src="img/models.webp" width="1375" height="950" loading="lazy" alt="The Models screen."></a><figcaption><b>Models</b> 5 of 6</figcaption></figure>
-        <figure><a href="img/settings.webp"><img src="img/settings.webp" width="1375" height="950" loading="lazy" alt="The Settings screen."></a><figcaption><b>Settings</b> 6 of 6</figcaption></figure>
+
+      <div class="cast">
+        <div class="roster" role="group" aria-label="Choose a character">
+          <button class="member" type="button" aria-pressed="false" data-part="mara" style="--tape:#7ea6ff"><img src="img/cast/mara_voss.webp" width="320" height="320" alt=""><span class="tape" aria-hidden="true"></span><span class="nm">Mara</span></button>
+          <button class="member" type="button" aria-pressed="false" data-part="elden" style="--tape:#5fd894"><img src="img/cast/elden_thorne.webp" width="320" height="320" alt=""><span class="tape" aria-hidden="true"></span><span class="nm">Elden</span></button>
+          <button class="member" type="button" aria-pressed="true" data-part="ren" style="--tape:#ff7a5c"><img src="img/cast/ren_kagami.webp" width="320" height="320" alt=""><span class="tape" aria-hidden="true"></span><span class="nm">Ren</span></button>
+          <button class="member" type="button" aria-pressed="false" data-part="june" style="--tape:#ffd447"><img src="img/cast/june_hale.webp" width="320" height="320" alt=""><span class="tape" aria-hidden="true"></span><span class="nm">June</span></button>
+          <button class="member" type="button" aria-pressed="false" data-part="ash" style="--tape:#cfeec0"><img src="img/cast/ash.webp" width="320" height="320" alt=""><span class="tape" aria-hidden="true"></span><span class="nm">Ash</span></button>
+        </div>
+        <div class="lines" aria-live="polite">
+          <div class="part" id="part-mara" style="--tape:#7ea6ff"><h3>Captain Mara Voss</h3><p class="tag">Commander of a cargo ship that is far from home and low on luck.</p><p class="dir">(You are a new crew member on the freighter Long Margin after an engine failure.)</p><p class="say" data-who="Mara Voss">Welcome aboard. The engine is dead, the coffee is worse, and you are the first good news I have had all week. What can you fix?</p></div>
+          <div class="part" id="part-elden" style="--tape:#5fd894"><h3>Elden Thorne</h3><p class="tag">Keeper of a library where the books talk back.</p><p class="dir">(You find a door to his library that was not there yesterday.)</p><p class="say" data-who="Elden Thorne">Ah, a visitor. Mind the third shelf, it bites. Now, which book called you here?</p></div>
+          <div class="part on" id="part-ren" style="--tape:#ff7a5c"><h3>Ren Kagami</h3><p class="tag">A private detective who owes money to the wrong people.</p><p class="dir">(You come to his office at night with a case.)</p><p class="say" data-who="Ren Kagami">Door was unlocked, so either you are brave or you are desperate. Sit. Talk.</p></div>
+          <div class="part" id="part-june" style="--tape:#ffd447"><h3>June Hale</h3><p class="tag">Owner of a small rainy-street cafe. Knows every regular's order.</p><p class="dir">(You come in to the cafe to get out of the rain.)</p><p class="say" data-who="June Hale">You look soaked! Sit by the window, I will bring you something warm. First visit?</p></div>
+          <div class="part" id="part-ash" style="--tape:#cfeec0"><h3>Ash</h3><p class="tag">Caretaker of an old manor that should be empty.</p><p class="dir">(Your car breaks down near the manor during a storm.)</p><p class="say" data-who="Ash">You can stay until the storm passes. Please do not open the east door. It does not like guests.</p></div>
+        </div>
       </div>
-      <p class="swipe">Swipe for more screens. Tap one for full size.</p>
+
+      <div class="players">
+        <div><h3>Who you play</h3><p>A persona is who you are in a chat. The character sees its name, description and looks. Two come with the app.</p></div>
+        <div class="player" style="--tape:var(--bone)"><img src="img/cast/kai.webp" width="320" height="320" alt=""><div><b>Kai</b><span>A traveler and mechanic who is good with his hands and bad at staying in one place.</span></div></div>
+        <div class="player" style="--tape:var(--bone)"><img src="img/cast/nora.webp" width="320" height="320" alt=""><div><b>Nora</b><span>A journalist who asks too many questions and writes everything down.</span></div></div>
+      </div>
+
+      <div class="notes">
+        <div><h3>Write or import</h3><p>A picture, a personality, a way of talking and a first message. Cards from other apps load as PNG or JSON.</p></div>
+        <div><h3>Memory you can read</h3><p>Long chats keep notes: what you came for, the story so far, and facts. Edit, pin or hide any of them.</p></div>
+        <div><h3>Tone and length</h3><p>Pick a tone, and a reply style from two lines of text to a page of a novel.</p></div>
+        <div><h3>Try again</h3><p>Ask for another reply, flip between versions, rewind, or branch the chat from any message.</p></div>
+        <div><h3>Pictures of the scene</h3><p>Turn them on, and Unstrung paints the scene with your characters' looks, also on your PC.</p></div>
+        <div><h3>Many personas</h3><p>Make a few and switch between them for each chat.</p></div>
+      </div>
+
+      <div class="screens">
+        <div class="tabs" role="group" aria-label="Choose a screen">
+          <button type="button" aria-pressed="true" data-shot="0">Chat</button>
+          <button type="button" aria-pressed="false" data-shot="1">Memory</button>
+          <button type="button" aria-pressed="false" data-shot="2">Editor</button>
+          <button type="button" aria-pressed="false" data-shot="3">Personas</button>
+          <button type="button" aria-pressed="false" data-shot="4">Models</button>
+          <button type="button" aria-pressed="false" data-shot="5">Settings</button>
+        </div>
+        <figure class="shot">
+          <a class="shot-link" href="img/chat.webp"><img class="shot-img" src="img/chat.webp" width="1375" height="950" loading="lazy" alt="A chat with Ren Kagami, a private detective."></a>
+          <figcaption aria-live="polite">
+            <h3 class="shot-title">The chat</h3>
+            <p class="shot-text">Pick who you are, the tone, the reply style and the model above the chat. The arrows under a reply show its other versions.</p>
+          </figcaption>
+        </figure>
+        <div class="strip" aria-label="Screens, swipe for more">
+          <figure><a href="img/chat.webp"><img src="img/chat.webp" width="1375" height="950" loading="lazy" alt="A chat with Ren Kagami, a private detective."></a><figcaption><b>The chat</b> 1 of 6</figcaption></figure>
+          <figure><a href="img/memory.webp"><img src="img/memory.webp" width="1375" height="950" loading="lazy" alt="The Memory panel next to a chat."></a><figcaption><b>Memory</b> 2 of 6</figcaption></figure>
+          <figure><a href="img/editor.webp"><img src="img/editor.webp" width="1375" height="950" loading="lazy" alt="The character editor for Ren Kagami."></a><figcaption><b>Character editor</b> 3 of 6</figcaption></figure>
+          <figure><a href="img/personas.webp"><img src="img/personas.webp" width="1375" height="950" loading="lazy" alt="The Personas screen with Kai and Nora."></a><figcaption><b>Personas</b> 4 of 6</figcaption></figure>
+          <figure><a href="img/models.webp"><img src="img/models.webp" width="1375" height="950" loading="lazy" alt="The Models screen."></a><figcaption><b>Models</b> 5 of 6</figcaption></figure>
+          <figure><a href="img/settings.webp"><img src="img/settings.webp" width="1375" height="950" loading="lazy" alt="The Settings screen."></a><figcaption><b>Settings</b> 6 of 6</figcaption></figure>
+        </div>
+        <p class="swipe">Swipe for more screens. Tap one for full size.</p>
+      </div>
     </div>
   </section>
-</div>
 
-<div class="act-band" id="computer">
-  <section class="wrap act">
-    <h2>Your computer<span class="stop">.</span></h2>
-    <p class="lede">Unstrung checks your hardware and picks a model that runs well on it. After the first download, it works without internet.</p>
-    <dl class="act-body plate">
-      <div><dt>System</dt><dd>Windows 10 or 11<small>64-bit, installs without admin rights</small></dd></div>
-      <div><dt>Disk</dt><dd>About 10 GB<small>The engine and one model</small></dd></div>
-      <div><dt>Graphics card</dt><dd>Optional<small>Faster replies with one, still works without</small></dd></div>
-      <div><dt>Models</dt><dd>Gemma 4, Qwen<small>All Apache 2.0, picked to fit your PC</small></dd></div>
-    </dl>
-    <div class="safe">
-      <div><h3>Copies of your chats</h3><p>One every day you use it, and one before each update. Safe start can put a copy back.</p></div>
-      <div><h3>Safe start and Repair</h3><p>If the app fails to start twice, it opens without the engine and offers a quick or a full check.</p></div>
-      <div><h3>One file to move</h3><p>Export everything to one zip: chats, characters, personas, settings and pictures.</p></div>
+  <section class="insert" id="computer">
+    <div class="wrap act">
+      <div class="act-head">
+        <h2>Your computer<span class="stop">.</span></h2>
+        <p class="lede">Unstrung checks your hardware and picks a model that runs well on it. After the first download, it works without internet.</p>
+      </div>
+      <dl class="rider">
+        <div><dt>System</dt><dd class="big">Windows 10 or 11</dd><dd class="why">64-bit. Installs for your Windows user only, without admin rights.</dd></div>
+        <div><dt>Disk</dt><dd class="big">About 10 GB</dd><dd class="why">The chat engine and one model.</dd></div>
+        <div><dt>Graphics card</dt><dd class="big">Optional</dd><dd class="why">Replies are faster with one. Without one the chats work, but replies are slow.</dd></div>
+        <div><dt>Models</dt><dd class="big">Gemma 4, Qwen</dd><dd class="why">All Apache 2.0, picked to fit your PC.</dd></div>
+      </dl>
+      <div class="safe">
+        <div><h3>Copies of your chats</h3><p>One every day you use it, and one before each update. Safe start can put a copy back.</p></div>
+        <div><h3>Safe start and Repair</h3><p>If the app fails to start twice, it opens without the engine and offers a quick or a full check.</p></div>
+        <div><h3>One file to move</h3><p>Export everything to one zip: chats, characters, personas, settings and pictures.</p></div>
+      </div>
     </div>
   </section>
-</div>
 
-<div class="act-band night" id="network">
-  <section class="wrap act">
-    <h2>Nothing leaves it<span class="stop">.</span></h2>
-    <p class="lede">Here is everything Unstrung sends or fetches over the internet. Your stories are not on the list.</p>
-    <p class="zero"><span>0</span> bytes of your chats, characters or pictures go to anyone. There is no server for them to go to.</p>
-    <div class="ledger">
-      <table>
-        <thead><tr><th scope="col">When</th><th scope="col">What</th><th scope="col">From</th><th scope="col">Size</th></tr></thead>
-        <tbody>
-          <tr><td>First start</td><td>The chat engine (Ollama)</td><td class="host">github.com</td><td class="size">about 1.6 GB</td></tr>
-          <tr><td>First start</td><td>One chat model that fits your PC</td><td class="host">Ollama library</td><td class="size">3.3 to 6.6 GB</td></tr>
-          <tr><td>If you turn on pictures</td><td>The picture engine (stable-diffusion.cpp)</td><td class="host">github.com</td><td class="size">shown first</td></tr>
-          <tr><td>If you turn on pictures</td><td>A picture model</td><td class="host">huggingface.co</td><td class="size">shown first</td></tr>
-          <tr><td>A minute after start</td><td>A check for a newer version. You can turn it off.</td><td class="host">github.com</td><td class="size">a few KB</td></tr>
-          <tr><td>When you click Update</td><td>The new installer, checked against its signature</td><td class="host">github.com</td><td class="size">shown first</td></tr>
-          <tr class="never"><td>Never</td><td>Your chats, characters, personas, pictures, or how you use the app</td><td class="host">nowhere</td><td class="size">0 bytes</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="ledger-note">The model has no tools. It cannot run commands, open files or reach the internet, and the chat engine listens only on your own PC. The <a href="https://github.com/Codex-Crusader/unstrung">source code</a> is open, so you can check all of this.</p>
-  </section>
-</div>
-
-<div class="act-band" id="questions">
-  <section class="wrap act">
-    <h2>Questions</h2>
-    <div class="act-body qa">
-      <details><summary>Is it free?</summary><p>Yes. No account, no subscription and no ads. The code is open source under the MIT license.</p></details>
-      <details><summary>Why does Windows warn me when I install it?</summary><p>The installer has no code signing certificate yet, so SmartScreen says "Windows protected your PC". Click More info, then Run anyway. Updates inside the app are signed, and the app checks the signature before it installs one.</p></details>
-      <details><summary>Where are my chats kept?</summary><p>In one database file in <code>%LOCALAPPDATA%\Unstrung</code>. Pictures and models can go to a folder you choose. The database stays put, so a sync tool such as OneDrive cannot damage it.</p></details>
-      <details><summary>Can I use characters from other apps?</summary><p>Yes. Import a character card as PNG or JSON (Character Card V1, V2 or V3). The editor tells you when a card is too long for the model to keep in mind.</p></details>
-      <details><summary>What about adult content?</summary><p>It is off when you install. You can turn it on in Settings for characters marked 18+ with an adult persona. Sexual content that involves anyone under 18 is blocked, whatever the setting.</p></details>
-      <details><summary>How do I remove it?</summary><p>Use Apps in Windows Settings. The uninstaller asks whether to delete your characters, chats and pictures too, and keeps them unless you tick the box.</p></details>
+  <section class="house" id="network">
+    <div class="wrap act">
+      <div class="act-head">
+        <h2>Nothing leaves it<span class="stop">.</span></h2>
+        <p class="lede">Here is everything Unstrung sends or fetches over the internet. Your stories are not on the list.</p>
+      </div>
+      <p class="zero"><span>0</span> bytes of your chats, characters or pictures go to anyone. There is no server for them to go to.</p>
+      <div class="ledger">
+        <table>
+          <thead><tr><th scope="col">When</th><th scope="col">What</th><th scope="col">From</th><th scope="col" class="size">Size</th></tr></thead>
+          <tbody>
+            <tr><td>First start</td><td>The chat engine (Ollama)</td><td class="host">github.com</td><td class="size">about 1.6 GB</td></tr>
+            <tr><td>First start</td><td>One chat model that fits your PC</td><td class="host">Ollama library</td><td class="size">3.3 to 6.6 GB</td></tr>
+            <tr><td>If you turn on pictures</td><td>The picture engine (stable-diffusion.cpp)</td><td class="host">github.com</td><td class="size">shown first</td></tr>
+            <tr><td>If you turn on pictures</td><td>A picture model</td><td class="host">huggingface.co</td><td class="size">shown first</td></tr>
+            <tr><td>A minute after start</td><td>A check for a newer version. You can turn it off.</td><td class="host">github.com</td><td class="size">a few KB</td></tr>
+            <tr><td>When you click Update</td><td>The new installer, checked against its signature</td><td class="host">github.com</td><td class="size">shown first</td></tr>
+            <tr class="never"><td>Never</td><td>Your chats, characters, personas, pictures, or how you use the app</td><td class="host">nowhere</td><td class="size">0 bytes</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="proof">
+        <p>The model has no tools. It cannot run commands, open files or reach the internet.<br><a href="https://github.com/Codex-Crusader/unstrung">Read the source</a></p>
+        <p>The chat engine listens only on your own PC.<br><a href="https://github.com/Codex-Crusader/unstrung/blob/main/SECURITY.md">Read SECURITY.md</a></p>
+        <p>Your chats and pictures are encrypted with a key that Windows keeps for your user account.<br><a href="https://github.com/Codex-Crusader/unstrung#where-your-data-is">Where your data is</a></p>
+      </div>
     </div>
   </section>
-</div>
 
-<div class="act-band tint">
-  <div class="wrap close">
-    <div>
-      <h2>Bring your characters home<span class="stop">.</span></h2>
-      <p class="steps">Run the installer, pick where pictures and models go, and Unstrung downloads the engine and one model. You can close it while it downloads.</p>
+  <section id="questions">
+    <div class="wrap act">
+      <div class="act-head"><h2>Questions</h2></div>
+      <div class="qa">
+        <details><summary>Is it free?<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></summary><p>Yes. No account, no subscription and no ads. The code is open source under the MIT license.</p></details>
+        <details><summary>Why does Windows warn me when I install it?<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></summary><p>The installer has no code signing certificate yet, so SmartScreen says "Windows protected your PC". Click More info, then Run anyway. Updates inside the app are signed, and the app checks the signature before it installs one.</p></details>
+        <details><summary>Where are my chats kept?<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></summary><p>In one encrypted database file in <code>%LOCALAPPDATA%\Unstrung</code>. Pictures and models can go to a folder you choose. The database stays put, so a sync tool such as OneDrive cannot damage it.</p></details>
+        <details><summary>Can I use characters from other apps?<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></summary><p>Yes. Import a character card as PNG or JSON (Character Card V1, V2 or V3). The editor tells you when a card is too long for the model to keep in mind.</p></details>
+        <details><summary>What about adult content?<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></summary><p>It is off when you install. You can turn it on in Settings for characters marked 18+ with an adult persona. Sexual content that involves anyone under 18 is blocked, whatever the setting.</p></details>
+        <details><summary>How do I remove it?<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></summary><p>Use Apps in Windows Settings. The uninstaller asks whether to delete your characters, chats and pictures too, and keeps them unless you tick the box.</p></details>
+      </div>
     </div>
-    <div class="get">
-      <a class="btn download" href="https://github.com/Codex-Crusader/unstrung/releases/latest">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-        <span class="download-label">Download for Windows</span>
-      </a>
-    </div>
-  </div>
-</div>
+  </section>
 
-<div class="wrap">
-  <footer class="end">
-    <span>Unstrung, by Bhargavaram Krishnapur. MIT license.</span>
-    <span><a href="https://github.com/Codex-Crusader/unstrung">Source</a> · <a href="https://github.com/Codex-Crusader/unstrung/releases">Releases</a> · <a href="https://github.com/Codex-Crusader/unstrung/blob/main/SECURITY.md">Security</a> · Headings in <a href="https://fonts.google.com/specimen/Arvo/license">Arvo</a> (OFL)</span>
-  </footer>
-</div>
+  <section class="close">
+    <div class="beam" aria-hidden="true"></div>
+    <div class="wrap">
+      <div>
+        <h2>Bring your characters home<span class="stop">.</span></h2>
+        <p class="steps">Run the installer, pick where pictures and models go, and Unstrung downloads the engine and one model. You can close it while it downloads.</p>
+      </div>
+      <div class="get">
+        <a class="ticket download" href="https://github.com/Codex-Crusader/unstrung/releases/latest">
+          <span class="stub" aria-hidden="true">Admit one</span>
+          <span class="main">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span class="download-label">Download for Windows</span>
+          </span>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap end">
+  <span>Unstrung, by Bhargavaram Krishnapur. MIT license.</span>
+  <span><a href="https://github.com/Codex-Crusader/unstrung">Source</a> · <a href="https://github.com/Codex-Crusader/unstrung/releases">Releases</a> · <a href="https://github.com/Codex-Crusader/unstrung/blob/main/SECURITY.md">Security</a> · Type: <a href="https://fonts.google.com/specimen/Big+Shoulders+Display/license">Big Shoulders Display</a> and <a href="https://fonts.google.com/specimen/Courier+Prime/license">Courier Prime</a> (OFL)</span>
+</footer>
 
 <script>
-  // The reply streams in word by word, as it does in the app. The full text
-  // is in the page, so it reads the same with no script or reduced motion.
+  // The reply streams in word by word, as it does in the app, and the stage
+  // light comes up with the first word. The full text is in the page, so it
+  // reads the same with no script or reduced motion.
   (function () {
+    var stage = document.getElementById("stage");
     var reply = document.querySelector(".reply");
-    if (!reply || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!reply || matchMedia("(prefers-reduced-motion: reduce)").matches) { stage.classList.add("lit"); return; }
     var action = reply.querySelector("em").textContent;
     var speech = reply.textContent.slice(action.length).trim();
     var words = speech.split(" ");
@@ -481,11 +550,24 @@
     ver.classList.add("wait");
     var actionWords = action.split(" "), i = 0, j = 0;
     setTimeout(function step() {
+      stage.classList.add("lit");
       if (i < actionWords.length) { em.textContent += (i ? " " : "") + actionWords[i++]; }
-      else if (j < words.length) { rest.textContent += " " + words[j++]; }
+      else if (j < words.length) { rest.textContent += (j ? " " : "") + words[j++]; }
       else { caret.remove(); ver.classList.remove("wait"); return; }
       setTimeout(step, 55 + Math.random() * 50);
     }, 900);
+  })();
+
+  // The cast: all five on stage, the chosen one in the light.
+  (function () {
+    var members = document.querySelectorAll(".member");
+    members.forEach(function (m) {
+      m.setAttribute("aria-controls", "part-" + m.dataset.part);
+      m.addEventListener("click", function () {
+        members.forEach(function (x) { x.setAttribute("aria-pressed", String(x === m)); });
+        document.querySelectorAll(".part").forEach(function (p) { p.classList.toggle("on", p.id === "part-" + m.dataset.part); });
+      });
+    });
   })();
 
   // Unstrung runs only on Windows PCs. Elsewhere, say so and offer the link.
