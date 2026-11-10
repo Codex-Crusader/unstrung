@@ -8,6 +8,8 @@ Unstrung is a desktop app for roleplay chat with AI characters. All processing i
 
 Status: all eight phases are done, except code signing. The installer is not signed yet.
 
+> **Written up in full:** [Rust manages memory. Just not the memory I needed.](https://codex-crusader.github.io/writing/rust-local-ai-memory-management/)
+
 ## Install
 
 1. Run `Unstrung_0.2.0_x64-setup.exe`. It installs for your Windows user only and needs no administrator rights. The installer is not signed yet, so Windows SmartScreen can show "Windows protected your PC". To go on, click More info, then Run anyway. To make sure that the download is the real one, compare its SHA-256 hash with the release's `SHA256SUMS.txt`, as [SECURITY.md](SECURITY.md#check-your-download) shows.
