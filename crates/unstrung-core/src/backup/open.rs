@@ -75,10 +75,10 @@ pub fn discard(paths: &AppPaths, id: &str) {
 
 pub(super) fn has_room(dir: &Path, bytes: u64) -> Result<()> {
     if let Some(disk) = crate::hardware::disk_of(dir)
-        && disk.available < bytes + SPARE_BYTES
+        && disk.available < bytes + IMPORT_SPARE_BYTES
     {
         return Err(Error::NoSpace {
-            need: bytes + SPARE_BYTES - disk.available,
+            need: bytes + IMPORT_SPARE_BYTES - disk.available,
         });
     }
     Ok(())

@@ -50,12 +50,16 @@ const MAX_ENTRIES: usize = 200_000;
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 const MAX_DATABASE_BYTES: u64 = 8 << 30;
 const MAX_PICTURE_BYTES: u64 = 64 << 20;
-const MAX_TOTAL_BYTES: u64 = 512 << 30;
+/// About 80,000 pictures: more than a real library, far less than 512 GiB.
+const MAX_TOTAL_BYTES: u64 = 128 << 30;
 /// Unpacked bytes per packed byte, for files over 1 MB. Real backups stay
 /// far below it: pictures are stored as they are.
 const MAX_RATIO: u64 = 1000;
 /// Room that stays free on the disk after an export.
 const SPARE_BYTES: u64 = 256 * 1024 * 1024;
+/// Room that stays free after an import. More than for an export: the file
+/// can come from someone else, and Windows needs room to keep working.
+const IMPORT_SPARE_BYTES: u64 = 2 << 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Manifest {
