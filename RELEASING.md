@@ -12,7 +12,7 @@ only after you publish the draft.
 4. Change the installer file name in `README.md` and `SECURITY.md` to the new version.
 5. Commit, then push a tag: `git tag v0.2.1` and `git push origin v0.2.1`.
 
-The release workflow stops if the tag does not match `tauri.conf.json`, or if `CHANGELOG.md` has no section for the version. When it passes, it makes a draft release with the installer, its `.sig` file, `latest.json` and `SHA256SUMS.txt`.
+The release workflow stops if the tag does not match `tauri.conf.json`, or if `CHANGELOG.md` has no section for the version. When it passes, it makes a draft release with the installer, its `.sig` file, `latest.json` and `SHA256SUMS.txt`. It runs in two jobs. The build job makes the installer without the update key. The sign job then signs the finished installer, and only its signing step gets the key, so no dependency build script can read it.
 
 ## Test the update before you publish
 

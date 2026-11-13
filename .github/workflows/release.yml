@@ -3,20 +3,25 @@ name: Release
 # Push a tag such as v0.2.0 to build the installer and the update files into
 # a draft release. The app's updater sees a release only after you publish
 # the draft, so you can test the installer first.
+#
+# Two jobs, so that the update signing key never meets the build. The build
+# runs every dependency's build script and macro, and any of them could read
+# a key in its environment. The sign job runs no build: it signs the finished
+# installer and makes the release.
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
   SQLX_OFFLINE: "true"
 
 jobs:
-  windows:
-    name: Build and sign the update (Windows)
+  build:
+    name: Build the installer (Windows)
     runs-on: windows-latest
     env:
       # SQLCipher builds OpenSSL from source. Its Configure script needs a
@@ -64,19 +69,69 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Install the Tauri CLI
         run: cargo install tauri-cli --version 2.12.4 --locked
-      # The private key signs the update files. The app checks them with the
-      # public key in tauri.conf.json.
+      # No key here, so no update signature: the sign job makes it.
       - name: Build the installer
         working-directory: crates/unstrung-app
+        shell: pwsh
+        run: |
+          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content no-signature.json -Encoding utf8NoBOM
+          cargo tauri build --config no-signature.json
+      # A checksum file for people who download the installer by hand. The
+      # format is the one that `sha256sum -c` reads.
+      - name: Write SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $name = $installer.Name -replace " ", "."
+          "$hash  $name" | Set-Content target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8NoBOM
+          Copy-Item release-notes.md target/release/bundle/nsis/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installer
+          path: |
+            target/release/bundle/nsis/*-setup.exe
+            target/release/bundle/nsis/SHA256SUMS.txt
+            target/release/bundle/nsis/release-notes.md
+          if-no-files-found: error
+          retention-days: 3
+
+  sign:
+    name: Sign the update and make the draft release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Only for the locked version of the Tauri CLI in ui/package-lock.json.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: Install the Tauri CLI from the lock file
+        working-directory: ui
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: installer
+          path: nsis
+      # The private key signs the update files. The app checks them with the
+      # public key in tauri.conf.json. This step is the only one with the key.
+      - name: Sign the installer for the updater
+        working-directory: ui
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: cargo tauri build
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem ../nsis/*-setup.exe | Select-Object -First 1
+          npx --no-install tauri signer sign $installer.FullName
+          if ($LASTEXITCODE -ne 0) { throw "signing failed" }
       - name: Write latest.json for the updater
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
-          $installer = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $installer = Get-ChildItem nsis/*-setup.exe | Select-Object -First 1
           $signature = Get-Content "$($installer.FullName).sig" -Raw
           $name = $installer.Name -replace " ", "."
           $latest = [ordered]@{
@@ -90,20 +145,11 @@ jobs:
               }
             }
           }
-          $latest | ConvertTo-Json -Depth 4 | Set-Content target/release/bundle/nsis/latest.json -Encoding utf8NoBOM
-      # A checksum file for people who download the installer by hand. The
-      # format is the one that `sha256sum -c` reads.
-      - name: Write SHA256SUMS.txt
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          $name = $installer.Name -replace " ", "."
-          "$hash  $name" | Set-Content target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8NoBOM
+          $latest | ConvertTo-Json -Depth 4 | Set-Content nsis/latest.json -Encoding utf8NoBOM
       - name: Upload to a draft release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $files = Get-ChildItem target/release/bundle/nsis/*-setup.exe, target/release/bundle/nsis/*-setup.exe.sig, target/release/bundle/nsis/latest.json, target/release/bundle/nsis/SHA256SUMS.txt
-          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes-file release-notes.md $files.FullName
+          $files = Get-ChildItem nsis/*-setup.exe, nsis/*-setup.exe.sig, nsis/latest.json, nsis/SHA256SUMS.txt
+          gh release create "${{ github.ref_name }}" --draft --title "Unstrung ${{ github.ref_name }}" --notes-file nsis/release-notes.md $files.FullName
