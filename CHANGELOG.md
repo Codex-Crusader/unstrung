@@ -8,6 +8,8 @@ stops when the section is missing.
 
 ## Unreleased
 
+- Safety: a card or persona that gives an age under 18 in plain words, such as "She is 15." or "I'm 16", now keeps the chat and its pictures general, as "15 years old" already did.
+- Security: a backup from someone else can no longer make Unstrung use more than 256 MiB of memory to check its password, and an import now stops at 128 GiB and always leaves 2 GiB free on the disk. The app log no longer holds any story text.
 - Screens, setup steps, menus and the picture viewer now ease in instead of appearing at once. The Windows setting and Settings > Reduce motion turn this off.
 - Home reminds you to make a backup when you have chats and made no backup in 30 days. Its button makes the backup right there. Settings shows the date of the last backup.
 - The Pictures grid loads small copies of the pictures, so a large gallery scrolls faster and uses less memory.
