@@ -17,9 +17,16 @@ const KDF: &str = "argon2id";
 /// About half a second and 64 MiB on a normal PC.
 const MEMORY_KIB: u32 = 64 * 1024;
 const PASSES: u32 = 3;
-/// A backup from someone else must not make this app use a lot of memory or time.
-const MAX_MEMORY_KIB: u32 = 1024 * 1024;
-const MAX_PASSES: u32 = 10;
+/// A backup from someone else must not make this app use a lot of memory or
+/// time: the key is made before the password can be checked. At most four
+/// times the work of the settings above, a few seconds.
+const MAX_MEMORY_KIB: u32 = 256 * 1024;
+const MAX_PASSES: u32 = 4;
+/// The salt length of an export, and the most that an import accepts.
+const SALT_LEN: usize = 16;
+const MAX_SALT_LEN: usize = 64;
+/// The sealed check is about 60 bytes.
+const MAX_CHECK_LEN: usize = 1024;
 
 const CHUNK: usize = 1 << 20;
 const NONCE_LEN: usize = 12;
@@ -90,7 +97,7 @@ fn fill(from: &mut impl Read, buf: &mut [u8]) -> std::io::Result<usize> {
 impl BackupKey {
     /// A new key for one export: a new salt, and the check sealed with it.
     pub fn new(password: &str) -> Result<(Self, Encryption)> {
-        let mut salt = vec![0u8; 16];
+        let mut salt = vec![0u8; SALT_LEN];
         random(&mut salt)?;
         let key = derive(password, &salt, MEMORY_KIB, PASSES)?;
         let mut check = Vec::new();
@@ -109,6 +116,12 @@ impl BackupKey {
 
     /// The key of a backup, if `password` is right.
     pub fn unlock(password: &str, e: &Encryption) -> Result<Self> {
+        if !(SALT_LEN..=MAX_SALT_LEN).contains(&e.salt.len())
+            || e.check.is_empty()
+            || e.check.len() > MAX_CHECK_LEN
+        {
+            return Err(damaged("the backup notes"));
+        }
         if e.kdf != KDF || e.memory_kib > MAX_MEMORY_KIB || e.passes > MAX_PASSES {
             return Err(Error::Invalid(
                 "this backup comes from a newer version of Unstrung. Update Unstrung first".into(),
@@ -262,7 +275,18 @@ mod tests {
     #[test]
     fn settings_from_a_strange_backup_are_refused() {
         let (_, mut enc) = BackupKey::new("long enough").unwrap();
-        enc.memory_kib = MAX_MEMORY_KIB + 1;
-        assert!(BackupKey::unlock("long enough", &enc).is_err());
+        assert!(enc.check.len() <= MAX_CHECK_LEN, "{}", enc.check.len());
+        let refused = |change: fn(&mut Encryption)| {
+            let mut e = enc.clone();
+            change(&mut e);
+            BackupKey::unlock("long enough", &e).is_err()
+        };
+        assert!(refused(|e| e.memory_kib = MAX_MEMORY_KIB + 1));
+        assert!(refused(|e| e.passes = MAX_PASSES + 1));
+        assert!(refused(|e| e.salt.truncate(8)));
+        assert!(refused(|e| e.salt = vec![0; MAX_SALT_LEN + 1]));
+        assert!(refused(|e| e.check.clear()));
+        assert!(refused(|e| e.check = vec![0; MAX_CHECK_LEN + 1]));
+        assert!(BackupKey::unlock("long enough", &enc).is_ok());
     }
 }
