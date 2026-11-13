@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn settings_from_a_strange_backup_are_refused() {
-        let (_, mut enc) = BackupKey::new("long enough").unwrap();
+        let (_, enc) = BackupKey::new("long enough").unwrap();
         assert!(enc.check.len() <= MAX_CHECK_LEN, "{}", enc.check.len());
         let refused = |change: fn(&mut Encryption)| {
             let mut e = enc.clone();
