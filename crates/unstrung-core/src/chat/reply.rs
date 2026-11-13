@@ -412,9 +412,11 @@ impl ChatService {
         match answer {
             Ok(text) => {
                 let thread = prompt::clean_open_thread(&text);
+                // Only whether there is one: the thread is chat text.
                 log::info!(
-                    "open thread in {} ms: {thread:?}",
-                    started.elapsed().as_millis()
+                    "open thread in {} ms: {}",
+                    started.elapsed().as_millis(),
+                    if thread.is_some() { "found" } else { "none" }
                 );
                 if let Ok(mut t) = self.threads.lock() {
                     if t.len() > THREAD_CACHE {

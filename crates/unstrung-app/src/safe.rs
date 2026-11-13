@@ -111,6 +111,7 @@ const LOG_LINES: usize = 80;
 /// Log lines that can hold chat text. The report keeps only their first part.
 const CUT: &[(&str, usize)] = &[
     ("command failed: ", 2),
+    // Lines from 0.2.0 and earlier held the thread text.
     ("open thread in ", 1),
     ("self-test finished", 1),
     ("memory note", 1),
