@@ -57,11 +57,39 @@ fn ages_written_as_words_count() {
     }
     assert_eq!(minor_word("A sweet loli maid.").as_deref(), Some("loli"));
     assert_eq!(minor_word("Come here, baby.").as_deref(), None);
-    assert_eq!(minor_word("She is 15.").as_deref(), None);
     assert_eq!(
         minor_word("She is 15 years old.").as_deref(),
         Some("an age under 18")
     );
+}
+
+#[test]
+fn a_bare_age_after_a_person_counts() {
+    for text in [
+        "She is 15.",
+        "He is 16, and he plays the violin.",
+        "She's only 14.",
+        "I'm 15 and I live with my aunt.",
+        "I am 17",
+        "He just turned twelve.",
+        "My sister is 9.",
+        "She was fifteen when the war began.",
+    ] {
+        assert!(mentions_minor(text), "{text}");
+    }
+    for text in [
+        "She is 25.",
+        "He is 6 feet tall.",
+        "She is 5'4\".",
+        "He is 15 minutes late.",
+        "He is 1 of the guards.",
+        "She is one tough cookie.",
+        "It is 12.",
+        "The score is 15.",
+        "She is 18.",
+    ] {
+        assert!(!mentions_minor(text), "{text}");
+    }
 }
 
 #[test]
