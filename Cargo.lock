@@ -5279,6 +5279,8 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "hkdf 0.13.0",
+ "http",
+ "hyper-util",
  "image",
  "libsqlite3-sys",
  "log",

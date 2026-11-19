@@ -13,6 +13,7 @@ stops when the section is missing.
 - Setup no longer warns about the folder when your Windows user name has letters outside English. Pictures work from such folders.
 - A full disk, and a folder that Windows Security blocks (Controlled folder access), now get their own messages that say what to do.
 - The first setup screen says that setup downloads the chat AI once, and that chats then work without the internet.
+- On a school or office network with a proxy set in Windows Settings, setup, picture model and chat model downloads now go through that proxy. Before, they failed.
 - Safety: a card or persona that gives an age under 18 in plain words, such as "She is 15." or "I'm 16", now keeps the chat and its pictures general, as "15 years old" already did.
 - Security: a backup from someone else can no longer make Unstrung use more than 256 MiB of memory to check its password, and an import now stops at 128 GiB and always leaves 2 GiB free on the disk. The app log no longer holds any story text.
 - Screens, setup steps, menus and the picture viewer now ease in instead of appearing at once. The Windows setting and Settings > Reduce motion turn this off.

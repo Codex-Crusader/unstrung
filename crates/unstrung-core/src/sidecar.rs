@@ -103,6 +103,12 @@ impl Sidecar {
             // Do not delete files that the other Ollama is still downloading.
             cmd.env("OLLAMA_NOPRUNE", "1");
         }
+        // The engine reads only the proxy variables, not Windows Settings, so
+        // on a school or office proxy its model downloads need this.
+        if let Some(proxy) = windows_proxy(MODEL_REGISTRY) {
+            log::info!("the chat engine downloads through the Windows proxy {proxy}");
+            cmd.env("HTTPS_PROXY", &proxy).env("HTTP_PROXY", &proxy);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -171,6 +177,31 @@ pub(crate) fn kill_on_close_job(child: &Child) -> Option<win32job::Job> {
         .map_err(|e| log::warn!("could not add an engine to the job object: {e}"))
         .ok()?;
     Some(job)
+}
+
+/// Where the engine downloads chat models from.
+const MODEL_REGISTRY: &str = "https://registry.ollama.ai/";
+
+/// The proxy that Windows Settings gives for `url`. None when the user set a
+/// proxy variable: the engine reads that one itself, with its password.
+// shortcut: a proxy setup script (PAC) or "Automatically detect settings" is
+// not read, as in reqwest; read it with WinHTTP if users report it.
+fn windows_proxy(url: &str) -> Option<String> {
+    let set = ["HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"]
+        .iter()
+        .any(|v| std::env::var_os(v).is_some());
+    if set {
+        return None;
+    }
+    proxy_for(
+        &hyper_util::client::proxy::matcher::Matcher::from_system(),
+        url,
+    )
+}
+
+fn proxy_for(matcher: &hyper_util::client::proxy::matcher::Matcher, url: &str) -> Option<String> {
+    let uri: http::Uri = url.parse().ok()?;
+    Some(matcher.intercept(&uri)?.uri().to_string())
 }
 
 fn free_port() -> Result<u16> {
@@ -264,6 +295,27 @@ fn kill_tree(pid: u32) {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// "Use a proxy server" in Windows Settings writes `host:port` and a
+    /// bypass list. The engine gets a full URL, and never for a bypassed host.
+    #[test]
+    fn the_engine_gets_the_proxy_that_windows_settings_gives() {
+        use hyper_util::client::proxy::matcher::Matcher;
+        let proxy = |m: &Matcher| proxy_for(m, MODEL_REGISTRY);
+        let set = Matcher::builder()
+            .http("10.1.2.3:3128")
+            .https("10.1.2.3:3128")
+            .no("localhost,intranet.school")
+            .build();
+        assert_eq!(proxy(&set).as_deref(), Some("http://10.1.2.3:3128/"));
+        let bypassed = Matcher::builder()
+            .https("10.1.2.3:3128")
+            .no("ollama.ai")
+            .build();
+        assert_eq!(proxy(&bypassed), None);
+        assert_eq!(proxy(&Matcher::builder().build()), None);
+        assert_eq!(proxy_for(&set, "not a url"), None);
+    }
 
     #[test]
     fn the_engine_log_is_cut_while_the_engine_still_writes() {

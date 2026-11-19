@@ -16,7 +16,13 @@ base64 = "0.23"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 log = { version = "0.4", features = ["std"] }
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls"] }
+# system-proxy: downloads follow the proxy in Windows Settings (school and
+# office networks). The app build had it only through the updater plugin.
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls", "system-proxy"] }
+# The same proxy matcher that reqwest uses, to hand the Windows proxy to the
+# chat engine, which reads only the HTTPS_PROXY variable.
+hyper-util = { version = "0.1.21", default-features = false, features = ["client-proxy", "client-proxy-system"] }
+http = "1"
 sha2 = "0.11"
 aes-gcm = "0.11"
 hkdf = "0.13"
