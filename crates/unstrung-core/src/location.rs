@@ -70,8 +70,6 @@ pub enum Issue {
     Synced,
     NetworkDrive,
     RemovableDrive,
-    /// Characters outside ASCII. The image engine can fail to open such paths.
-    UnusualCharacters,
     NotEnoughSpace,
 }
 
@@ -84,7 +82,7 @@ impl Issue {
             }
             // Files On-Demand can turn a 5 GB model into a placeholder.
             Self::Synced => purpose == Purpose::Models,
-            Self::NetworkDrive | Self::RemovableDrive | Self::UnusualCharacters => false,
+            Self::NetworkDrive | Self::RemovableDrive => false,
         }
     }
 }
@@ -118,9 +116,6 @@ pub fn check(picked: &Path, purpose: Purpose, download_bytes: u64) -> FolderChec
     }
     if is_system_folder(&folder) {
         issues.push(Issue::SystemFolder);
-    }
-    if !folder.to_string_lossy().is_ascii() {
-        issues.push(Issue::UnusualCharacters);
     }
     if is_synced(&folder) {
         issues.push(Issue::Synced);

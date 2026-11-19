@@ -169,8 +169,8 @@ export function Welcome({ mode, onDone }: { mode: "full" | "engine"; onDone: () 
 function Hello({ onNext }: { onNext: () => void }) {
   return (
     <section className="welcome-section welcome-hello">
-      <h1>Unstrung</h1>
-      <p className="welcome-tagline">{strings.welcome.tagline}</p>
+      <h1>{strings.welcome.tagline}</h1>
+      <p className="welcome-tagline">{strings.welcome.intro}</p>
       <div className="safe-actions">
         <button type="button" className="button button-big" onClick={onNext} autoFocus>
           {strings.welcome.start}

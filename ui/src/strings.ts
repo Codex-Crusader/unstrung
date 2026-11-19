@@ -423,6 +423,7 @@ export const strings = {
   },
   welcome: {
     tagline: "Your characters. Your computer. Nothing leaves it.",
+    intro: "Setup downloads the chat AI once. After that, your chats work without the internet.",
     start: "Get started",
     next: "Continue",
     back: "Back",
@@ -463,7 +464,6 @@ export const strings = {
       ["synced", "This folder syncs to the cloud. Models can be removed from the disk, and pictures upload."],
       ["network_drive", "This is a network drive. Unstrung is slower, and stops when the network is gone."],
       ["removable_drive", "This is a USB or removable drive. Unstrung cannot run while it is unplugged."],
-      ["unusual_characters", "The folder name has special characters. Pictures can fail to open from it."],
       ["not_enough_space", "There is not enough free space on this drive. Pick a folder on another drive."],
     ]),
     existingLibrary: "This folder already has an Unstrung library. Unstrung uses the pictures in it.",

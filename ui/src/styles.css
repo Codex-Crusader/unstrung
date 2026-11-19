@@ -2160,7 +2160,8 @@ body > iframe {
 }
 
 .welcome-hello h1 {
-  font-size: 40px;
+  font-size: 32px;
+  line-height: 1.2;
 }
 
 .welcome-tagline {

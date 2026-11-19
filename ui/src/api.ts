@@ -672,7 +672,6 @@ export type FolderIssue =
   | "synced"
   | "network_drive"
   | "removable_drive"
-  | "unusual_characters"
   | "not_enough_space";
 
 export interface FolderCheck {
