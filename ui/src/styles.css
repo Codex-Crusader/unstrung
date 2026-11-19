@@ -1977,10 +1977,6 @@ body > iframe {
   color: var(--text-soft);
 }
 
-.badge-warn {
-  background: color-mix(in srgb, var(--warn) 25%, transparent);
-}
-
 .advanced-form,
 .by-name {
   display: flex;

@@ -212,10 +212,8 @@ export const strings = {
     hardwareChanged: "Your graphics card or its driver changed since the last start, so the check ran again.",
     checkAgain: "Check again",
     recommendedTitle: "Recommended for your PC",
-    inUseTitle: "New chats use",
     inUseHint: "Each chat can also pick its own model in its header.",
     noModelYet: "No model is installed yet. Download the recommended model to start chatting.",
-    allTitle: "All models",
     group: new Map<string, string>([
       ["basic", "Small: any PC"],
       ["standard", "Medium: about 6 GB graphics memory"],
@@ -394,7 +392,6 @@ export const strings = {
     emptyText:
       "In a chat, open the menu of a message (the three dots) and pick Picture this. Or type /imagine and a few words.",
     settings: "Picture settings",
-    settingsText: "Most people never need to change this. A different model paints in a different way.",
     recommended: "Recommended",
     tooBig: "Too big for this PC",
     inUse: "In use",
