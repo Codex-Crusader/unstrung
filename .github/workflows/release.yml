@@ -125,9 +125,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: pwsh
         run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
           $installer = Get-ChildItem ../nsis/*-setup.exe | Select-Object -First 1
-          npx --no-install tauri signer sign $installer.FullName
+          # The app sets requireSignedVersion, so it refuses an update whose
+          # signed comment has no version:<v>. --app-version writes that field.
+          npx --no-install tauri signer sign --app-version $version $installer.FullName
           if ($LASTEXITCODE -ne 0) { throw "signing failed" }
+          $signature = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Get-Content "$($installer.FullName).sig" -Raw).Trim()))
+          $comment = ($signature -split "`n" | Where-Object { $_ -like "trusted comment: *" }).Trim() -replace "^trusted comment: ", ""
+          if (($comment -split "`t") -notcontains "version:$version") { throw "The signature does not carry version:$version, so the app would refuse the update." }
       - name: Write latest.json for the updater
         shell: pwsh
         run: |
