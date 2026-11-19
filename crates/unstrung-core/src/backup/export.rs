@@ -205,7 +205,7 @@ pub(super) fn write_zip(
     })();
     match written {
         Ok(done) => {
-            std::fs::rename(&part, to)?;
+            crate::files::rename(&part, to)?;
             Ok(done)
         }
         Err(e) => {

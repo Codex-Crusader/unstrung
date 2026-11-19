@@ -254,7 +254,7 @@ pub fn run(
             copy_tree(old, &tmp, &mut done, progress, cancel)?;
         }
         for (_, new) in &plan.moves {
-            std::fs::rename(moving(new), new)?;
+            crate::files::rename(&moving(new), new)?;
         }
         if let Some(folder) = &plan.mark {
             location::mark_library(folder)?;

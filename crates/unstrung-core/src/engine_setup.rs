@@ -382,12 +382,14 @@ impl EngineSetup {
         if old.exists() {
             std::fs::remove_dir_all(&old)?;
         }
+        // The engine's model runners and a virus scan of the new files can
+        // hold files in these folders for a moment after the engine stops.
         if current.exists() {
-            std::fs::rename(&current, &old)?;
+            crate::files::rename(&current, &old)?;
         }
-        if let Err(e) = std::fs::rename(&new, &current) {
+        if let Err(e) = crate::files::rename(&new, &current) {
             if old.exists() {
-                let _ = std::fs::rename(&old, &current);
+                let _ = crate::files::rename(&old, &current);
             }
             return Err(e.into());
         }

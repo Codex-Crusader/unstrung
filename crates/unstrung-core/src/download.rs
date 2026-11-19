@@ -100,7 +100,8 @@ impl Fetcher {
                 why: format!("SHA-256 {hash}, expected {}", source.sha256),
             });
         }
-        std::fs::rename(&part, target)?;
+        // A scanner often opens a big file that has just been written.
+        crate::files::rename(&part, target)?;
         Ok(())
     }
 

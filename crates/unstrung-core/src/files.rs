@@ -4,11 +4,32 @@
 use crate::Result;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-/// Antivirus and search indexers can hold a new file open for a moment.
-const RENAME_TRIES: u32 = 5;
-const RENAME_PAUSE: Duration = Duration::from_millis(50);
+/// Antivirus scans, search indexers and an engine process that is still
+/// closing can hold a file for a few seconds on a real PC.
+const RENAME_WAIT: Duration = Duration::from_secs(3);
+
+/// `std::fs::rename` that waits while another program holds the file, or a
+/// file inside the folder. Windows then refuses with access denied (5), a
+/// sharing violation (32) or a lock violation (33).
+pub fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
+    let deadline = Instant::now() + RENAME_WAIT;
+    let mut pause = Duration::from_millis(50);
+    loop {
+        match std::fs::rename(from, to) {
+            Err(e) if held(&e) && Instant::now() < deadline => {
+                std::thread::sleep(pause);
+                pause = (pause * 2).min(Duration::from_millis(500));
+            }
+            done => return done,
+        }
+    }
+}
+
+fn held(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::PermissionDenied || matches!(e.raw_os_error(), Some(32 | 33))
+}
 
 /// The temporary name next to `target`: `name.ext.tmp`. Quick repair deletes
 /// these when a crash leaves one (see `repair`).
@@ -35,17 +56,7 @@ fn write_then_rename(temp: &Path, target: &Path, bytes: &[u8]) -> Result<()> {
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
-    let mut tries = 1;
-    loop {
-        match std::fs::rename(temp, target) {
-            Ok(()) => return Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied && tries < RENAME_TRIES => {
-                tries += 1;
-                std::thread::sleep(RENAME_PAUSE);
-            }
-            Err(e) => return Err(e.into()),
-        }
-    }
+    Ok(rename(temp, target)?)
 }
 
 #[cfg(test)]
@@ -71,6 +82,49 @@ mod tests {
         assert!(write_atomic(&target, b"data").is_err());
         assert!(target.is_dir());
         assert!(!temp_name(&target).exists());
+    }
+
+    /// A scanner holds a file in the folder for a moment: the folder still
+    /// moves (the engine swap), and so does a held file (a finished download).
+    #[cfg(windows)]
+    #[test]
+    fn a_rename_waits_while_another_program_holds_the_file() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("ollama.new");
+        std::fs::create_dir(&folder).unwrap();
+        let file = folder.join("ollama.exe");
+        std::fs::write(&file, b"exe").unwrap();
+        for (from, to) in [
+            (folder.clone(), dir.path().join("ollama")),
+            (
+                dir.path().join("ollama").join("ollama.exe"),
+                dir.path().join("moved.exe"),
+            ),
+        ] {
+            let inside = if from.is_dir() {
+                from.join("ollama.exe")
+            } else {
+                from.clone()
+            };
+            // No sharing at all, as a scanner or a running program opens it.
+            let held = std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(&inside)
+                .unwrap();
+            assert!(
+                std::fs::rename(&from, &to).is_err(),
+                "{from:?} must be held"
+            );
+            let release = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(400));
+                drop(held);
+            });
+            rename(&from, &to).unwrap();
+            release.join().unwrap();
+            assert!(to.exists() && !from.exists());
+        }
     }
 
     #[test]
