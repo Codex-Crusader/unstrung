@@ -126,6 +126,16 @@ impl From<Error> for UiError {
                 "The key that protects your chats and pictures did not open. Your data is still there. Sign in to Windows as the user who made it, then start Unstrung again."
                     .to_owned()
             }
+            Error::Io(io) if io.kind() == std::io::ErrorKind::StorageFull => {
+                "The disk is full, so Unstrung could not save. Free some space on this drive, then try again."
+                    .to_owned()
+            }
+            // Often Controlled folder access, which blocks unknown apps in
+            // Documents, Pictures and the Desktop.
+            Error::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => {
+                "Windows blocked Unstrung from saving in this folder. Pick another folder, or allow Unstrung in Windows Security (Ransomware protection, Controlled folder access)."
+                    .to_owned()
+            }
             Error::Db(_) | Error::Migrate(_) | Error::Io(_) => {
                 "Unstrung could not read or save your data. Try again. If it fails again, restart Unstrung."
                     .to_owned()
@@ -240,6 +250,25 @@ mod tests {
         let second = UiError::from(locked());
         assert_eq!(second.tip, Some("antivirus"));
         assert!(UiError::from(Error::Busy).tip.is_none());
+    }
+
+    /// Windows error codes: 112 disk full, 5 access denied (Controlled
+    /// folder access blocks with it). Neither says "restart Unstrung".
+    #[cfg(windows)]
+    #[test]
+    fn a_full_disk_and_a_blocked_folder_say_what_to_do() {
+        let io = |code| UiError::from(Error::Io(std::io::Error::from_raw_os_error(code)));
+        assert!(
+            io(112).message.starts_with("The disk is full"),
+            "{}",
+            io(112).message
+        );
+        assert!(
+            io(5).message.contains("Controlled folder access"),
+            "{}",
+            io(5).message
+        );
+        assert!(io(2).message.contains("restart Unstrung"));
     }
 
     #[test]
