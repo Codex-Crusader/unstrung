@@ -6,7 +6,7 @@ release, rename "Unreleased" to the version number, for example "## 0.2.1".
 The release workflow copies that section into the release notes, and it
 stops when the section is missing.
 
-## Unreleased
+## 0.3.0
 
 - If Unstrung cannot start, for example when its window cannot open or an earlier window does not answer, a message box now says what to do. Before, it closed without a word.
 - An engine update, a finished download, a backup export and a models move no longer fail when an antivirus scan holds a new file for a moment.
@@ -20,7 +20,6 @@ stops when the section is missing.
 - Home reminds you to make a backup when you have chats and made no backup in 30 days. Its button makes the backup right there. Settings shows the date of the last backup.
 - The Pictures grid loads small copies of the pictures, so a large gallery scrolls faster and uses less memory.
 - For an app that stays open for days: the daily copy of the chats, the end of "Recently deleted" after 7 days, the update check and the log size limit now work without a restart. A bug report made right after the log rotates still has the last lines. After three engine crashes in a row Unstrung still stops restarting the engine, but a crash after ten good minutes no longer counts toward that limit.
-- Long chats stay smooth while a reply streams in.
 - The first reply after a long pause no longer fails with a timeout on a slow PC. When the model was unloaded after 30 idle minutes, Unstrung now waits up to 5 minutes for the model to load and read the chat again. Stop still ends the wait at once.
 - The chat engine's own log stays small while the app runs for weeks.
 - A backup can no longer miss pictures when a library move or Free up space starts while it runs. These now ask you to wait until the backup ends. You can go on chatting while a backup runs.
