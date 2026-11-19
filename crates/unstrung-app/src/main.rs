@@ -41,6 +41,24 @@ fn fail(message: &str) -> ! {
     std::process::exit(1);
 }
 
+/// `fail` for a start that the user made. The release app has no console,
+/// so without the box a double-click shows nothing at all. Tests and the
+/// uninstaller never get a box, because nobody would close it.
+fn fail_start(message: &str, told: &str) -> ! {
+    #[cfg(windows)]
+    if !std::env::args().any(|a| a == "--self-test" || a == "--background") {
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_title("Unstrung")
+            .set_description(format!("{told}\n\nDetails: {message}"))
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+    }
+    #[cfg(not(windows))]
+    let _ = told;
+    fail(message)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     // The uninstaller asks to delete the data. This runs before anything
@@ -59,12 +77,20 @@ fn main() {
     let self_test = args.iter().any(|a| a == "--self-test");
     // Opens the window without focus, so tests do not take over the desktop.
     let background = args.iter().any(|a| a == "--background");
-    let paths = AppPaths::resolve().unwrap_or_else(|e| fail(&format!("no app folder: {e}")));
+    let paths = AppPaths::resolve().unwrap_or_else(|e| {
+        fail_start(
+            &format!("no app folder: {e}"),
+            "Unstrung could not find its folder in your Windows user profile.",
+        )
+    });
     if let Err(e) = paths.ensure() {
-        fail(&format!(
-            "could not create the app folder {}: {e}",
-            paths.root().display()
-        ));
+        fail_start(
+            &format!(
+                "could not create the app folder {}: {e}",
+                paths.root().display()
+            ),
+            "Unstrung could not make its folder. Check that the disk is not full, then start Unstrung again.",
+        );
     }
     // The lock comes first: a second process must not write the log or count
     // a start. Windows frees the lock when the process ends, also after a crash.
@@ -84,13 +110,19 @@ fn main() {
             if !restart && instance::send(&paths, wish) {
                 std::process::exit(0);
             }
-            let message = if restart {
-                "the earlier Unstrung window did not close in time"
+            let (message, told) = if restart {
+                (
+                    "the earlier Unstrung window did not close in time",
+                    "Unstrung could not restart, because the earlier window is still closing. Start Unstrung again in a minute.",
+                )
             } else {
-                "Unstrung is already open with this app folder, but its window does not answer"
+                (
+                    "Unstrung is already open with this app folder, but its window does not answer",
+                    "Unstrung is already running, but its window does not answer. Wait a minute and try again. If it still does not open, close Unstrung with End task in Task Manager, then start it again.",
+                )
             };
             logfile::append_one(&log, log::Level::Error, "unstrung_app::instance", message);
-            fail(message);
+            fail_start(message, told);
         }
     };
     if let Err(e) = logfile::init(&paths.logs().join("app.log")) {
@@ -309,7 +341,12 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .unwrap_or_else(|e| fail(&format!("the window could not open: {e}")));
+        .unwrap_or_else(|e| {
+            fail_start(
+                &format!("the window could not open: {e}"),
+                "Unstrung could not open its window. Restart Windows and try again. If it still fails, install the Microsoft Edge WebView2 Runtime from microsoft.com, then start Unstrung again.",
+            )
+        });
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
