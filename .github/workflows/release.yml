@@ -84,7 +84,8 @@ jobs:
           $installer = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           $name = $installer.Name -replace " ", "."
-          "$hash  $name" | Set-Content target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8NoBOM
+          # One LF line end: sha256sum -c on Linux reads a CR as part of the name.
+          "$hash  $name`n" | Set-Content target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8NoBOM -NoNewline
           Copy-Item release-notes.md target/release/bundle/nsis/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
