@@ -41,6 +41,8 @@ fn fail(message: &str) -> ! {
     std::process::exit(1);
 }
 
+const RELEASES: &str = "github.com/Codex-Crusader/unstrung/releases";
+
 /// `fail` for a start that the user made. The release app has no console,
 /// so without the box a double-click shows nothing at all. Tests and the
 /// uninstaller never get a box, because nobody would close it.
@@ -50,7 +52,10 @@ fn fail_start(message: &str, told: &str) -> ! {
         rfd::MessageDialog::new()
             .set_level(rfd::MessageLevel::Error)
             .set_title("Unstrung")
-            .set_description(format!("{told}\n\nDetails: {message}"))
+            // A start this broken never reaches the update check.
+            .set_description(format!(
+                "{told}\n\nIf it keeps happening, a newer version can fix it: {RELEASES}\n\nDetails: {message}"
+            ))
             .set_buttons(rfd::MessageButtons::Ok)
             .show();
     }

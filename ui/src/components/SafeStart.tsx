@@ -18,6 +18,7 @@ import figure from "../assets/figure.png";
 import { strings } from "../strings";
 import { ErrorNote } from "./ErrorNote";
 import { Icon } from "./Icon";
+import { UpdateCheck } from "./Updates";
 
 /** The one screen of safe start: no engines and no chats, only repair tools. */
 export function SafeStart({ start }: { start: StartView }) {
@@ -76,6 +77,13 @@ export function SafeStart({ start }: { start: StartView }) {
         {copied === true && <p className="field-hint">{s.copied}</p>}
         {copied === false && <p className="field-hint warn">{s.copyFailed}</p>}
         <p className="field-hint">{s.reportHint}</p>
+        <section className="quick-repair" aria-label={s.updates}>
+          <h2>{s.updates}</h2>
+          <p className="field-hint">{s.updatesHint}</p>
+          <div>
+            <UpdateCheck />
+          </div>
+        </section>
         <QuickRepair />
         <Copies />
         {error && <ErrorNote error={error} />}

@@ -45,6 +45,7 @@ fn failed(message: &str, e: &tauri_plugin_updater::Error) -> UiError {
 
 const CHECK_FAILED: &str =
     "Unstrung could not check for updates. Check the internet connection, then try again.";
+const INSTALL_FAILED: &str = "The installer did not start. Your chats are as they were. Try again, or download the new version from github.com/Codex-Crusader/unstrung/releases.";
 const DOWNLOAD_FAILED: &str = "The update did not download. Your chats are as they were. Check the internet connection, then try again.";
 
 async fn checks_on(state: &AppState) -> bool {
@@ -101,14 +102,22 @@ pub async fn check_update(app: AppHandle) -> CmdResult<Option<Available>> {
 
 /// Downloads the update, copies the chats, closes the app the normal way,
 /// and starts the installer, which opens the new version when it is done.
+/// Safe start opens no chats and no engines, so there it only installs: a
+/// user stuck in safe start can still get the version that fixes it.
 #[tauri::command]
-pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+pub async fn install_update(app: AppHandle) -> CmdResult<()> {
+    let state = app.try_state::<AppState>();
     // The app quits for the installer, which would stop these halfway.
-    state.chats.idle()?;
-    if state.models.downloading() || state.setup.busy() {
-        return Err(unstrung_core::error::Error::Busy.into());
-    }
-    let _pictures = state.pictures.hold()?;
+    let _pictures = match &state {
+        Some(state) => {
+            state.chats.idle()?;
+            if state.models.downloading() || state.setup.busy() {
+                return Err(unstrung_core::error::Error::Busy.into());
+            }
+            Some(state.pictures.hold()?)
+        }
+        None => None,
+    };
     let update = match find(&app).await {
         Ok(Some(update)) => update,
         Ok(None) => {
@@ -131,24 +140,35 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> CmdRe
         )
         .await
         .map_err(|e| failed(DOWNLOAD_FAILED, &e))?;
-    // Safe start can put this copy back if the new version goes wrong.
-    let copy = state
-        .chats
-        .db()
-        .update_snapshot(&state.paths.database())
-        .await?;
-    log::info!(
-        "installing Unstrung {}, chats copied to {}",
-        update.version,
-        copy.display()
-    );
-    // On Windows the install ends this process at once, so the normal
-    // shutdown of the run loop never runs: it runs here.
-    state.chats.shut_down();
-    state.engine.stop().await;
-    state.chats.db().close().await;
+    if let Some(state) = &state {
+        // Safe start can put this copy back if the new version goes wrong.
+        let copy = state
+            .chats
+            .db()
+            .update_snapshot(&state.paths.database())
+            .await?;
+        log::info!(
+            "installing Unstrung {}, chats copied to {}",
+            update.version,
+            copy.display()
+        );
+        // On Windows the install ends this process at once, so the normal
+        // shutdown of the run loop never runs: it runs here.
+        state.chats.shut_down();
+        state.engine.stop().await;
+        state.chats.db().close().await;
+    } else if let Some(info) = app.try_state::<crate::safe::StartInfo>() {
+        // Else the count of failed starts opens the new version in safe start
+        // too, and it never tries the chats. (If the user asked for safe start
+        // with --safe-start, the installer passes that on, and that is fine.)
+        unstrung_core::start::clear(&info.paths)?;
+        log::info!("installing Unstrung {} from safe start", update.version);
+    }
     if let Err(e) = update.install(bytes) {
         log::error!("the installer did not start: {e}");
+        if state.is_none() {
+            return Err(failed(INSTALL_FAILED, &e));
+        }
         // The database is closed: a restart opens it again.
         app.restart();
     }

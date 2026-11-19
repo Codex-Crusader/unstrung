@@ -6,6 +6,11 @@ release, rename "Unreleased" to the version number, for example "## 0.2.1".
 The release workflow copies that section into the release notes, and it
 stops when the section is missing.
 
+## 0.3.1
+
+- Safe start now has a Check for updates button. When Unstrung cannot open your chats, or stops at every start, the version that fixes it is one click away. Before, you had to find it and download it yourself.
+- When Unstrung cannot start at all, its message now also gives the page where you can download a newer version.
+
 ## 0.3.0
 
 - If Unstrung cannot start, for example when its window cannot open or an earlier window does not answer, a message box now says what to do. Before, it closed without a word.

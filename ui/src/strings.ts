@@ -679,6 +679,8 @@ export const strings = {
     copied: "Copied. Paste it into a bug report at github.com/Codex-Crusader/unstrung/issues.",
     copyFailed: "The report could not be copied.",
     reportHint: "The report has the app version and the last log lines, with no chat text and no user name.",
+    updates: "Updates",
+    updatesHint: "A newer version of Unstrung can fix this. The check asks GitHub for the newest version number and sends nothing else.",
     repair: "Quick repair",
     repairHint: "Quick repair checks first and shows what it found. It fixes nothing until you press Fix.",
     checking: "Checking...",

@@ -86,9 +86,6 @@ export function UpdateBar() {
 export function UpdateSettings() {
   const s = strings.updates;
   const [on, setOn] = useState<boolean | null>(null);
-  const [found, setFound] = useState<UpdateInfo | null | undefined>(undefined);
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState<UiError | null>(null);
   useEffect(() => {
     void getUpdateCheck().then(setOn);
   }, []);
@@ -109,6 +106,22 @@ export function UpdateSettings() {
         </label>
       )}
       <p className="field-hint">{s.checkHint}</p>
+      <UpdateCheck />
+    </div>
+  );
+}
+
+/**
+ * The check on demand and the Update button. Safe start shows it too, because
+ * there the app never checks by itself and the data may not open.
+ */
+export function UpdateCheck() {
+  const s = strings.updates;
+  const [found, setFound] = useState<UpdateInfo | null | undefined>(undefined);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<UiError | null>(null);
+  return (
+    <>
       <button
         type="button"
         className="button button-quiet"
@@ -137,6 +150,6 @@ export function UpdateSettings() {
         </>
       )}
       {error && <ErrorNote error={error} />}
-    </div>
+    </>
   );
 }
