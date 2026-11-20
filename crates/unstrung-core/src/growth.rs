@@ -355,6 +355,11 @@ impl State {
         }
         lines.sort_by(|a, b| b.0.abs().total_cmp(&a.0.abs()));
         lines.truncate(2);
+        // The runs showed a loss line alone is ignored on small talk: the
+        // reply falls back to the card's usual tone on the next plain turn.
+        let grudge = lines
+            .iter()
+            .any(|(change, drive, _)| *change < 0.0 && *drive != Drive::Romance);
         let mut said: Vec<&str> = Vec::new();
         let e = self.emotions;
         let feeling = [(e.anger, "angry"), (e.hurt, "hurt"), (e.joy, "happy")]
@@ -379,6 +384,13 @@ impl State {
                 format!("{{{{char}}}} {words}{why}.")
             })
             .collect();
+        if grudge {
+            out.push(
+                "{{char}} has not forgiven it and stays cool and guarded with {{user}}, \
+                 even in small talk."
+                    .to_owned(),
+            );
+        }
         if let Some((_, word)) = feeling {
             out.push(format!("Right now {{{{char}}}} feels {word}."));
         }

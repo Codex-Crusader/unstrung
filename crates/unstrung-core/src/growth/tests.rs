@@ -139,8 +139,15 @@ fn the_description_says_only_what_changed() {
     assert_eq!(
         text,
         "{{char}} does not trust {{user}} after what happened (sold the secret). \
-         {{char}} keeps {{user}} at arm's length now. Right now {{char}} feels angry."
+         {{char}} keeps {{user}} at arm's length now. {{char}} has not forgiven it and \
+         stays cool and guarded with {{user}}, even in small talk. Right now {{char}} feels angry."
     );
+    // Once kindness brings the drives back, the grudge line goes with them.
+    let mut mended = hurt.clone();
+    for _ in 0..30 {
+        mended = mended.after(&g, &event(2, 2), true);
+    }
+    assert!(!mended.describe(&g, true).contains("forgiven"));
     // While trust mends, the line about it keeps the reason it was lost.
     let kind = Appraisal {
         reason: "brought food".into(),
