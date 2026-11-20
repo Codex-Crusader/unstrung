@@ -22,6 +22,7 @@ use tokio_util::sync::CancellationToken;
 mod assist;
 #[cfg(test)]
 mod crossing_tests;
+mod growth;
 mod input;
 mod memories;
 mod reply;
@@ -29,6 +30,7 @@ mod reply;
 mod tests;
 mod views;
 
+pub use growth::CriticCost;
 pub use input::*;
 use reply::*;
 use views::*;
@@ -194,6 +196,10 @@ pub struct ChatService {
     closing: std::sync::atomic::AtomicBool,
     // The id of the last chat whose memory a pass changed, for the panel.
     memory_changed: watch::Sender<i64>,
+    // The prompt of the newest reply, for the growth critic to continue.
+    last_prompt: Mutex<Option<growth::LastPrompt>>,
+    // One growth appraisal at a time, so a reply waits for a running one.
+    growth_lock: tokio::sync::Mutex<()>,
 }
 
 /// What the picture step gets from the chat.
@@ -237,6 +243,8 @@ impl ChatService {
             memory_job: Mutex::new(None),
             closing: std::sync::atomic::AtomicBool::new(false),
             memory_changed: watch::Sender::new(0),
+            last_prompt: Mutex::new(None),
+            growth_lock: tokio::sync::Mutex::new(()),
         }
     }
 

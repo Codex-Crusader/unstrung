@@ -59,7 +59,7 @@ async fn message_tree_survives_a_reopen() {
     assert_eq!(db.latest_chat(id).await.unwrap(), Some(chat));
     assert_eq!(
         db.meta("schema_version").await.unwrap().as_deref(),
-        Some("8")
+        Some("9")
     );
     let summaries = db.chat_summaries(id).await.unwrap();
     assert_eq!(summaries[0].message_count, 4);
@@ -823,4 +823,203 @@ async fn search_finds_live_messages_and_treats_wildcards_as_text() {
     user(&db, chat, Some(hit.id), "明日は東京へ行く").await;
     assert_eq!(db.search("東京", false).await.unwrap().len(), 1);
     assert!(db.search("東", false).await.unwrap().is_empty());
+}
+
+mod growth {
+    use super::*;
+    use crate::growth::{self, Appraisal, Genome, State};
+
+    async fn reply(db: &Db, chat: i64, parent: i64, text: &str) -> Message {
+        db.append_message(&NewMessage {
+            chat_id: chat,
+            parent_id: Some(parent),
+            role: "character",
+            content: text,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+    }
+
+    /// The state on the path, and the same state built again from the root
+    /// with the saved appraisals. They must always match.
+    async fn now_and_replayed(db: &Db, chat: i64, g: &Genome) -> (State, State) {
+        let path = db.path_to_head(chat).await.unwrap();
+        let rows = db.growth_states(chat).await.unwrap();
+        let mut replay = State::new(g);
+        for m in &path {
+            if let Some((_, _, a)) = rows.iter().find(|(id, _, _)| *id == m.id) {
+                replay = replay.after(g, a, true);
+            }
+        }
+        (growth::on_path(&rows, &path, g), replay)
+    }
+
+    /// Appraises a reply the way the app does: from the state of the path
+    /// up to it.
+    async fn appraise(db: &Db, chat: i64, g: &Genome, at: &Message, a: &Appraisal) -> bool {
+        let path = db.path_to_head(chat).await.unwrap();
+        let end = path.iter().position(|m| m.id == at.id).unwrap();
+        let rows = db.growth_states(chat).await.unwrap();
+        let before = growth::on_path(&rows, &path[..end], g);
+        db.add_growth_state(chat, at.id, &before.after(g, a, true), a)
+            .await
+            .unwrap()
+    }
+
+    fn kind() -> Appraisal {
+        Appraisal {
+            valence: 2,
+            trust: 2,
+            closeness: 1,
+            reason: "kept a promise".into(),
+            ..Appraisal::default()
+        }
+    }
+
+    fn cruel() -> Appraisal {
+        Appraisal {
+            valence: -2,
+            unfair: true,
+            trust: -2,
+            ..Appraisal::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn the_state_follows_the_path_and_a_reply_is_appraised_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+            .await
+            .unwrap();
+        let id = db.insert_character(&ren(), None, "{}").await.unwrap();
+        let g = Genome::PLAIN;
+        db.set_genome(id, "h1", &g).await.unwrap();
+        assert_eq!(db.genome(id).await.unwrap(), Some(("h1".into(), g)));
+        let character = db.character(id).await.unwrap();
+        let chat = db.create_chat(&character, None, "", true).await.unwrap();
+        let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+        let said = user(&db, chat, Some(greeting), "I kept my word.").await;
+        let warm = reply(&db, chat, said.id, "Thanks.").await;
+        db.set_chat_head(chat, Some(warm.id)).await.unwrap();
+        assert!(appraise(&db, chat, &g, &warm, &kind()).await);
+        // A retry of the same reply changes nothing.
+        assert!(!appraise(&db, chat, &g, &warm, &cruel()).await);
+        let warm_state = now_and_replayed(&db, chat, &g).await.0;
+        assert!(warm_state.drives.trust > 0.0);
+
+        // A regenerate is a new reply with its own state.
+        let cold = reply(&db, chat, said.id, "Whatever.").await;
+        db.set_chat_head(chat, Some(cold.id)).await.unwrap();
+        assert!(appraise(&db, chat, &g, &cold, &cruel()).await);
+        assert!(now_and_replayed(&db, chat, &g).await.0.drives.trust < 0.0);
+        // Back to the first version: its state is back too.
+        db.set_chat_head(chat, Some(warm.id)).await.unwrap();
+        assert_eq!(now_and_replayed(&db, chat, &g).await.0, warm_state);
+        // A rewind to before any reply: the card's start.
+        db.set_chat_head(chat, Some(greeting)).await.unwrap();
+        assert_eq!(now_and_replayed(&db, chat, &g).await.0, State::new(&g));
+
+        // A branch into a new chat keeps the feelings.
+        db.set_chat_head(chat, Some(warm.id)).await.unwrap();
+        let path = db.path_to_head(chat).await.unwrap();
+        let copy = db.create_chat(&character, None, "", false).await.unwrap();
+        db.copy_path(copy, &path).await.unwrap();
+        assert_eq!(now_and_replayed(&db, copy, &g).await.0, warm_state);
+
+        // Deleting the chat for good removes its states, not the copy's.
+        db.delete_chat(chat).await.unwrap();
+        db.purge_deleted_chats(i64::MAX).await.unwrap();
+        assert!(db.growth_states(chat).await.unwrap().is_empty());
+        assert_eq!(db.growth_states(copy).await.unwrap().len(), 1);
+    }
+
+    /// cargo test -p unstrung-core --release --lib stress_growth -- --ignored
+    #[tokio::test]
+    #[ignore = "stress test, about a minute in release"]
+    async fn stress_growth_states_match_a_replay_after_every_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("app.db"), &crate::vault::DataKey::test())
+            .await
+            .unwrap();
+        let id = db.insert_character(&ren(), None, "{}").await.unwrap();
+        let character = db.character(id).await.unwrap();
+        let g = Genome {
+            warmth: 0.3,
+            loss_aversion: 0.8,
+            ..Genome::PLAIN
+        };
+        let chat = db.create_chat(&character, None, "", true).await.unwrap();
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut roll = |n: usize| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x % n as u64) as usize
+        };
+        let mut deleted: Vec<(i64, i64)> = Vec::new();
+        let mut copies = Vec::new();
+        for step in 0..3000_i64 {
+            let path = db.path_to_head(chat).await.unwrap();
+            let head = path.last().unwrap().clone();
+            let a = if roll(3) == 0 { cruel() } else { kind() };
+            match roll(10) {
+                // A new exchange.
+                0..=4 => {
+                    let said = user(&db, chat, Some(head.id), "go on").await;
+                    let r = reply(&db, chat, said.id, "ok").await;
+                    db.set_chat_head(chat, Some(r.id)).await.unwrap();
+                    assert!(appraise(&db, chat, &g, &r, &a).await);
+                }
+                // A regenerate of the newest reply.
+                5 if head.role == "character" && head.parent_id.is_some() => {
+                    let r = reply(&db, chat, head.parent_id.unwrap(), "again").await;
+                    db.set_chat_head(chat, Some(r.id)).await.unwrap();
+                    assert!(appraise(&db, chat, &g, &r, &a).await);
+                }
+                // A rewind to an earlier message, or a jump to another branch.
+                6 => {
+                    let at = path[roll(path.len())].id;
+                    db.set_chat_head(chat, Some(at)).await.unwrap();
+                }
+                7 => {
+                    let links = db.tree_links(chat).await.unwrap();
+                    let at = links[roll(links.len())].0;
+                    db.set_chat_head(chat, Some(at)).await.unwrap();
+                }
+                // Delete a part of the path, or restore one.
+                8 if path.len() > 2 => {
+                    let at = path[1 + roll(path.len() - 1)].clone();
+                    db.delete_subtree(chat, at.id, step).await.unwrap();
+                    db.set_chat_head(chat, at.parent_id).await.unwrap();
+                    deleted.push((at.id, step));
+                }
+                8 => {
+                    if let Some((at, stamp)) = deleted.pop() {
+                        db.restore_subtree(chat, at, stamp).await.unwrap();
+                    }
+                }
+                // A retry of an appraised reply, and now and then a copy
+                // into a new chat.
+                _ => {
+                    if head.role == "character" && head.parent_id.is_some() {
+                        appraise(&db, chat, &g, &head, &cruel()).await;
+                    }
+                    if roll(20) == 0 {
+                        let copy = db.create_chat(&character, None, "", false).await.unwrap();
+                        db.copy_path(copy, &path).await.unwrap();
+                        copies.push((copy, now_and_replayed(&db, chat, &g).await.0));
+                    }
+                }
+            }
+            let (now, replayed) = now_and_replayed(&db, chat, &g).await;
+            assert_eq!(now, replayed, "step {step}");
+        }
+        assert!(!copies.is_empty());
+        for (copy, state) in copies {
+            let (now, replayed) = now_and_replayed(&db, copy, &g).await;
+            assert_eq!(now, state);
+            assert_eq!(now, replayed);
+        }
+    }
 }

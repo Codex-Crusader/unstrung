@@ -39,6 +39,8 @@ pub enum Failure {
     FailedCheck,
     /// The character writes the user's words or actions.
     SpeaksForUser,
+    /// The character feels the same about the user whatever happens.
+    NoGrowth,
 }
 
 /// What the guide knows about this turn.
@@ -63,6 +65,8 @@ pub struct Turn<'a> {
     pub old_names: String,
     pub model_extra: &'a str,
     pub regenerate_note: Option<&'a str>,
+    /// How the character feels about the user now, from `growth`.
+    pub feelings: Option<&'a str>,
 }
 
 pub(super) struct Rule {
@@ -72,7 +76,7 @@ pub(super) struct Rule {
 }
 
 /// The guide lines, in order.
-pub(super) const RULES: [Rule; 11] = [
+pub(super) const RULES: [Rule; 12] = [
     Rule {
         fixes: Failure::GenericVoice,
         line: voice,
@@ -85,6 +89,10 @@ pub(super) const RULES: [Rule; 11] = [
     Rule {
         fixes: Failure::FlatTone,
         line: tone,
+    },
+    Rule {
+        fixes: Failure::NoGrowth,
+        line: feelings,
     },
     Rule {
         fixes: Failure::Repeats,
@@ -148,6 +156,17 @@ fn tone(t: &Turn<'_>) -> Option<String> {
          feels in it, shown in {{{{char}}}}'s own voice: a grim character can be funny in a grim \
          way, and a warm one can be shaken.",
         t.tone
+    ))
+}
+
+/// After the tone, which it refines. It says how the character treats the
+/// user, not who the character is, so the card stays true.
+fn feelings(t: &Turn<'_>) -> Option<String> {
+    let f = t.feelings.filter(|f| !f.is_empty())?;
+    Some(format!(
+        "How {{{{char}}}} feels about {{{{user}}}} now, after what happened in this chat: {f}\n\
+         Show it in what {{{{char}}}} says and does, in {{{{char}}}}'s own voice. \
+         It changes how {{{{char}}}} treats {{{{user}}}}, not who {{{{char}}}} is."
     ))
 }
 

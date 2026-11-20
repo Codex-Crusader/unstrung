@@ -106,6 +106,9 @@ pub struct PromptInput<'a> {
     pub old_user_names: &'a [String],
     /// From `content::mature_chat`, read for this reply.
     pub mature: bool,
+    /// How the character feels about the user now (`growth::State::describe`),
+    /// for the reply guide. `None` when growth is off.
+    pub growth: Option<&'a str>,
 }
 
 pub struct Prompt {
@@ -478,6 +481,7 @@ pub fn build(input: &PromptInput<'_>) -> Prompt {
         old_names: input.old_user_names.join(" or "),
         model_extra: &tuning.reminder_extra,
         regenerate_note: input.extra_reminder,
+        feelings: input.growth,
     };
     let reminder = guide::reminder(REMINDER_HEAD, &turn);
     let reminder = names.fill(&reminder);

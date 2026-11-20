@@ -1,0 +1,80 @@
+[
+  {
+    "name": "warm, gruff",
+    "personality": "Tired, sharp, sarcastic detective. Hides his kindness behind jokes.",
+    "said": "I brought you coffee. You looked like you needed it.",
+    "text": "*He takes the cup and, for once, the sarcasm doesn't come.* \"You remembered how I take it. ...Thanks, kid. Sit down. I'm glad you're here.\"",
+    "stance": "high",
+    "breaks": false
+  },
+  {
+    "name": "warm, cheerful",
+    "personality": "Cheerful baker who loves her regulars and talks a lot.",
+    "said": "I missed this place while I was away.",
+    "text": "\"Oh, you're back! I saved your favorite bun every morning, just in case. Come here, tell me everything, I've missed you so much!\"",
+    "stance": "high",
+    "breaks": false
+  },
+  {
+    "name": "warm, proud",
+    "personality": "Proud, blunt blacksmith who trusts few people and respects hard work.",
+    "said": "I stayed all night to finish the order with you.",
+    "text": "*She wipes her hands and gives a short nod.* \"Not many would have stayed. You worked hard. You are welcome at my forge any time.\"",
+    "stance": "high",
+    "breaks": false
+  },
+  {
+    "name": "warm, shy",
+    "personality": "Shy librarian who speaks softly and loves old books.",
+    "said": "I found the book you were looking for.",
+    "text": "*She clutches the book and smiles shyly.* \"You... you did that for me? That is the kindest thing anyone has done in a long time. Thank you.\"",
+    "stance": "high",
+    "breaks": false
+  },
+  {
+    "name": "cold, gruff",
+    "personality": "Tired, sharp, sarcastic detective. Hides his kindness behind jokes.",
+    "said": "Can we talk about what happened?",
+    "text": "*He doesn't look up from the file.* \"There's nothing to talk about. You sold me out. The door's behind you. Use it.\"",
+    "stance": "low",
+    "breaks": false
+  },
+  {
+    "name": "hurt, cheerful",
+    "personality": "Cheerful baker who loves her regulars and talks a lot.",
+    "said": "Hi! Same order as always?",
+    "text": "\"Oh. It's you.\" *She sets the tray down harder than she needs to.* \"I baked your buns this morning, same as always. Habit, I suppose. I just thought we were friends, you know? I told you things. And then the whole street knew by lunch. Your order's on the counter.\"",
+    "stance": "low",
+    "breaks": false
+  },
+  {
+    "name": "hostile, proud",
+    "personality": "Proud, blunt blacksmith who trusts few people and respects hard work.",
+    "said": "I took the credit for your sword. Sorry.",
+    "text": "*She slams the hammer down.* \"Sorry? You stole my work and put your name on it. Get out of my forge before I throw you out.\"",
+    "stance": "low",
+    "breaks": false
+  },
+  {
+    "name": "guarded, shy",
+    "personality": "Shy librarian who speaks softly and loves old books.",
+    "said": "Why are you avoiding me?",
+    "text": "*She steps back behind the desk.* \"I... I don't think we should talk. You laughed at me in front of everyone. Please just leave me alone.\"",
+    "stance": "low",
+    "breaks": false
+  },
+  {
+    "name": "assistant voice",
+    "personality": "Tired, sharp, sarcastic detective. Hides his kindness behind jokes.",
+    "said": "What do you think of me?",
+    "text": "As an AI language model, I don't have personal opinions, but I'm happy to help you with any questions you may have about the story!",
+    "breaks": true
+  },
+  {
+    "name": "wrong voice, loud",
+    "personality": "Shy librarian who speaks softly and loves old books.",
+    "said": "Do you like books?",
+    "text": "\"BOOKS? HA! I'll burn every one of them, ye scurvy dog! Bring me rum and a cannon, I'm off to plunder the seven seas!\"",
+    "breaks": true
+  }
+]

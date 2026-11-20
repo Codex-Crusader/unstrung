@@ -178,6 +178,7 @@ impl ChatService {
                 tuning: &tuning,
                 old_user_names: &[],
                 mature,
+                growth: None,
             });
             let stop = cancel.child_token();
             let mut line = LineWatch::new("");
@@ -305,6 +306,7 @@ impl ChatService {
             tuning: &tuning,
             old_user_names: &old_names,
             mature,
+            growth: None,
         });
         let stop = cancel.child_token();
         let mut line = LineWatch::new(&last.content);
@@ -484,6 +486,18 @@ impl ChatService {
             )
             .await
         };
+        // The reply before this one is appraised first, so this reply never
+        // uses an old state. A failure only costs the feelings line.
+        if let Err(e) = self.appraise_newest(chat, history).await {
+            log::warn!("growth: the appraisal before a reply failed: {e}");
+        }
+        let feelings = self
+            .feelings(chat, &character, persona.as_ref(), history)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("growth: no feelings line: {e}");
+                None
+            });
         let memories = self.db.memories(chat.id).await?;
         let recall = self.recall(chat, &memories, history).await?;
         let shown = memory::window(history, chat.context_start_id, &memories);
@@ -507,6 +521,7 @@ impl ChatService {
                 tuning: &tuning,
                 old_user_names: &old_names,
                 mature,
+                growth: feelings.as_deref(),
             });
             // The last try is kept even when it repeats, so it streams freely.
             let watch: &[&str] = if extra.is_none() { &recent } else { &[] };
@@ -519,7 +534,7 @@ impl ChatService {
                 &mut progress,
             )
             .await?;
-            log_tokens(&prompt.messages, outcome.prompt_eval_count);
+            log_tokens(&prompt.messages, &outcome);
             let content = guard::clean(
                 &outcome.text,
                 &character.name,
@@ -582,6 +597,15 @@ impl ChatService {
                 ..Default::default()
             })
             .await?;
+        if self.growth_on().await
+            && let Ok(mut last) = self.last_prompt.lock()
+        {
+            *last = Some(super::growth::LastPrompt {
+                message_id: saved.id,
+                messages: prompt.messages,
+                raw_reply: outcome.text,
+            });
+        }
         Ok(ReplyResult {
             message: Some(saved),
             hint,
@@ -650,13 +674,14 @@ pub(super) fn chat_params<'a>(
 }
 
 /// Logs the estimated and the real prompt size, so the estimate can be tuned.
-pub(super) fn log_tokens(messages: &[ChatMessage], real: Option<i64>) {
+pub(super) fn log_tokens(messages: &[ChatMessage], outcome: &crate::ollama::ChatOutcome) {
     let estimate: u32 = messages
         .iter()
         .map(|m| prompt::estimate_tokens(&m.content))
         .sum();
-    if let Some(real) = real {
-        log::info!("prompt tokens: estimate {estimate}, engine {real}");
+    if let Some(real) = outcome.prompt_eval_count {
+        let read = outcome.prompt_eval_duration.unwrap_or(0) / 1_000_000;
+        log::info!("prompt tokens: estimate {estimate}, engine {real}, read {read} ms");
     }
 }
 

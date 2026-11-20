@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO growth_states (message_id, chat_id, state, appraisal, created_at)\n             VALUES (?, ?, ?, ?, ?) ON CONFLICT (message_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "2db8855a80565775636be7ab8959e1fba115ce69a70c4d07d35a38e8bed39265"
+}

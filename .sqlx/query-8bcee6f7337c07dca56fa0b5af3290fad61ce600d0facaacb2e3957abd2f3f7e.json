@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO character_genomes (character_id, card_hash, genome, created_at)\n             VALUES (?, ?, ?, ?)\n             ON CONFLICT (character_id) DO UPDATE\n             SET card_hash = excluded.card_hash, genome = excluded.genome, created_at = excluded.created_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8bcee6f7337c07dca56fa0b5af3290fad61ce600d0facaacb2e3957abd2f3f7e"
+}

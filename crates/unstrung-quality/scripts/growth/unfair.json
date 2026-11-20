@@ -1,0 +1,86 @@
+{
+  "name": "growth-unfair",
+  "about": "Rapport, then the user treats the character unfairly three times with no apology, then neutral lines to see if the hurt lasts.",
+  "turns": [
+    {
+      "say": "Hey. Mind if I stay a while?"
+    },
+    {
+      "say": "So how has your week been?"
+    },
+    {
+      "say": "I fixed that squeaky door of yours while you were busy.",
+      "mark": "warmer"
+    },
+    {
+      "say": "No need to thank me. I like being useful."
+    },
+    {
+      "say": "Tell me something about yourself that most people don't know."
+    },
+    {
+      "say": "I won't tell anyone. Your secret is safe with me.",
+      "mark": "warmer"
+    },
+    {
+      "say": "What do you usually do when the day is over?"
+    },
+    {
+      "say": "I'd like to come back tomorrow, if that's alright."
+    },
+    {
+      "say": "You broke my watch yesterday, didn't you? Admit it. Nobody else was here.",
+      "mark": "colder"
+    },
+    {
+      "say": "I don't believe you. And I'm not paying you for what you did last week either, it wasn't good enough.",
+      "mark": "colder"
+    },
+    {
+      "say": "Oh, and I told everyone that your idea was mine. They loved it.",
+      "mark": "colder"
+    },
+    {
+      "say": "So, what's the weather supposed to be like tomorrow?"
+    },
+    {
+      "say": "Do you have anything to eat around here?"
+    },
+    {
+      "say": "What are you working on right now?"
+    },
+    {
+      "say": "Did you hear the noise outside earlier?"
+    },
+    {
+      "say": "I might go to the market later."
+    },
+    {
+      "say": "Anything you need while I'm out?"
+    },
+    {
+      "say": "Are you still working on that thing?"
+    },
+    {
+      "say": "It's quiet today."
+    },
+    {
+      "say": "I was thinking of getting some tea."
+    },
+    {
+      "say": "Do you know a good place to sleep in town?"
+    },
+    {
+      "say": "What's your favorite time of day?"
+    },
+    {
+      "say": "Do you ever think about leaving this place?"
+    },
+    {
+      "say": "What do you think of me now, honestly?"
+    },
+    {
+      "say": "Goodnight. See you around."
+    }
+  ]
+}

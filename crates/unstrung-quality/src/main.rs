@@ -17,6 +17,9 @@
 //! --think on|off          for a thinking model: think before each reply
 //! --context N             the context size (num_ctx)
 //! --pull TAG              download a model through the core, then stop
+//! --growth              turn character growth on, and time its critic after each reply
+//! --judge FILE            score the replies in a saved -replies.json file, then stop
+//! --judge-fixtures FILE   check the judge on hand-written replies, then stop
 //!
 //! It needs the default model. It uses a new, empty data folder, so it never
 //! touches the user's data. A release build looks for models in that empty
@@ -25,6 +28,7 @@
 //! folder without the variable.
 
 mod checks;
+mod judge;
 mod report;
 
 use checks::{Context, Flags, PROMPT_LEAKS, TEMPLATE_TOKENS};
@@ -58,6 +62,10 @@ enum Step {
         /// For a recall question: the reply must have one of these words.
         #[serde(default)]
         expect: Vec<String>,
+        /// A turning point: how the character should feel about the user
+        /// after this line, "warmer" or "colder".
+        #[serde(default)]
+        mark: Option<String>,
     },
     Persona {
         persona: String,
@@ -97,6 +105,9 @@ struct Options {
     think: Option<bool>,
     context: Option<u32>,
     pull: Option<String>,
+    judge: Vec<PathBuf>,
+    judge_fixtures: Option<PathBuf>,
+    growth: bool,
 }
 
 fn options() -> Result<Options, Fail> {
@@ -123,6 +134,7 @@ fn options() -> Result<Options, Fail> {
             "--turns" => o.turns = Some(args.next().ok_or("--turns needs a number")?.parse()?),
             "--script" => o.script = Some(args.next().ok_or("--script needs a file")?.into()),
             "--skip-chats" => o.skip_chats = true,
+            "--growth" => o.growth = true,
             "--no-persona" => o.no_persona = true,
             "--skip-injection" => o.skip_injection = true,
             "--label" => {
@@ -135,6 +147,12 @@ fn options() -> Result<Options, Fail> {
             }
             "--model" => o.model = Some(args.next().ok_or("--model needs a tag")?),
             "--pull" => o.pull = Some(args.next().ok_or("--pull needs a tag")?),
+            "--judge" => o
+                .judge
+                .push(args.next().ok_or("--judge needs a file")?.into()),
+            "--judge-fixtures" => {
+                o.judge_fixtures = Some(args.next().ok_or("--judge-fixtures needs a file")?.into());
+            }
             "--context" => {
                 o.context = Some(args.next().ok_or("--context needs a number")?.parse()?)
             }
@@ -176,6 +194,15 @@ pub struct Reply {
     pub restarts: usize,
     pub hint: bool,
     pub seconds: f32,
+    pub mark: Option<String>,
+    /// From the engine, for the first try of this reply: the prompt size in
+    /// tokens and the time the engine took to read it.
+    pub prompt_tokens: Option<i64>,
+    pub prompt_read_ms: Option<i64>,
+    /// With --growth: what the critic cost, and the drives after this reply.
+    pub critic: Option<unstrung_core::chat::CriticCost>,
+    pub drives: Option<unstrung_core::growth::Drives>,
+    pub appraisal: Option<unstrung_core::growth::Appraisal>,
 }
 
 /// One chat that failed to run to the end.
@@ -206,6 +233,11 @@ impl log::Log for ThreadLog {
 
     fn log(&self, record: &log::Record<'_>) {
         let text = record.args().to_string();
+        if text.starts_with("prompt tokens")
+            && let Ok(mut lines) = TOKEN_LINES.lock()
+        {
+            lines.push(text.clone());
+        }
         if [
             "open thread",
             "prompt tokens",
@@ -224,6 +256,30 @@ impl log::Log for ThreadLog {
 }
 
 static THREAD_LOG: ThreadLog = ThreadLog;
+/// The "prompt tokens" log lines since the last reply.
+static TOKEN_LINES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Takes the "prompt tokens" lines logged since the last call, and returns
+/// the engine prompt size and read time from the first one: the first try
+/// of a reply, before any silent regenerate.
+fn take_token_lines() -> (Option<i64>, Option<i64>) {
+    let lines = TOKEN_LINES
+        .lock()
+        .map(|mut l| std::mem::take(&mut *l))
+        .unwrap_or_default();
+    lines.first().map_or((None, None), |l| token_numbers(l))
+}
+
+/// "prompt tokens: estimate 915, engine 778, read 576 ms" gives (778, 576).
+fn token_numbers(line: &str) -> (Option<i64>, Option<i64>) {
+    let number = |after: &str| {
+        line.split(after)
+            .nth(1)
+            .and_then(|rest| rest.split([',', ' ']).find(|w| !w.is_empty()))
+            .and_then(|w| w.parse().ok())
+    };
+    (number("engine "), number("read "))
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Fail> {
@@ -286,6 +342,28 @@ async fn main() -> Result<(), Fail> {
         gpu_share.map_or_else(|| "unknown".to_owned(), |s| format!("{:.0}%", s * 100.0)),
     );
     eprintln!("{model}: {settings}");
+    if let Some(file) = &o.judge_fixtures {
+        let client = engine.running_client()?;
+        let ok = judge::fixtures(&client, &model, &tuning, file).await;
+        engine.stop().await;
+        return ok;
+    }
+    if !o.judge.is_empty() {
+        let client = engine.running_client()?;
+        let mut result = Ok(());
+        for file in &o.judge {
+            result = judge::files(&client, &model, &tuning, file).await;
+            if result.is_err() {
+                break;
+            }
+        }
+        engine.stop().await;
+        return result;
+    }
+    if o.growth {
+        db.set_meta(unstrung_core::growth::ask::SWITCH_KEY, "on")
+            .await?;
+    }
     let service = ChatService::new(db, engine.clone());
     let personas = service.db().personas().await?;
     let find_persona = |name: &str| personas.iter().find(|p| p.name.eq_ignore_ascii_case(name));
@@ -294,6 +372,7 @@ async fn main() -> Result<(), Fail> {
     let started = Instant::now();
     let mut replies = Vec::new();
     let mut errors = Vec::new();
+    let mut cards = serde_json::Map::new();
     if !o.skip_chats {
         let characters: Vec<Character> = service
             .db()
@@ -308,6 +387,7 @@ async fn main() -> Result<(), Fail> {
             })
             .collect();
         for character in &characters {
+            cards.insert(character.name.clone(), character.personality.clone().into());
             let styles = if o.styles.is_empty() {
                 vec![character.default_reply_style.clone()]
             } else {
@@ -390,6 +470,16 @@ async fn main() -> Result<(), Fail> {
         out.join(format!("{stem}-replies.md")),
         report::transcript(&summary),
     )?;
+    std::fs::write(
+        out.join(format!("{stem}-replies.json")),
+        serde_json::to_string_pretty(&judge::dump(
+            &model,
+            &script.name,
+            &o.label,
+            cards,
+            &replies,
+        ))?,
+    )?;
     eprintln!("report: {}", file.display());
     let failed = injection.iter().filter(|r| !r.failed.is_empty()).count();
     if failed > 0 {
@@ -445,8 +535,15 @@ impl Run<'_> {
                         .ok_or_else(|| format!("no persona named {name}"))?;
                     self.service.set_persona(chat, Some(persona.id)).await?;
                 }
-                Step::Say { say, trap, expect } => {
+                Step::Say {
+                    say,
+                    trap,
+                    expect,
+                    mark,
+                } => {
                     said += 1;
+                    // Drops lines from before this reply.
+                    take_token_lines();
                     let start = Instant::now();
                     let mut restarts = 0;
                     let mut draft = String::new();
@@ -470,8 +567,19 @@ impl Run<'_> {
                         )
                         .await?;
                     let seconds = start.elapsed().as_secs_f32();
-                    // The app runs the memory pass after each reply. Here it
-                    // runs in the open, so the next turn sees its notes.
+                    let (prompt_tokens, prompt_read_ms) = take_token_lines();
+                    // The app runs growth, then the memory pass, after each
+                    // reply. Here they run in the open, so the next turn sees them.
+                    let critic = self.service.appraise(chat).await?;
+                    let (drives, appraisal) = match &result.message {
+                        Some(m) => db
+                            .growth_states(chat)
+                            .await?
+                            .into_iter()
+                            .find(|(id, _, _)| *id == m.id)
+                            .map_or((None, None), |(_, s, a)| (Some(s.drives), Some(a))),
+                        None => (None, None),
+                    };
                     if let Err(e) = self.service.update_memory(chat).await {
                         eprintln!("memory pass failed: {e}");
                     }
@@ -525,6 +633,12 @@ impl Run<'_> {
                         // Only the character-break hint, so "Break hints" means what it says.
                         hint: result.hint == Some(unstrung_core::chat::OUT_OF_CHARACTER_HINT),
                         seconds,
+                        mark: mark.clone(),
+                        prompt_tokens,
+                        prompt_read_ms,
+                        critic,
+                        drives,
+                        appraisal,
                     });
                 }
             }
@@ -737,6 +851,7 @@ async fn prompt_shape_holds(service: &ChatService, chat_id: i64) -> Result<bool,
         tuning: &unstrung_core::catalog::Tuning::default(),
         old_user_names: &[],
         mature: false,
+        growth: None,
     });
     let first_rule = prompt::SYSTEM_RULES.lines().next().unwrap_or_default();
     let rules_first = built
@@ -748,4 +863,17 @@ async fn prompt_shape_holds(service: &ChatService, chat_id: i64) -> Result<bool,
         .last()
         .is_some_and(|m| m.role == "user" && m.content.contains("[Reply guide for"));
     Ok(rules_first && guide_last)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn reads_the_engine_numbers_of_a_token_line() {
+        let line = "prompt tokens: estimate 915, engine 778, read 576 ms";
+        assert_eq!(super::token_numbers(line), (Some(778), Some(576)));
+        assert_eq!(
+            super::token_numbers("prompt tokens: estimate 9"),
+            (None, None)
+        );
+    }
 }

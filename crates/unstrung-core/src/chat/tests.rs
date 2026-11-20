@@ -289,3 +289,185 @@ fn ooc_notes() {
     assert!(split_ooc("/ooc").is_err());
     assert!(split_ooc("(())").is_err());
 }
+
+#[tokio::test]
+async fn growth_off_asks_the_model_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
+    let fields = crate::db::CharacterFields {
+        name: "Ren".into(),
+        greeting: "Sit.".into(),
+        ..Default::default()
+    };
+    let id = db
+        .insert_character(&fields, Some("test"), "{}")
+        .await
+        .unwrap();
+    let character = db.character(id).await.unwrap();
+    let chat = db.create_chat(&character, None, "", true).await.unwrap();
+    let mut head = db.chat(chat).await.unwrap().head_message_id.unwrap();
+    for role in ["user", "character"] {
+        head = db
+            .append_message(&NewMessage {
+                chat_id: chat,
+                parent_id: Some(head),
+                role,
+                content: "line",
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .id;
+    }
+    db.set_chat_head(chat, Some(head)).await.unwrap();
+    // The engine never started: any model call would fail.
+    let chats = ChatService::new(db, Engine::new(paths));
+    assert!(chats.appraise(chat).await.unwrap().is_none());
+    // On, the same call needs the engine.
+    chats
+        .db()
+        .set_meta(crate::growth::ask::SWITCH_KEY, "on")
+        .await
+        .unwrap();
+    assert!(chats.appraise(chat).await.is_err());
+    assert!(chats.db().growth_states(chat).await.unwrap().is_empty());
+}
+
+/// A fake engine that answers each request with the next text of `answers`
+/// as one finished chat message. Returns its port and the request count.
+async fn answering_engine(
+    answers: Vec<&'static str>,
+) -> (u16, Arc<std::sync::atomic::AtomicUsize>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = count.clone();
+    tokio::spawn(async move {
+        for answer in answers {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            // Reads the whole request: the headers, then Content-Length bytes.
+            let mut req = Vec::new();
+            let mut buf = [0u8; 8192];
+            loop {
+                let n = socket.read(&mut buf).await.unwrap();
+                req.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&req).to_lowercase();
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let len = text
+                        .lines()
+                        .find_map(|l| l.strip_prefix("content-length:"))
+                        .and_then(|v| v.trim().parse::<usize>().ok())
+                        .unwrap_or(0);
+                    if req.len() >= end + 4 + len || n == 0 {
+                        break;
+                    }
+                }
+            }
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let body = serde_json::json!({
+                "message": { "role": "assistant", "content": answer },
+                "done": true, "done_reason": "stop", "eval_count": 30,
+                "prompt_eval_count": 250, "prompt_eval_duration": 90_000_000,
+            })
+            .to_string()
+                + "\n";
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\n\
+                 Content-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            socket.write_all(head.as_bytes()).await.unwrap();
+            socket.write_all(body.as_bytes()).await.unwrap();
+        }
+    });
+    (port, count)
+}
+
+#[tokio::test]
+async fn a_reply_is_appraised_once_and_a_broken_answer_changes_no_drive() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = crate::paths::AppPaths::at(dir.path().to_path_buf());
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
+    let fields = crate::db::CharacterFields {
+        name: "Ren".into(),
+        personality: "Proud and slow to forgive.".into(),
+        greeting: "Sit.".into(),
+        ..Default::default()
+    };
+    let id = db
+        .insert_character(&fields, Some("test"), "{}")
+        .await
+        .unwrap();
+    let character = db.character(id).await.unwrap();
+    let chat = db.create_chat(&character, None, "", true).await.unwrap();
+    let greeting = db.chat(chat).await.unwrap().head_message_id.unwrap();
+    let add = |parent: i64, role: &'static str| {
+        let db = db.clone();
+        async move {
+            db.append_message(&NewMessage {
+                chat_id: chat,
+                parent_id: Some(parent),
+                role,
+                content: "line",
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .id
+        }
+    };
+    let said = add(greeting, "user").await;
+    let first = add(said, "character").await;
+    db.set_chat_head(chat, Some(first)).await.unwrap();
+    db.set_meta(crate::growth::ask::SWITCH_KEY, "on")
+        .await
+        .unwrap();
+
+    let (port, requests) = answering_engine(vec![
+        r#"{"warmth":2,"sensitivity":4,"grudges":5,"fairness":4,"forgiveness":1}"#,
+        r#"{"1_deed":"sold the secret","2_event":true,"valence":-2,"unfair":true,"apology":false,"trust":-2,"closeness":-2,"respect":-1,"romance":0}"#,
+        "Trust drops a lot here, I think.",
+    ])
+    .await;
+    let engine = Engine::new(paths);
+    engine.use_test_client(crate::ollama::Client::new(port).unwrap());
+    let chats = ChatService::new(db.clone(), engine);
+    let n = || requests.load(std::sync::atomic::Ordering::SeqCst);
+
+    // The genome question, then the critic.
+    let cost = chats.appraise(chat).await.unwrap().unwrap();
+    assert!(cost.parsed && !cost.continued);
+    assert_eq!(cost.prompt_tokens, Some(250));
+    assert_eq!(n(), 2);
+    let genome = chats.db().genome(id).await.unwrap().unwrap().1;
+    let rows = chats.db().growth_states(chat).await.unwrap();
+    let start = crate::growth::State::new(&genome);
+    let hurt = rows[0].1.clone();
+    assert!(hurt.drives.trust < start.drives.trust);
+    assert!(hurt.drives.closeness < start.drives.closeness);
+
+    // Asking again, as a retry or a second window would, asks nothing.
+    for _ in 0..5 {
+        assert!(chats.appraise(chat).await.unwrap().is_none());
+    }
+    assert_eq!(n(), 2);
+
+    // A regenerated reply is a new message: appraised from the state before
+    // the old one, once. The answer is prose, so no drive moves.
+    let second = add(said, "character").await;
+    chats.db().set_chat_head(chat, Some(second)).await.unwrap();
+    let cost = chats.appraise(chat).await.unwrap().unwrap();
+    assert!(!cost.parsed);
+    assert_eq!(n(), 3, "the genome is asked for once per card");
+    let rows = chats.db().growth_states(chat).await.unwrap();
+    let after = &rows.iter().find(|r| r.0 == second).unwrap().1;
+    assert_eq!(after.drives, start.drives);
+    assert!(chats.appraise(chat).await.unwrap().is_none());
+    assert_eq!(n(), 3);
+}

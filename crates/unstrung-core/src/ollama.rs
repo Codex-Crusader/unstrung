@@ -151,6 +151,10 @@ struct ChatChunk {
     eval_count: Option<i64>,
     #[serde(default)]
     prompt_eval_count: Option<i64>,
+    /// Nanoseconds spent reading the prompt. Low when the engine reused the
+    /// prompt it read last time.
+    #[serde(default)]
+    prompt_eval_duration: Option<i64>,
     #[serde(default)]
     error: Option<String>,
 }
@@ -171,6 +175,7 @@ pub struct ChatOutcome {
     pub eval_count: Option<i64>,
     /// The real prompt size, to check the builder's estimate.
     pub prompt_eval_count: Option<i64>,
+    pub prompt_eval_duration: Option<i64>,
 }
 
 /// The longest wait for the first part of a reply. After the 30-minute
@@ -534,6 +539,7 @@ fn handle_line(line: &[u8], out: &mut ChatOutcome, on_text: &mut impl FnMut(&str
         out.cut_at_cap = chunk.done_reason.as_deref() == Some("length");
         out.eval_count = chunk.eval_count;
         out.prompt_eval_count = chunk.prompt_eval_count;
+        out.prompt_eval_duration = chunk.prompt_eval_duration;
         return Ok(true);
     }
     Ok(false)

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT card_hash, genome FROM character_genomes WHERE character_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "card_hash",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "genome",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "cbe54f7addd700fde0ffb0cd5d255a350632c6883730affa3a64655879e0921e"
+}

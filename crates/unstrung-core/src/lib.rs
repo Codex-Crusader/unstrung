@@ -18,6 +18,7 @@ pub mod engine;
 pub mod engine_setup;
 pub mod error;
 pub mod files;
+pub mod growth;
 pub mod guard;
 pub mod hardware;
 pub mod library;

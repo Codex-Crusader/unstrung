@@ -174,19 +174,7 @@ impl ChatService {
                 content: question,
             },
         ];
-        let options = Options {
-            temperature: 0.0,
-            min_p: 0.0,
-            top_p: 1.0,
-            top_k: 1,
-            presence_penalty: 0.0,
-            repeat_penalty: 1.0,
-            repeat_last_n: 64,
-            // The chat's own size: another size makes the engine load the model again.
-            num_ctx: tuning.context,
-            num_predict: MEMORY_TOKENS,
-            stop: Vec::new(),
-        };
+        let options = super::growth::quiet_options(tuning.context, MEMORY_TOKENS);
         let params = chat_params(model, &messages, &options, tuning.think.map(|_| false));
         tokio::select! {
             biased;

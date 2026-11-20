@@ -35,6 +35,7 @@ impl ChatService {
             tuning: &tuning,
             old_user_names: &[],
             mature,
+            growth: None,
         });
         let stop = cancel.child_token();
         let mut line = LineWatch::new("");

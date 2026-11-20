@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT message_id AS \"message_id!\", state, appraisal\n             FROM growth_states WHERE chat_id = ? ORDER BY message_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "appraisal",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2551a555a2c401a88a3db9c3b5e182dbfa64431fdf2b2894f52712ee7e209fcc"
+}

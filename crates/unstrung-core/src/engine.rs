@@ -203,6 +203,15 @@ impl Engine {
     }
 
     /// The client, only when the engine is ready.
+    /// Points the engine at a fake server, for tests.
+    #[cfg(test)]
+    pub(crate) fn use_test_client(&self, client: Client) {
+        self.client.send_replace(Some(client));
+        self.status.send_replace(EngineStatus::Ready {
+            model: "test".into(),
+        });
+    }
+
     pub fn client(&self) -> Result<Client> {
         match (&*self.status.borrow(), &*self.client.borrow()) {
             (EngineStatus::Ready { .. }, Some(client)) => Ok(client.clone()),

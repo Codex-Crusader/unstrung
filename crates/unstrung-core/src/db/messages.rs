@@ -221,6 +221,16 @@ impl Db {
             )
             .fetch_one(&mut *tx)
             .await?;
+            // The character keeps its feelings in the new chat.
+            sqlx::query!(
+                "INSERT INTO growth_states (message_id, chat_id, state, appraisal, created_at)
+                 SELECT ?, ?, state, appraisal, created_at FROM growth_states WHERE message_id = ?",
+                id,
+                chat_id,
+                m.id
+            )
+            .execute(&mut *tx)
+            .await?;
             parent = Some(id);
         }
         sqlx::query!(

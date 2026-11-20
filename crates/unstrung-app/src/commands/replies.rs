@@ -55,9 +55,13 @@ pub(super) async fn finish(
     result: unstrung_core::Result<ReplyResult>,
 ) {
     if result.is_ok() {
-        // The memory pass runs after the reply, while the user reads it.
+        // Growth and the memory pass run after the reply, while the user
+        // reads it. Growth goes first: the next reply waits for it.
         let chats = state.chats.clone();
         tauri::async_runtime::spawn(async move {
+            if let Err(e) = chats.appraise(chat_id).await {
+                log::warn!("growth appraisal failed: {e}");
+            }
             if let Err(e) = chats.update_memory(chat_id).await {
                 log::warn!("memory pass failed: {e}");
             }

@@ -67,6 +67,7 @@ fn input<'a>(c: &'a Character, p: Option<&'a Persona>, history: &'a [Message]) -
         old_user_names: &[],
         mature: false,
         tuning: &DEFAULT_TUNING,
+        growth: None,
     }
 }
 
@@ -623,6 +624,7 @@ fn guide_rules_map_to_failures() {
         ModelQuirk,
         FailedCheck,
         SpeaksForUser,
+        NoGrowth,
     ];
     for failure in all {
         let rules = guide::RULES.iter().filter(|r| r.fixes == failure).count();
@@ -761,4 +763,32 @@ fn a_minor_in_the_messages_makes_the_reply_general() {
     i.mature = true;
     let text = build(&i).messages[0].content.clone();
     assert!(text.contains(GENERAL_SENTENCE) && !text.contains("both adults"));
+}
+
+#[test]
+fn growth_feelings_go_in_the_reply_guide_only_when_given() {
+    let (c, k) = (ren(), kai());
+    let history = [msg("user", "Hello")];
+    let mut i = input(&c, Some(&k), &history);
+    let without = build(&i);
+    assert!(
+        !without
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("feels about")
+    );
+    i.growth = Some("{{char}} does not trust {{user}} after what happened.");
+    let with = build(&i);
+    let last = with.messages.last().unwrap().content.clone();
+    assert!(
+        last.contains(
+            "How Ren Kagami feels about Kai now, after what happened in this chat: \
+             Ren Kagami does not trust Kai after what happened.\n"
+        ),
+        "{last}"
+    );
+    // The system message stays the same, so the engine reuses what it read.
+    assert_eq!(with.messages[0].content, without.messages[0].content);
 }

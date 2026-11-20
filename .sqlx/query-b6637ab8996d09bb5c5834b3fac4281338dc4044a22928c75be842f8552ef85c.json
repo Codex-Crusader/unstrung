@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO growth_states (message_id, chat_id, state, appraisal, created_at)\n                 SELECT ?, ?, state, appraisal, created_at FROM growth_states WHERE message_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b6637ab8996d09bb5c5834b3fac4281338dc4044a22928c75be842f8552ef85c"
+}

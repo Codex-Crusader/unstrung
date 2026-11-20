@@ -2,6 +2,7 @@
 
 mod characters;
 mod chats;
+mod growth;
 mod history;
 mod images;
 mod kept;
