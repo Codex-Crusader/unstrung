@@ -8,6 +8,12 @@ stops when the section is missing.
 
 ## Unreleased
 
+## 0.4.0
+
+- New setting: Settings > Characters > Character growth. It is off until you turn it on. With it on, characters remember how you treat them in each chat. They warm up when you are kind, do not forgive at once after you hurt them, and come around after you make amends. A rewind, a regenerate or a new branch takes the feelings back to that point in the chat.
+- With Character growth on, Unstrung takes about 2 seconds after each reply to note what changed, while you read. On a PC without a graphics card it takes longer, but still less than a reply.
+- The first start of 0.4.0 adds two tables to your chats file, and Unstrung keeps a copy of the file from before that in its backups folder. After the update, an older version of Unstrung cannot open your chats.
+
 ## 0.3.2
 
 - Model downloads now use the proxy from Windows Settings also when HTTP_PROXY is set. Only a set HTTPS_PROXY replaces it, because the chat engine downloads over HTTPS.
