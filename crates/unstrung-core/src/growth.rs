@@ -263,13 +263,13 @@ impl State {
             next.set(drive, (now + delta).clamp(-1.0, 1.0));
             let up = delta > 0.0;
             next.reasons.retain(|r| r.drive != drive || r.up != up);
-            if !e.reason.is_empty() {
-                next.reasons.push(Reason {
-                    drive,
-                    up,
-                    text: e.reason.clone(),
-                });
-            }
+            // Kept even when the text is empty: it marks that an event, not
+            // a card edit, moved this drive.
+            next.reasons.push(Reason {
+                drive,
+                up,
+                text: e.reason.clone(),
+            });
         }
         next
     }
@@ -301,7 +301,13 @@ impl State {
         let mut add =
             |drive: Drive, change: f32, up: [&'static str; 2], down: [&'static str; 2]| {
                 // One small kind act is not news. One severe betrayal is.
-                if change.abs() < MENTION {
+                // A change with no event behind it is a card edit that moved
+                // the starting point, not something the user did.
+                let moved = self
+                    .reasons
+                    .iter()
+                    .any(|r| r.drive == drive && r.up == (change > 0.0));
+                if change.abs() < MENTION || !moved {
                     return;
                 }
                 let strong = usize::from(change.abs() >= STRONG);
@@ -375,6 +381,7 @@ impl State {
                     .find(|r| {
                         r.drive == drive
                             && r.up == (change > 0.0)
+                            && !r.text.is_empty()
                             && !said.contains(&r.text.as_str())
                     })
                     .map_or(String::new(), |r| {

@@ -291,6 +291,14 @@ impl ChatService {
         let memories = self.db.memories(chat.id).await?;
         let recall = self.recall(&chat, &memories, &history).await?;
         let mature = crate::content::mature_chat(&self.db, &character, persona.as_ref()).await?;
+        // The added text keeps the same feelings as the reply it extends.
+        let feelings = self
+            .feelings(&chat, &character, persona.as_ref(), &history)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("growth: no feelings line: {e}");
+                None
+            });
         let prompt = prompt::build(&PromptInput {
             character: &character,
             persona: persona.as_ref(),
@@ -306,7 +314,7 @@ impl ChatService {
             tuning: &tuning,
             old_user_names: &old_names,
             mature,
-            growth: None,
+            growth: feelings.as_deref(),
         });
         let stop = cancel.child_token();
         let mut line = LineWatch::new(&last.content);

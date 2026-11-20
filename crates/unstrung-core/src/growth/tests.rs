@@ -148,6 +148,17 @@ fn the_description_says_only_what_changed() {
         mended = mended.after(&g, &event(2, 2), true);
     }
     assert!(!mended.describe(&g, true).contains("forgiven"));
+    // A card edit that makes the character warmer moves the starting point,
+    // not the relationship: nothing happened, so nothing is said.
+    let cold = Genome {
+        warmth: 0.0,
+        ..Genome::PLAIN
+    };
+    let warm = Genome {
+        warmth: 1.0,
+        ..Genome::PLAIN
+    };
+    assert_eq!(State::new(&cold).describe(&warm, true), "");
     // While trust mends, the line about it keeps the reason it was lost.
     let kind = Appraisal {
         reason: "brought food".into(),

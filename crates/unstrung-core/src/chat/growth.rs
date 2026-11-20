@@ -47,9 +47,12 @@ impl ChatService {
         if !self.growth_on().await {
             return Ok(None);
         }
-        let Some((_, genome)) = self.db.genome(character.id).await? else {
-            return Ok(None);
-        };
+        // Until a genome is saved, the appraisal uses the plain one too.
+        let genome = self
+            .db
+            .genome(character.id)
+            .await?
+            .map_or(Genome::PLAIN, |(_, g)| g);
         let rows = self.db.growth_states(chat.id).await?;
         let romance = crate::content::adult_people(character, persona);
         let text = growth::on_path(&rows, history, &genome).describe(&genome, romance);
