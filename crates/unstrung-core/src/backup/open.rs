@@ -74,9 +74,14 @@ pub fn discard(paths: &AppPaths, id: &str) {
 }
 
 pub(super) fn has_room(dir: &Path, bytes: u64) -> Result<()> {
-    if let Some(disk) = crate::hardware::disk_of(dir)
-        && disk.available < bytes + IMPORT_SPARE_BYTES
-    {
+    // The app folder is on a local disk (a network folder fails the space
+    // check in `location`), so no disk means that the drive is not connected.
+    let Some(disk) = crate::hardware::disk_of(dir) else {
+        return Err(Error::Invalid(
+            "the free space of the drive with the app folder could not be checked. Check that the drive is connected".into(),
+        ));
+    };
+    if disk.available < bytes + IMPORT_SPARE_BYTES {
         return Err(Error::NoSpace {
             need: bytes + IMPORT_SPARE_BYTES - disk.available,
         });

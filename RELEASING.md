@@ -1,7 +1,9 @@
 # Making a release
 
-A release is a signed installer on the GitHub releases page. The app's updater
-reads `latest.json` from the newest published release, so users get an update
+A release is a Windows installer on the GitHub releases page, with an updater
+signature (`.sig`) and a SHA-256 checksum. The updater signature protects the
+in-app update. The installer itself has no Windows Authenticode signature. The
+app's updater reads `latest.json` from the newest published release, so users get an update
 only after you publish the draft.
 
 ## Before the tag

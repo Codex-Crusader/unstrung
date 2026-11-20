@@ -452,6 +452,16 @@ async fn a_copy_comes_back_and_the_replaced_file_is_kept() {
         .await
         .unwrap();
     assert_eq!(db.meta("story").await.unwrap().as_deref(), Some("old"));
+    db.set_meta("story", "newest").await.unwrap();
+    db.close().await;
+
+    // The copy fails after the chats file moved aside: it moves back.
+    std::fs::create_dir(paths.database().with_extension("db.restore.tmp")).unwrap();
+    assert!(snapshots::restore(&paths, &name).await.is_err());
+    let db = Db::open(&paths.database(), &paths.key().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(db.meta("story").await.unwrap().as_deref(), Some("newest"));
     db.close().await;
 }
 

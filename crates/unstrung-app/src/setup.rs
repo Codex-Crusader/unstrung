@@ -242,7 +242,7 @@ pub async fn engine_install(app: AppHandle, state: State<'_, AppState>) -> CmdRe
         let result = async {
             setup.prepare(gpu.as_ref()).await?;
             engine.stop().await;
-            let replaced = setup.replace();
+            let replaced = setup.replace_off_thread().await;
             engine.start().await;
             replaced?;
             models.after_start().await

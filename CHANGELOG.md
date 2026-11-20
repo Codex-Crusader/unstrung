@@ -6,6 +6,12 @@ release, rename "Unreleased" to the version number, for example "## 0.2.1".
 The release workflow copies that section into the release notes, and it
 stops when the section is missing.
 
+## Unreleased
+
+- Model downloads now use the proxy from Windows Settings also when HTTP_PROXY is set. Only a set HTTPS_PROXY replaces it, because the chat engine downloads over HTTPS.
+- A backup import now stops with a clear message when the drive with the app folder is not connected. Before, it skipped the free space check.
+- Restoring a copy of your chats, and importing a backup, now wait a few seconds when an antivirus scan holds a file, instead of failing at once.
+
 ## 0.3.1
 
 - Safe start now has a Check for updates button. When Unstrung cannot open your chats, or stops at every start, the version that fixes it is one click away. Before, you had to find it and download it yourself.

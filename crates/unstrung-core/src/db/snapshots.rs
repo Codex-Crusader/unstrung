@@ -170,9 +170,9 @@ pub async fn restore(paths: &AppPaths, name: &str) -> Result<()> {
             continue;
         }
         let to = aside.join(file.file_name().unwrap_or_default());
-        if let Err(e) = std::fs::rename(&file, &to) {
+        if let Err(e) = crate::files::rename(&file, &to) {
             for (back, at) in moved.iter().rev() {
-                if let Err(e) = std::fs::rename(at, back) {
+                if let Err(e) = crate::files::rename(at, back) {
                     log::error!("could not move {} back: {e}", at.display());
                 }
             }
@@ -181,11 +181,11 @@ pub async fn restore(paths: &AppPaths, name: &str) -> Result<()> {
         moved.push((file, to));
     }
     let temp = db.with_extension("db.restore.tmp");
-    let placed = std::fs::copy(&from, &temp).and_then(|_| std::fs::rename(&temp, &db));
+    let placed = std::fs::copy(&from, &temp).and_then(|_| crate::files::rename(&temp, &db));
     if let Err(e) = placed {
         let _ = std::fs::remove_file(&temp);
         for (back, at) in moved.iter().rev() {
-            if let Err(e) = std::fs::rename(at, back) {
+            if let Err(e) = crate::files::rename(at, back) {
                 log::error!("could not move {} back: {e}", at.display());
             }
         }

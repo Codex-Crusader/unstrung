@@ -12,7 +12,9 @@ const RENAME_WAIT: Duration = Duration::from_secs(3);
 
 /// `std::fs::rename` that waits while another program holds the file, or a
 /// file inside the folder. Windows then refuses with access denied (5), a
-/// sharing violation (32) or a lock violation (33).
+/// sharing violation (32) or a lock violation (33). A folder that is truly
+/// read-only also gives access denied, so that error comes 3 seconds late.
+/// It blocks the thread: call it from async code with `spawn_blocking`.
 pub fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
     let deadline = Instant::now() + RENAME_WAIT;
     let mut pause = Duration::from_millis(50);

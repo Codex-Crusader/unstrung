@@ -161,6 +161,6 @@ impl PictureService {
         forward.abort();
         result?;
         // No picture runs during a download, so nothing holds the old folder.
-        self.setup.replace()
+        self.setup.replace_off_thread().await
     }
 }

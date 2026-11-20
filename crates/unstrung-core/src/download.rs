@@ -100,8 +100,12 @@ impl Fetcher {
                 why: format!("SHA-256 {hash}, expected {}", source.sha256),
             });
         }
-        // A scanner often opens a big file that has just been written.
-        crate::files::rename(&part, target)?;
+        // A scanner often opens a big file that has just been written, and
+        // the rename then waits on this blocking thread.
+        let target = target.to_path_buf();
+        tokio::task::spawn_blocking(move || crate::files::rename(&part, &target))
+            .await
+            .map_err(|e| Error::Io(std::io::Error::other(e)))??;
         Ok(())
     }
 

@@ -74,7 +74,7 @@ pub(super) fn undo(moves: &[(PathBuf, PathBuf)]) {
     for (from, to) in moves.iter().rev() {
         if to.exists()
             && !from.exists()
-            && let Err(e) = std::fs::rename(to, from)
+            && let Err(e) = crate::files::rename(to, from)
         {
             log::error!("could not move {} back: {e}", to.display());
         }
@@ -128,7 +128,7 @@ pub fn apply_pending(paths: &AppPaths) -> Result<bool> {
                     format!("{} is in the way", to.display()),
                 ))
             } else {
-                std::fs::rename(from, to)
+                crate::files::rename(from, to)
             };
             if let Err(e) = moved {
                 undo(&moves[..i]);

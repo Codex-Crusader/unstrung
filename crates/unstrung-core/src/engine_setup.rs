@@ -368,6 +368,15 @@ impl EngineSetup {
         Ok(())
     }
 
+    /// `replace` on a blocking thread, because a held file can make it wait
+    /// for seconds (see `files::rename`).
+    pub async fn replace_off_thread(self: &Arc<Self>) -> Result<()> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.replace())
+            .await
+            .map_err(|e| Error::Engine(format!("the engine swap stopped: {e}")))?
+    }
+
     /// Puts the prepared engine in place. The old engine must be stopped.
     /// Windows cannot rename a folder over another one, so the old folder
     /// moves aside first and comes back if the swap fails.

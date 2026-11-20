@@ -107,7 +107,7 @@ impl Sidecar {
         // on a school or office proxy its model downloads need this.
         if let Some(proxy) = windows_proxy(MODEL_REGISTRY) {
             log::info!("the chat engine downloads through the Windows proxy {proxy}");
-            cmd.env("HTTPS_PROXY", &proxy).env("HTTP_PROXY", &proxy);
+            cmd.env("HTTPS_PROXY", &proxy);
         }
         #[cfg(windows)]
         {
@@ -182,21 +182,25 @@ pub(crate) fn kill_on_close_job(child: &Child) -> Option<win32job::Job> {
 /// Where the engine downloads chat models from.
 const MODEL_REGISTRY: &str = "https://registry.ollama.ai/";
 
-/// The proxy that Windows Settings gives for `url`. None when the user set a
-/// proxy variable: the engine reads that one itself, with its password.
+/// The proxy that Windows Settings gives for `url`. None when the user set
+/// HTTPS_PROXY: the engine reads that one itself, with its password.
 // shortcut: a proxy setup script (PAC) or "Automatically detect settings" is
 // not read, as in reqwest; read it with WinHTTP if users report it.
 fn windows_proxy(url: &str) -> Option<String> {
-    let set = ["HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"]
-        .iter()
-        .any(|v| std::env::var_os(v).is_some());
-    if set {
+    if user_set_proxy(|v| std::env::var_os(v)) {
         return None;
     }
     proxy_for(
         &hyper_util::client::proxy::matcher::Matcher::from_system(),
         url,
     )
+}
+
+/// The engine downloads only over HTTPS, and Go reads only HTTPS_PROXY for
+/// that: HTTP_PROXY and ALL_PROXY do not reach it, and an empty value is unset.
+/// Windows names are not case sensitive, so this also finds https_proxy.
+fn user_set_proxy(var: impl Fn(&str) -> Option<std::ffi::OsString>) -> bool {
+    var("HTTPS_PROXY").is_some_and(|v| !v.is_empty())
 }
 
 fn proxy_for(matcher: &hyper_util::client::proxy::matcher::Matcher, url: &str) -> Option<String> {
@@ -315,6 +319,17 @@ mod tests {
         assert_eq!(proxy(&bypassed), None);
         assert_eq!(proxy(&Matcher::builder().build()), None);
         assert_eq!(proxy_for(&set, "not a url"), None);
+    }
+
+    #[test]
+    fn only_a_set_https_proxy_variable_overrides_the_windows_proxy() {
+        let env = |name: &'static str, value: &'static str| {
+            move |v: &str| (v == name).then(|| value.into())
+        };
+        assert!(user_set_proxy(env("HTTPS_PROXY", "http://10.1.2.3:3128")));
+        assert!(!user_set_proxy(env("HTTP_PROXY", "http://10.1.2.3:3128")));
+        assert!(!user_set_proxy(env("ALL_PROXY", "http://10.1.2.3:3128")));
+        assert!(!user_set_proxy(env("HTTPS_PROXY", "")));
     }
 
     #[test]
