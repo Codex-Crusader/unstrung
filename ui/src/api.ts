@@ -574,6 +574,8 @@ export const restoreStarters = () => invoke<null>("restore_starters");
 export const getAdultContent = () => invoke<boolean>("get_adult_content");
 /** Ask "Are you 18 or older?" before `true`. */
 export const setAdultContent = (on: boolean) => invoke<null>("set_adult_content", { on });
+export const getCharacterGrowth = () => invoke<boolean>("get_character_growth");
+export const setCharacterGrowth = (on: boolean) => invoke<null>("set_character_growth", { on });
 export const savePersona = (personaId: number | null, fields: PersonaFields, avatar: AvatarChange) =>
   invoke<Persona>("save_persona", { personaId, fields, avatar });
 export const deletePersona = (personaId: number) => invoke<null>("delete_persona", { personaId });

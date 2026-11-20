@@ -523,6 +523,10 @@ export const strings = {
     adultAsk: "Are you 18 or older?",
     adultYes: "Yes, I am 18 or older",
     adultNo: "No",
+    characters: "Characters",
+    growthLabel: "Character growth",
+    growthHint:
+      "Characters remember how you treat them in each chat. They warm up when you are kind and come around after you make amends. After each reply, Unstrung takes a few more seconds in the background to note what changed.",
     safety: "Copies and repair",
     copies: (n: number) =>
       n === 0

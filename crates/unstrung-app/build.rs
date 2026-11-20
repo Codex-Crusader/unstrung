@@ -30,6 +30,8 @@ const COMMANDS: &[&str] = &[
     "new_chat",
     "get_adult_content",
     "set_adult_content",
+    "get_character_growth",
+    "set_character_growth",
     "move_folder",
     "free_up_candidates",
     "free_up_space",

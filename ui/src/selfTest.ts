@@ -57,6 +57,8 @@ import {
   moveFolder,
   getAdultContent,
   setAdultContent,
+  getCharacterGrowth,
+  setCharacterGrowth,
 } from "./api";
 
 /** The first status that `done` accepts. */
@@ -392,6 +394,16 @@ async function checkSettings(show: (screen: Screen) => void): Promise<string> {
     if (!(await getAdultContent())) return "settings: adult content did not turn on";
   } finally {
     await setAdultContent(adultBefore);
+  }
+  // Character growth: the switch is on the page, and it turns over and back.
+  if (!document.body.textContent.includes(strings.settings.growthLabel))
+    return "settings: the character growth switch is missing";
+  const growthBefore = await getCharacterGrowth();
+  try {
+    await setCharacterGrowth(!growthBefore);
+    if ((await getCharacterGrowth()) === growthBefore) return "settings: character growth did not change";
+  } finally {
+    await setCharacterGrowth(growthBefore);
   }
   return "";
 }

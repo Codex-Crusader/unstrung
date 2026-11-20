@@ -37,6 +37,8 @@
     "allow-new-chat",
     "allow-get-adult-content",
     "allow-set-adult-content",
+    "allow-get-character-growth",
+    "allow-set-character-growth",
     "allow-move-folder",
     "allow-free-up-candidates",
     "allow-free-up-space",

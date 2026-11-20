@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import {
   diagnosticReport,
   getAdultContent,
+  getCharacterGrowth,
   getNotify,
   getUiSettings,
   listCopies,
   restartSafe,
   setAdultContent,
+  setCharacterGrowth,
   setNotify,
   setUiSetting,
   toUiError,
@@ -42,7 +44,45 @@ function NotifyToggle() {
   );
 }
 
-/** One setting as a row of choices. */
+/** Settings > Characters: character growth, off at install. */
+function GrowthToggle() {
+  const s = strings.settings;
+  const [on, setOn] = useState<boolean | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
+  useEffect(() => {
+    getCharacterGrowth()
+      .then(setOn)
+      .catch((e: unknown) => {
+        setError(toUiError(e));
+      });
+  }, []);
+  if (on === null) return error ? <ErrorNote error={error} /> : null;
+  return (
+    <>
+      <label className="check-confirm">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setError(null);
+            setCharacterGrowth(next)
+              .then(() => {
+                setOn(next);
+              })
+              .catch((err: unknown) => {
+                setError(toUiError(err));
+              });
+          }}
+        />
+        {s.growthLabel}
+      </label>
+      <p className="field-hint">{s.growthHint}</p>
+      {error && <ErrorNote error={error} />}
+    </>
+  );
+}
+
 /** Settings > Content: adult content, off at install. On asks for 18+ once. */
 function AdultToggle() {
   const s = strings.settings;
@@ -111,6 +151,7 @@ function AdultToggle() {
   );
 }
 
+/** One setting as a row of choices. */
 function Choices({
   label,
   name,
@@ -218,6 +259,11 @@ export function SettingsScreen() {
       <section className="settings-group" aria-label={s.content}>
         <h2>{s.content}</h2>
         <AdultToggle />
+      </section>
+
+      <section className="settings-group" aria-label={s.characters}>
+        <h2>{s.characters}</h2>
+        <GrowthToggle />
       </section>
 
       <section className="settings-group" aria-label={s.safety}>

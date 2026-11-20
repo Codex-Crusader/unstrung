@@ -27,6 +27,24 @@ pub async fn set_adult_content(state: State<'_, AppState>, on: bool) -> CmdResul
 }
 
 #[tauri::command]
+pub async fn get_character_growth(state: State<'_, AppState>) -> CmdResult<bool> {
+    Ok(state.chats.growth_on().await)
+}
+
+/// Settings > Characters. Off at install: on, a short check after each
+/// reply tracks how the character feels about the user.
+#[tauri::command]
+pub async fn set_character_growth(state: State<'_, AppState>, on: bool) -> CmdResult<()> {
+    let value = if on { "on" } else { "off" };
+    log::info!("character growth setting: {value}");
+    Ok(state
+        .chats
+        .db()
+        .set_meta(unstrung_core::growth::ask::SWITCH_KEY, value)
+        .await?)
+}
+
+#[tauri::command]
 pub async fn list_personas(state: State<'_, AppState>) -> CmdResult<Vec<Persona>> {
     Ok(state.chats.db().personas().await?)
 }

@@ -173,6 +173,8 @@ fn main() {
             commands::new_chat,
             commands::get_adult_content,
             commands::set_adult_content,
+            commands::get_character_growth,
+            commands::set_character_growth,
             commands::move_folder,
             commands::free_up_candidates,
             commands::free_up_space,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-character-growth"
+description = "Enables the set_character_growth command without any pre-configured scope."
+commands.allow = ["set_character_growth"]
+
+[[permission]]
+identifier = "deny-set-character-growth"
+description = "Denies the set_character_growth command without any pre-configured scope."
+commands.deny = ["set_character_growth"]
