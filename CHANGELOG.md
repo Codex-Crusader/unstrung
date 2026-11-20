@@ -8,6 +8,8 @@ stops when the section is missing.
 
 ## Unreleased
 
+## 0.3.2
+
 - Model downloads now use the proxy from Windows Settings also when HTTP_PROXY is set. Only a set HTTPS_PROXY replaces it, because the chat engine downloads over HTTPS.
 - A backup import now stops with a clear message when the drive with the app folder is not connected. Before, it skipped the free space check.
 - Restoring a copy of your chats, and importing a backup, now wait a few seconds when an antivirus scan holds a file, instead of failing at once.
