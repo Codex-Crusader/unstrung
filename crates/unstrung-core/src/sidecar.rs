@@ -263,9 +263,10 @@ fn save_pid(paths: &AppPaths, pid: u32) {
 pub fn leftover(paths: &AppPaths) -> Option<u32> {
     let bytes = std::fs::read(paths.engine_pids()).ok()?;
     let record = serde_json::from_slice::<PidRecord>(&bytes).ok()?;
+    let pid = Pid::from_u32(record.pid);
     let mut system = System::new();
-    system.refresh_processes(ProcessesToUpdate::All, true);
-    let process = system.process(Pid::from_u32(record.pid))?;
+    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    let process = system.process(pid)?;
     let is_ollama = process.name().eq_ignore_ascii_case("ollama.exe")
         || process.name().eq_ignore_ascii_case("ollama");
     (is_ollama && process.start_time() == record.start_time).then_some(record.pid)

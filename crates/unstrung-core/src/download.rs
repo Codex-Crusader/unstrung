@@ -164,6 +164,9 @@ impl Fetcher {
             .open(part)?;
         file.set_len(start)?;
         file.seek(SeekFrom::Start(start))?;
+        // Network chunks are a few KB: one write per MB, not per chunk. A
+        // crash loses at most the buffer, and the resume reads the file length.
+        let mut file = std::io::BufWriter::with_capacity(1 << 20, file);
         let mut done = start;
         progress(done);
         let mut stream = response.bytes_stream();
@@ -171,7 +174,8 @@ impl Fetcher {
             let chunk = tokio::select! {
                 c = stream.next() => c,
                 () = cancel.cancelled() => {
-                    file.sync_all()?;
+                    file.flush()?;
+                    file.get_ref().sync_all()?;
                     return Err(Error::Cancelled);
                 }
             };
@@ -186,7 +190,8 @@ impl Fetcher {
             file.write_all(&chunk)?;
             progress(done);
         }
-        file.sync_all()?;
+        file.flush()?;
+        file.get_ref().sync_all()?;
         Ok(done)
     }
 }
