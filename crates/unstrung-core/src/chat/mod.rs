@@ -44,7 +44,7 @@ const THREAD_TIMEOUT: Duration = Duration::from_secs(20);
 /// The open thread shows only after a user message this short or shorter.
 const THREAD_SHORT_WORDS: usize = 8;
 /// A memory pass reads up to 10 messages and writes a short summary and facts.
-const MEMORY_TOKENS: i32 = 400;
+const MEMORY_TOKENS: i32 = 512;
 const MEMORY_TIMEOUT: Duration = Duration::from_secs(90);
 /// The scene JSON is short.
 const SCENE_TOKENS: i32 = 300;

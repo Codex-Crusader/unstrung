@@ -239,3 +239,14 @@ fn a_refresh_keeps_four_messages_and_never_drops_what_the_summary_lacks() {
     // A point that a rewind took off the path: all of it.
     assert_eq!(window(&p, Some(99), &summary).len(), 20);
 }
+
+#[test]
+fn a_cut_answer_loses_only_its_last_line() {
+    let a =
+        "Goal: find the watch.\nSummary: Kai hires Ren.\nFacts:\n- Kai wants the watch.\n- Kai's";
+    assert_eq!(
+        drop_cut_line(a),
+        "Goal: find the watch.\nSummary: Kai hires Ren.\nFacts:\n- Kai wants the watch."
+    );
+    assert_eq!(drop_cut_line("Goal: find the"), "");
+}

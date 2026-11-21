@@ -179,7 +179,14 @@ impl ChatService {
         tokio::select! {
             biased;
             () = token.cancelled() => Ok(None),
-            a = client.complete(&params, MEMORY_TIMEOUT) => Ok(Some(a?)),
+            a = client.complete_cut(&params, MEMORY_TIMEOUT) => {
+                let (mut answer, cut) = a?;
+                if cut {
+                    log::debug!("memory pass hit the token cap, its last line is dropped");
+                    answer = memory::drop_cut_line(&answer).to_owned();
+                }
+                Ok(Some(answer))
+            }
         }
     }
 

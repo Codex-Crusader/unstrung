@@ -8,6 +8,8 @@ stops when the section is missing.
 
 ## Unreleased
 
+- Memory no longer saves half a fact. Before, when the model ran out of room in the middle of a fact, the Memory panel could show a cut fact such as "Kai's", and later replies saw it too.
+
 ## 0.4.0
 
 - New setting: Settings > Characters > Character growth. It is off until you turn it on. With it on, characters remember how you treat them in each chat. They warm up when you are kind, do not forgive at once after you hurt them, and come around after you make amends. A rewind, a regenerate or a new branch takes the feelings back to that point in the chat.

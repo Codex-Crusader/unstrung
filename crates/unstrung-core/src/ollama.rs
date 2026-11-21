@@ -425,6 +425,15 @@ impl Client {
 
     /// One reply without streaming, for short helper tasks.
     pub async fn complete(&self, params: &ChatParams<'_>, timeout: Duration) -> Result<String> {
+        Ok(self.complete_cut(params, timeout).await?.0)
+    }
+
+    /// As `complete`, and true when the reply hit the token cap.
+    pub async fn complete_cut(
+        &self,
+        params: &ChatParams<'_>,
+        timeout: Duration,
+    ) -> Result<(String, bool)> {
         let request = ChatRequest::of(params, false);
         let response = self
             .http
@@ -449,7 +458,8 @@ impl Client {
         if let Some(error) = chunk.error {
             return Err(Error::Engine(error));
         }
-        Ok(chunk.message.map(|m| m.content).unwrap_or_default())
+        let cut = chunk.done_reason.as_deref() == Some("length");
+        Ok((chunk.message.map(|m| m.content).unwrap_or_default(), cut))
     }
 
     /// Streams a chat reply. `on_text` gets each new piece of text.

@@ -214,6 +214,14 @@ pub fn pass_question(char_name: &str, user_name: &str, old: &Recall, chunk: &[Me
     )
 }
 
+/// The answer without its last line, which the token cap cut in the middle.
+pub fn drop_cut_line(answer: &str) -> &str {
+    answer
+        .trim_end()
+        .rsplit_once('\n')
+        .map_or("", |(kept, _)| kept)
+}
+
 /// The parsed answer of a pass.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct PassAnswer {
