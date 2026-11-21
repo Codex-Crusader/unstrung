@@ -9,6 +9,9 @@ stops when the section is missing.
 ## Unreleased
 
 - Memory no longer saves half a fact. Before, when the model ran out of room in the middle of a fact, the Memory panel could show a cut fact such as "Kai's", and later replies saw it too.
+- Memory saves fewer invented facts. A fact must now use your own words, in any form, except for one new word at most. Before, the model could save an event that you never wrote, such as "The pawnbroker was killed three days ago".
+- A reply no longer follows half of a request. Before a reply, Unstrung asks the model whether you left a request open. When that short answer was cut, the reply could get half a sentence as its hint.
+- The app is built with Control Flow Guard, a Windows protection that makes some memory attacks harder.
 
 ## 0.4.0
 

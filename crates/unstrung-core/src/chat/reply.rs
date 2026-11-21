@@ -414,14 +414,19 @@ impl ChatService {
         };
         let started = std::time::Instant::now();
         let answer = client
-            .complete(
+            .complete_cut(
                 &chat_params(model, &messages, &options, tuning.think.map(|_| false)),
                 THREAD_TIMEOUT,
             )
             .await;
         match answer {
-            Ok(text) => {
-                let thread = prompt::clean_open_thread(&text);
+            Ok((text, cut)) => {
+                // A cut answer ends in half a request, which would mislead the reply.
+                let thread = if cut {
+                    None
+                } else {
+                    prompt::clean_open_thread(&text)
+                };
                 // Only whether there is one: the thread is chat text.
                 log::info!(
                     "open thread in {} ms: {}",

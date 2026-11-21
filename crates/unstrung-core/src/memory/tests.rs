@@ -250,3 +250,25 @@ fn a_cut_answer_loses_only_its_last_line() {
     );
     assert_eq!(drop_cut_line("Goal: find the"), "");
 }
+
+#[test]
+fn a_fact_with_an_invented_event_is_dropped() {
+    let user = [
+        "Emi thinks the last person who had it was a pawnbroker called Ozu, on Ninth Street.",
+        "I will pay you with my grandfather's old record player.",
+        "The rain has not stopped for three days.",
+    ];
+    let answer = "Facts:\n\
+                  - The pawnbroker Ozu on Ninth Street was killed three days ago.\n\
+                  - Kai's grandfather died in the last decade.\n\
+                  - Kai offered his grandfather's old record player as payment.\n\
+                  - Emi thinks the pawnbroker Ozu on Ninth Street had it last.";
+    let a = parse_pass(answer, &user, &["Kai", "Ren Kagami"]);
+    assert_eq!(
+        a.facts,
+        [
+            "Kai offered his grandfather's old record player as payment.",
+            "Emi thinks the pawnbroker Ozu on Ninth Street had it last."
+        ]
+    );
+}

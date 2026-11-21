@@ -273,7 +273,13 @@ pub fn parse_pass(answer: &str, user_lines: &[&str], names: &[&str]) -> PassAnsw
         .iter()
         .filter(|f| !f.trim_end_matches(['.', ' ']).ends_with('?'))
         .filter_map(|f| clean(f, FACT_WORDS))
-        .filter(|f| supported(f, &user_words, names))
+        .filter(|f| {
+            let ok = supported(f, &user_words, names);
+            if !ok {
+                log::debug!("memory note: dropped fact: {f}");
+            }
+            ok
+        })
         .filter(fine)
         .take(FACTS_PER_PASS)
         .collect();
@@ -292,7 +298,9 @@ fn strip_label<'a>(line: &'a str, lower: &str, label: &str) -> Option<&'a str> {
 }
 
 /// True when the user's lines back the fact: at least half of its content
-/// words, and every name in it except the two people in the chat.
+/// words as written, every name in it except the two people in the chat,
+/// and at most one word that the user did not use in any form. A model that
+/// invents an event ("was killed three days ago") needs new words for it.
 fn supported(fact: &str, user_words: &HashSet<String>, names: &[&str]) -> bool {
     let words = content_words(fact);
     if words.is_empty() {
@@ -303,13 +311,30 @@ fn supported(fact: &str, user_words: &HashSet<String>, names: &[&str]) -> bool {
         .iter()
         .filter(|w| user_words.contains(*w) || known.contains(*w))
         .count();
+    let new = words
+        .iter()
+        .filter(|w| !SMALL.contains(&w.as_str()) && !known.contains(*w))
+        .filter(|w| !user_words.iter().any(|u| same_word(w, u)))
+        .count();
     let named = fact
         .split_whitespace()
         .skip(1)
         .filter(|w| w.starts_with(|c: char| c.is_uppercase()))
         .flat_map(content_words)
         .all(|w| user_words.contains(&w) || known.contains(&w));
-    backed * 2 >= words.len() && named
+    backed * 2 >= words.len() && new <= 1 && named
+}
+
+/// Short words that a fact adds to what the user said without new meaning.
+const SMALL: [&str; 23] = [
+    "the", "and", "was", "were", "his", "her", "him", "she", "for", "are", "has", "had", "who",
+    "did", "not", "but", "its", "our", "one", "all", "name", "named", "called",
+];
+
+/// The same word in another form: "offered" and "offer", "payment" and "pay".
+fn same_word(a: &str, b: &str) -> bool {
+    let shared = a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count();
+    shared >= 4 || shared == a.len().min(b.len())
 }
 
 fn content_words(text: &str) -> HashSet<String> {

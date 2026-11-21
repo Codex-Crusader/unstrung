@@ -70,9 +70,15 @@ jobs:
       - name: Install the Tauri CLI
         run: cargo install tauri-cli --version 2.12.4 --locked
       # No key here, so no update signature: the sign job makes it.
+      # Control Flow Guard: Windows stops a jump into code that is not a
+      # function start. RUSTFLAGS covers the Rust code, CFLAGS the C code
+      # (SQLCipher, OpenSSL).
       - name: Build the installer
         working-directory: crates/unstrung-app
         shell: pwsh
+        env:
+          RUSTFLAGS: -C control-flow-guard
+          CFLAGS: /guard:cf
         run: |
           '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content no-signature.json -Encoding utf8NoBOM
           cargo tauri build --config no-signature.json
